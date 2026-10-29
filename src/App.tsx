@@ -1,5 +1,6 @@
 
 import './App.css'
+import CustomerExperience from './CustomerExperience'
 
 const categories = [
   {
@@ -303,6 +304,8 @@ function App() {
           ))}
         </div>
       </section>
+
+      <CustomerExperience />
 
       <section className="contact-banner" id="contact">
         <div>
