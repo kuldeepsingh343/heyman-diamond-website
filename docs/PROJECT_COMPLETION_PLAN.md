@@ -163,3 +163,13 @@ This checklist is a practical implementation aid, not a legal opinion. Have qual
 - Added the SQL migration file for the promotion columns already applied to Supabase.
 - **Migration tracking is still incomplete:** the initial schema and function/index hardening migrations are recorded in the live Supabase migration history but their matching SQL files have not yet been reconstructed and committed. Do not claim the database can be recreated from repository migrations until those files are restored and tested against a clean database.
 - The Supabase security advisor currently reports 10 informational `rls_enabled_no_policy` notices. Direct browser table access is intentionally not enabled; the server uses a privileged database key and must continue enforcing access checks. Keep production launch blocked until authorization and cross-account tests are complete.
+
+
+## Phase 1 hardening work — 2026-10-29 (follow-up)
+
+- Fixed the admin review-status endpoint to enforce the order-management permission and accept UUIDs case-insensitively.
+- Public review submissions are now saved as hidden pending moderation rather than being published immediately.
+- Added cleanup behavior to bound the in-memory review rate-limit map. This is still process-local and is not a substitute for durable shared rate limiting in production.
+- Added Node smoke tests for API startup, health response secrecy, origin rejection, and fail-closed behavior when database/inventory configuration is absent; CI now runs `npm test`.
+- **Not yet verified:** the new test suite and full CI for the latest commits have not returned a passing run at the time this note was written.
+- **Still blocking Phase 1 completion:** reconstruct the first two applied SQL migrations from the live schema and test them against a clean database; integration tests for authenticated customer/admin roles and cross-account isolation; review current authorization paths end-to-end; configure Supabase Auth redirect/email settings and production secrets; verify deployed hosting. No public deployment has been performed.
