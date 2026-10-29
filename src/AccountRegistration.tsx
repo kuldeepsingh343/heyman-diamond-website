@@ -61,7 +61,17 @@ export default function AccountRegistration() {
   const input = (name: string, label: string, required = false, type = 'text') => (
     <div className="account-field" key={name}>
       <label htmlFor={name}>{label}{required ? ' *' : ''}</label>
-      <input id={name} name={name} type={type} required={required} autoComplete={type === 'email' ? 'email' : undefined} />
+      <input
+        id={name}
+        name={name}
+        type={type}
+        required={required}
+        autoComplete={type === 'email' ? 'email' : undefined}
+        value={name in basic ? basic[name as keyof typeof basic] : undefined}
+        onChange={event => {
+          if (name in basic) setBasic(current => ({ ...current, [name]: event.target.value }))
+        }}
+      />
     </div>
   )
 
