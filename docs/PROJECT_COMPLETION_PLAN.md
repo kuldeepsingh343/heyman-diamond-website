@@ -154,3 +154,12 @@ This checklist is a practical implementation aid, not a legal opinion. Have qual
 - Added promotion columns required by the current API to the Supabase database.
 - CI was triggered for the server changes; do not mark this work validated until the workflow finishes successfully and remaining authorization/integration tests are added.
 - Remaining high-priority work: commit the exact applied SQL migrations into the repository; add automated tests for unauthorized admin requests, origin handling, malformed input, and quote identity; verify all API queries against the live schema; implement verified inventory checks and durable rate limiting; configure Auth/email settings; and complete a security review before production.
+
+
+## Repository hardening follow-up — 2026-10-29
+
+- Corrected the inquiry email validation expression and added a permission check to the admin review-status endpoint. GitHub Actions CI passed for commit `aac22bf3874a7437b4b0329f779d98a7a5ab0ad3` (run 55).
+- Added `.env` and `.env.*` ignore rules while preserving `.env.example`; local secrets should never be committed.
+- Added the SQL migration file for the promotion columns already applied to Supabase.
+- **Migration tracking is still incomplete:** the initial schema and function/index hardening migrations are recorded in the live Supabase migration history but their matching SQL files have not yet been reconstructed and committed. Do not claim the database can be recreated from repository migrations until those files are restored and tested against a clean database.
+- The Supabase security advisor currently reports 10 informational `rls_enabled_no_policy` notices. Direct browser table access is intentionally not enabled; the server uses a privileged database key and must continue enforcing access checks. Keep production launch blocked until authorization and cross-account tests are complete.
