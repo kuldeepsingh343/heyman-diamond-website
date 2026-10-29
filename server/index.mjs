@@ -273,7 +273,8 @@ const server = createServer(async (req, res) => {
         const rows = await db('reviews?select=id,customer_name,rating,remarks,status,submitted_at&order=submitted_at.desc')
         return json(res, 200, { items: rows })
       }
-      if (req.method === 'PATCH' && /^\/api\/admin\/reviews\/[0-9a-f-]+$/.test(url.pathname)) {
+      if (req.method === 'PATCH' && /^\/api\/admin\/reviews\/[0-9a-f-]+$/i.test(url.pathname)) {
+        if (!p.can_manage_orders) return json(res, 403, { error: 'Review-management permission required.' })
         const input = await bodyJson(req)
         if (!['published', 'hidden'].includes(input.status)) return json(res, 400, { error: 'Status must be published or hidden.' })
         const id = url.pathname.split('/').pop()
