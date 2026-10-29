@@ -157,13 +157,16 @@ const server = createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/quotes') {
       if (!supabaseReady()) return json(res, 503, { error: 'Quote service is not configured yet.' })
+      const customer = await authenticatedUser(req)
+      if (!customer?.id || !customer.email) return json(res, 401, { error: 'Please sign in to save a price quote.' })
       const input = await bodyJson(req)
-      const name = String(input.name || '').trim()
-      const email = String(input.email || '').trim().toLowerCase()
+      // Identity comes from the signed-in website account, never from Flomiz or client-supplied email.
+      const email = String(customer.email).trim().toLowerCase()
+      const name = String(customer.user_metadata?.full_name || customer.user_metadata?.name || input.name || '').trim()
       const message = String(input.message || '').trim()
       const items = Array.isArray(input.items) ? input.items : []
-      if (name.length < 1 || name.length > 120 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254 || message.length > 2000 || items.length < 1 || items.length > 30) {
-        return json(res, 400, { error: 'Provide your name, a valid email and 1–30 diamond items.' })
+      if (name.length < 1 || name.length > 120 || email.length > 254 || message.length > 2000 || items.length < 1 || items.length > 30) {
+        return json(res, 400, { error: 'Please check your account name and include 1–30 diamond items.' })
       }
       const normalizedItems = []
       for (const item of items) {
@@ -188,6 +191,7 @@ const server = createServer(async (req, res) => {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({
+          user_id: customer.id,
           customer_name: name,
           customer_email: email,
           customer_message: message || null,
