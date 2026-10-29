@@ -122,3 +122,11 @@ This checklist is a practical implementation aid, not a legal opinion. Have qual
 - [ ] Verify deployment health and database connectivity without logging secrets.
 
 **Decision:** Phase 1 is *in progress*, not production-ready. Continue to Phase 2 only after the exit criteria relevant to authentication, database security, and CI are met. The current frontend/API scaffold is not a live account system.
+
+
+### Supabase project confirmation — 2026-10-29
+- The Supabase project `heyman-diamond-website` is present and reports `ACTIVE_HEALTHY` in region `us-east-1`; project ref: `qdjqdbuozbgghasmeksw`.
+- Initial inspection found zero tables in the `public` schema and zero recorded migrations. Database schema, authentication flows, and row-level security policies are not yet configured/verified.
+- Supabase security advisor returned no lint findings at this initial empty-database stage; this is not proof of application security.
+- A publishable key exists. Configure credentials through local/server environment settings; never commit secret/service-role keys or share them in chat. Prefer the current publishable/secret key types where supported.
+- Phase 1 remains in progress until schema and least-privilege RLS policies are applied, Auth settings are configured, API issues are fixed, and CI/tests pass.
