@@ -10,8 +10,9 @@ const FLOMIZ_PORTAL_TYPE = Number(process.env.FLOMIZ_PORTAL_TYPE || 1000)
 const FLOMIZ_API_USERNAME = process.env.FLOMIZ_API_USERNAME
 const FLOMIZ_API_PASSWORD = process.env.FLOMIZ_API_PASSWORD
 
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:5173'
 const headers = {
-  'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
   'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type,Authorization',
   'Vary': 'Origin',
@@ -84,6 +85,10 @@ function publicProduct(product) {
   }
 }
 const server = createServer(async (req, res) => {
+  const requestOrigin = req.headers.origin
+  if (requestOrigin && requestOrigin !== ALLOWED_ORIGIN) {
+    return json(res, 403, { error: 'This website origin is not allowed.' })
+  }
   if (req.method === 'OPTIONS') {
     res.writeHead(204, headers)
     return res.end()
@@ -174,14 +179,14 @@ const server = createServer(async (req, res) => {
         const productName = String(item.name || '').trim()
         const quantity = Number(item.quantity ?? 1)
         const requestedPrice = Number(item.requestedPrice)
-        const currentPrice = item.currentPrice == null ? null : Number(item.currentPrice)
+        const currentPrice = null // Never trust a browser-supplied price as the authoritative displayed price.
         if (!sku || sku.length > 100 || !productName || productName.length > 250 || !Number.isInteger(quantity) || quantity < 1 || quantity > 100 || !Number.isFinite(requestedPrice) || requestedPrice <= 0 || requestedPrice > 100000000 || (currentPrice !== null && (!Number.isFinite(currentPrice) || currentPrice < 0 || currentPrice > 100000000))) {
           return json(res, 400, { error: 'Check each diamond SKU, quantity and requested price.' })
         }
         normalizedItems.push({
           flomiz_sku: sku,
           product_name: productName,
-          product_snapshot: item.snapshot && typeof item.snapshot === 'object' ? item.snapshot : {},
+          product_snapshot: { clientProvided: true }, // Untrusted reference only; re-fetch and verify inventory before any sale.
           quantity,
           current_unit_price: currentPrice,
           requested_unit_price: requestedPrice,
@@ -264,6 +269,7 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { updated: true, status: input.status })
       }
       if (req.method === 'GET' && url.pathname === '/api/admin/reviews') {
+        if (!p.can_manage_orders) return json(res, 403, { error: 'Review-management permission required.' })
         const rows = await db('reviews?select=id,customer_name,rating,remarks,status,submitted_at&order=submitted_at.desc')
         return json(res, 200, { items: rows })
       }
@@ -291,6 +297,7 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { items: rows })
       }
       if (req.method === 'POST' && url.pathname === '/api/admin/review-replies') {
+        if (!p.can_manage_orders) return json(res, 403, { error: 'Review-management permission required.' })
         const input = await bodyJson(req)
         const reviewId = String(input.reviewId || '')
         const replyText = String(input.replyText || '').trim()
