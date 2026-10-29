@@ -146,7 +146,7 @@ const server = createServer(async (req, res) => {
       const name = String(input.name || '').trim()
       const email = String(input.email || '').trim().toLowerCase()
       const message = String(input.message || '').trim()
-      if (name.length < 1 || name.length > 120 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254 || message.length < 1 || message.length > 3000) {
+      if (name.length < 1 || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || message.length < 1 || message.length > 3000) {
         return json(res, 400, { error: 'Please check your name, email and message.' })
       }
       const rows = await db('orders', {
