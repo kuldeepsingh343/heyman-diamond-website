@@ -37,6 +37,22 @@ test('API smoke checks', async t => {
     assert.equal(response.status, 403)
   })
 
+  await t.test('admin endpoints reject unauthenticated requests', async () => {
+    for (const path of ['/api/admin/orders', '/api/admin/reviews', '/api/admin/dealer-applications', '/api/admin/promotions']) {
+      const response = await fetch(`http://127.0.0.1:${port}${path}`, { headers: { Origin: origin } })
+      assert.equal(response.status, 401, path + ' should require an authenticated admin')
+    }
+  })
+
+  await t.test('quotes require an authenticated account', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/quotes`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', items: [{ sku: 'x', name: 'Diamond', requestedPrice: 100 }] }),
+    })
+    assert.equal(response.status, 401)
+  })
+
   await t.test('catalog stays unavailable until Flomiz is configured', async () => {
     const response = await fetch(`http://127.0.0.1:${port}/api/catalog`, { headers: { Origin: origin } })
     assert.equal(response.status, 503)
