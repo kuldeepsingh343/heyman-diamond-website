@@ -11,10 +11,16 @@ Example request for a stock page (CustomerId is a documentation placeholder, not
       "PortalType": 1000,
       "ProductStockType": 3,
       "IsRemoveZeroStock": true,
-      "IsShowRapaportPrice": true,
+      "IsShowRapaportPrice": false,
       "PhotoSize": 1,
       "PageContext": { "Page": 1, "PerPage": 30 }
     }
+
+## Data boundary
+- Flomiz is used only as a product/inventory data provider. Do not use it to fetch customer names, emails, accounts, orders, or other customer records.
+- Website customer identity, sign-in, profiles, orders and quote requests are stored in the website's own authentication/database system.
+- Require an authenticated website account before saving a quote or placing an order; derive customer identity from the verified server-side session, not customer fields submitted by the browser.
+- Treat the documented CustomerId value "*" as an example only until Flomiz confirms the real authorized value.
 
 ## Before enabling the catalog
 - Confirm credentials/auth method and authorized CustomerId/PortalType with Flomiz.
@@ -22,7 +28,7 @@ Example request for a stock page (CustomerId is a documentation placeholder, not
 - Test pagination from response PageContext totals.
 - Confirm which fields are allowed for public shoppers and approved dealers.
 - Do not expose Rapaport pricing, internal stock quantities, supplier identifiers or internal notes by default.
-- Normalize stable SKU, shape, carat, color, clarity, cut, polish, symmetry, lab/certificate, availability and approved price.
+- Normalize stable SKU, product/category, shape, carat, color, clarity, cut, polish, symmetry, lab/certificate and availability. Only expose price fields after retail/dealer pricing policy is approved and implemented server-side.
 - Verify whether lstImages.base64FileByte contains usable image data; the example showed it empty.
 - Set timeouts, bounded retries, rate limiting, caching and a clear stale-inventory state.
 - Confirm reservation, order write-back, webhook or stock-locking support. If absent, use inquiry/quote or manual confirmation to avoid overselling.
