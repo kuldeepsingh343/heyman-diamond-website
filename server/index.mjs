@@ -155,6 +155,65 @@ const server = createServer(async (req, res) => {
       return json(res, 201, { submitted: true, inquiryNumber: rows?.[0]?.order_number || null, message: 'Thank you. Our team will follow up.' })
     }
 
+    if (req.method === 'POST' && url.pathname === '/api/quotes') {
+      if (!supabaseReady()) return json(res, 503, { error: 'Quote service is not configured yet.' })
+      const input = await bodyJson(req)
+      const name = String(input.name || '').trim()
+      const email = String(input.email || '').trim().toLowerCase()
+      const message = String(input.message || '').trim()
+      const items = Array.isArray(input.items) ? input.items : []
+      if (name.length < 1 || name.length > 120 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254 || message.length > 2000 || items.length < 1 || items.length > 30) {
+        return json(res, 400, { error: 'Provide your name, a valid email and 1–30 diamond items.' })
+      }
+      const normalizedItems = []
+      for (const item of items) {
+        const sku = String(item.sku || '').trim()
+        const productName = String(item.name || '').trim()
+        const quantity = Number(item.quantity ?? 1)
+        const requestedPrice = Number(item.requestedPrice)
+        const currentPrice = item.currentPrice == null ? null : Number(item.currentPrice)
+        if (!sku || sku.length > 100 || !productName || productName.length > 250 || !Number.isInteger(quantity) || quantity < 1 || quantity > 100 || !Number.isFinite(requestedPrice) || requestedPrice <= 0 || requestedPrice > 100000000 || (currentPrice !== null && (!Number.isFinite(currentPrice) || currentPrice < 0 || currentPrice > 100000000))) {
+          return json(res, 400, { error: 'Check each diamond SKU, quantity and requested price.' })
+        }
+        normalizedItems.push({
+          flomiz_sku: sku,
+          product_name: productName,
+          product_snapshot: item.snapshot && typeof item.snapshot === 'object' ? item.snapshot : {},
+          quantity,
+          current_unit_price: currentPrice,
+          requested_unit_price: requestedPrice,
+        })
+      }
+      const quoteRows = await db('quote_requests', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          customer_name: name,
+          customer_email: email,
+          customer_message: message || null,
+          status: 'new',
+        }),
+      })
+      const quote = quoteRows?.[0]
+      if (!quote?.id) throw new Error('Quote request could not be created')
+      await db('quote_request_items', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify(normalizedItems.map(item => ({ ...item, quote_request_id: quote.id }))),
+      })
+      await db('audit_log', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ action: 'customer_quote_submitted', entity_type: 'quote_request', entity_id: quote.id, metadata: { item_count: normalizedItems.length } }),
+      })
+      return json(res, 201, {
+        submitted: true,
+        quoteNumber: quote.quote_number,
+        quoteId: quote.id,
+        message: 'Your quote request has been saved and is now available to the admin team.',
+      })
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/reviews') {
       if (!supabaseReady()) return json(res, 503, { error: 'Review submission is not configured yet.' })
       const now = Date.now()
@@ -183,6 +242,23 @@ const server = createServer(async (req, res) => {
       if (!admin) return json(res, 401, { error: 'Sign in with an authorized administrator account.' })
       const p = admin.permissions
 
+      if (req.method === 'GET' && url.pathname === '/api/admin/quotes') {
+        if (!p.can_manage_orders) return json(res, 403, { error: 'Order-management permission required.' })
+        const rows = await db('quote_requests?select=id,quote_number,customer_name,customer_email,customer_message,status,created_at,quote_request_items(id,flomiz_sku,product_name,product_snapshot,quantity,current_unit_price,requested_unit_price)&order=created_at.desc')
+        return json(res, 200, { items: rows, unreadCount: (rows || []).filter(row => row.status === 'new').length })
+      }
+      if (req.method === 'PATCH' && /^\\/api\\/admin\\/quotes\\/[0-9a-f-]+$/i.test(url.pathname)) {
+        if (!p.can_manage_orders) return json(res, 403, { error: 'Order-management permission required.' })
+        const input = await bodyJson(req)
+        const allowed = ['new', 'under_review', 'counter_offered', 'accepted', 'declined', 'converted_to_order', 'closed']
+        if (!allowed.includes(input.status)) return json(res, 400, { error: 'Invalid quote request status.' })
+        const id = url.pathname.split('/').pop()
+        const rows = await db(`quote_requests?id=eq.${id}&select=id,quote_number,status`)
+        if (!rows?.[0]) return json(res, 404, { error: 'Quote request not found.' })
+        await db(`quote_requests?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: input.status, updated_at: new Date().toISOString() }) })
+        await db('audit_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ actor_user_id: admin.user.id, action: 'quote_request_status_changed', entity_type: 'quote_request', entity_id: id, metadata: { status: input.status } }) })
+        return json(res, 200, { updated: true, status: input.status })
+      }
       if (req.method === 'GET' && url.pathname === '/api/admin/reviews') {
         const rows = await db('reviews?select=id,customer_name,rating,remarks,status,submitted_at&order=submitted_at.desc')
         return json(res, 200, { items: rows })
