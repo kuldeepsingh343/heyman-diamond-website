@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import './PolicyPages.css'
 
 type PolicySlug = 'shipping' | 'returns' | 'privacy' | 'terms' | 'faq' | 'sizing'
@@ -11,7 +12,7 @@ const pageTitles: Record<PolicySlug, string> = {
   sizing: 'Ring Sizing Guide',
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return <section className="policy-section"><h2>{title}</h2>{children}</section>
 }
 
