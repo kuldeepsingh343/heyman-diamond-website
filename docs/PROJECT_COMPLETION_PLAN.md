@@ -46,3 +46,12 @@ Run in the project folder:
     npm.cmd run build
 
 A green build verifies frontend compilation only; it does not verify integrations or production readiness.
+
+## Customer cart and quote negotiation
+- Customers can add multiple diamonds to a cart and choose either checkout at the currently displayed price or **Quote your price**.
+- Quote mode keeps the full selected cart and asks for one requested unit price per diamond; customers can review and save the request.
+- Saving creates one quote request plus item-level rows containing SKU, product snapshot, quantity, current displayed price when available, and the customer's requested price for each item.
+- New quote requests appear in the authenticated Admin Portal inbox and are counted as new until an administrator updates their status. Admin APIs: `GET /api/admin/quotes` and `PATCH /api/admin/quotes/:id`.
+- This API/data foundation is not a completed checkout or a finished customer-facing cart UI. The current catalog intentionally omits prices until the business-approved price source and retail/dealer permissions are implemented.
+- Before payment launch, the server must independently fetch/verify current stock and the customer's authorized price, calculate totals server-side, and create an order only after the customer confirms. Never treat a customer-entered quote price as an accepted sale price.
+- The Admin Portal can receive immediate in-app updates by refreshing/polling the quotes inbox; a live push/badge UI and email alerts require the portal UI and notification delivery to be implemented/configured.
