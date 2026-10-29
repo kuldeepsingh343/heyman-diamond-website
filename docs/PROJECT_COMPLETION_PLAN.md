@@ -143,3 +143,14 @@ This checklist is a practical implementation aid, not a legal opinion. Have qual
 - **Still incomplete:** align and commit SQL migration files in the repository; add/verify per-user RLS policies if browser database access is needed; create the first admin account securely; configure Supabase Auth URL/redirect/email settings; update API permission checks and fix identified route/validation defects; add integration/security tests; run CI and local build; configure hosting/domain and production secrets.
 - Never send KYC documents to public storage. Before accepting any sensitive documents, configure a private storage bucket and narrowly scoped, tested access rules; avoid collecting full tax IDs until legal and retention requirements are approved.
 - This backend setup is a meaningful foundation step, not a finished or deployed website. Keep Phase 1 marked **in progress** until the remaining checks above pass.
+
+
+## API security follow-up — 2026-10-29
+
+- Added a same-origin check for requests that include an Origin header, using the configured `ALLOWED_ORIGIN`.
+- Corrected the inquiry email-validation pattern and dealer-application PATCH route matcher.
+- Added permission checks to admin review listing, review moderation, and review replies; these use the existing order-management permission until a dedicated review permission is designed.
+- Stopped treating browser-supplied current prices as authoritative quote prices. Quote item snapshots are explicitly marked as client-provided reference data only. Inventory/price must be independently fetched and verified before any sale.
+- Added promotion columns required by the current API to the Supabase database.
+- CI was triggered for the server changes; do not mark this work validated until the workflow finishes successfully and remaining authorization/integration tests are added.
+- Remaining high-priority work: commit the exact applied SQL migrations into the repository; add automated tests for unauthorized admin requests, origin handling, malformed input, and quote identity; verify all API queries against the live schema; implement verified inventory checks and durable rate limiting; configure Auth/email settings; and complete a security review before production.
