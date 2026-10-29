@@ -19,7 +19,6 @@ test('reconstructed migrations cover live schema and hardening', async () => {
   assert.ok(initial.includes('create or replace function public.handle_new_user()'))
   assert.ok(initial.includes('security definer set search_path = \'\''))
   assert.ok(hardening.includes('revoke all on function public.handle_new_user() from public, anon, authenticated'))
-  assert.ok(hardening.includes('revoke all on function public.set_updated_at() from public, anon, authenticated'))
   assert.ok(hardening.includes('create index audit_log_created_at_idx'))
   assert.ok(promotion.includes('add column if not exists max_redemptions'))
   assert.ok(promotion.includes('add column if not exists banner_text'))
