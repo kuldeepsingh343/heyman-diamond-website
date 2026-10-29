@@ -958,29 +958,38 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 8px;
+  margin-top: 22px;
 }
 
 .footer-socials a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid #ded8cd;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgb(255 255 255 / 16%);
   border-radius: 50%;
-  color: #292820;
+  color: #fffdf9;
   background: #fffdf9;
-  font-size: 18px;
+  font-size: 21px;
   text-decoration: none;
-  transition: background 0.2s ease, color 0.2s ease,
-    transform 0.2s ease;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 12%);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.footer-socials a .fa-whatsapp { color: #25D366; }
+.footer-socials a .fa-facebook-f { color: #1877F2; }
+.footer-socials a .fa-instagram {
+  color: #E4405F;
+  background: linear-gradient(45deg, #FCAF45, #E4405F 55%, #833AB4);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .footer-socials a:hover {
-  color: #ffffff;
-  background: #292820;
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 7px 16px rgb(0 0 0 / 20%);
 }
 
 .footer-socials a:focus-visible {
