@@ -43,7 +43,7 @@ export default function CustomerExperience() {
 
   return (
     <>
-      <section className="customer-paths" aria-labelledby="customer-paths-title">
+      <section className="customer-paths" id="customer-paths" aria-labelledby="customer-paths-title">
         <div className="section-heading">
           <div>
             <div className="eyebrow"><span className="eyebrow-line" />A BETTER WAY TO BUY DIAMONDS</div>
@@ -57,7 +57,7 @@ export default function CustomerExperience() {
             <h3>Wholesale &amp; Diamond Dealers</h3>
             <p>Dedicated service for jewelry businesses and diamond trade professionals.</p>
             <ul className="path-list">
-              <li>Dealer pricing after account approval</li>
+              <li>Account review for new applicants</li>
               <li>Business verification for new applicants</li>
               <li>Support for sourcing and repeat orders</li>
             </ul>
@@ -72,7 +72,7 @@ export default function CustomerExperience() {
               <li>Ask our team for help choosing a stone</li>
               <li>Create an account for a more personal experience</li>
             </ul>
-            <a className="button-secondary" href="#account">Get Started <span>↗</span></a>
+            <a className="button-secondary" href="#contact">Get Started <span>↗</span></a>
           </article>
         </div>
       </section>
