@@ -190,6 +190,89 @@ const server = createServer(async (req, res) => {
         const rows = await db('promotions?select=*&order=created_at.desc')
         return json(res, 200, { items: rows })
       }
+      if (req.method === 'POST' && url.pathname === '/api/admin/review-replies') {
+        const input = await bodyJson(req)
+        const reviewId = String(input.reviewId || '')
+        const replyText = String(input.replyText || '').trim()
+        if (!/^[0-9a-f-]{36}$/i.test(reviewId) || replyText.length < 1 || replyText.length > 3000) {
+          return json(res, 400, { error: 'Provide a valid review ID and a reply under 3,000 characters.' })
+        }
+        const reviewRows = await db(`reviews?id=eq.${reviewId}&select=id,customer_name,customer_email,user_id,status`)
+        const review = reviewRows?.[0]
+        if (!review) return json(res, 404, { error: 'Review not found.' })
+        const replyRows = await db('review_replies', {
+          method: 'POST',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({ review_id: reviewId, admin_user_id: admin.user.id, reply_text: replyText }),
+        })
+        await db('audit_log', {
+          method: 'POST',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ actor_user_id: admin.user.id, action: 'review_replied', entity_type: 'review', entity_id: reviewId }),
+        })
+        // In-app and email notification delivery are queued separately once a verified
+        // account/email relationship and an email provider are configured.
+        return json(res, 201, { reply: replyRows?.[0] || { review_id: reviewId }, notificationQueued: false })
+      }
+
+      if (req.method === 'PATCH' && /^\\/api\\/admin\\/dealer-applications\\/[0-9a-f-]+$/.test(url.pathname)) {
+        if (!p.can_review_kyc) return json(res, 403, { error: 'KYC review permission required.' })
+        const input = await bodyJson(req)
+        const allowed = ['pending_review', 'more_information_required', 'approved', 'rejected', 'suspended']
+        if (!allowed.includes(input.status)) return json(res, 400, { error: 'Invalid dealer application status.' })
+        const id = url.pathname.split('/').pop()
+        const rows = await db(`dealer_applications?id=eq.${id}&select=id,user_id,status`)
+        if (!rows?.[0]) return json(res, 404, { error: 'Dealer application not found.' })
+        await db(`dealer_applications?id=eq.${id}`, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ status: input.status, reviewer_user_id: admin.user.id, reviewer_notes: String(input.notes || '').slice(0, 2000), reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+        })
+        await db(`profiles?id=eq.${rows[0].user_id}`, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ dealer_status: input.status, updated_at: new Date().toISOString() }),
+        })
+        await db('audit_log', {
+          method: 'POST',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ actor_user_id: admin.user.id, action: 'dealer_application_status_changed', entity_type: 'dealer_application', entity_id: id, metadata: { status: input.status } }),
+        })
+        return json(res, 200, { updated: true, status: input.status, emailNotificationQueued: false })
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/admin/promotions') {
+        if (!p.can_manage_promotions) return json(res, 403, { error: 'Promotion-management permission required.' })
+        const input = await bodyJson(req)
+        const name = String(input.name || '').trim()
+        const kind = String(input.discountKind || '')
+        const value = Number(input.discountValue)
+        if (!name || name.length > 120 || !['percentage', 'fixed_amount'].includes(kind) || !Number.isFinite(value) || value <= 0 || (kind === 'percentage' && value > 100)) {
+          return json(res, 400, { error: 'Check the promotion name and discount value.' })
+        }
+        const rows = await db('promotions', {
+          method: 'POST',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({
+            name, public_code: input.publicCode ? String(input.publicCode).trim().toUpperCase().slice(0, 50) : null,
+            description: String(input.description || '').slice(0, 1000),
+            discount_kind: kind, discount_value: value,
+            eligibility: input.eligibility && typeof input.eligibility === 'object' ? input.eligibility : {},
+            starts_at: input.startsAt || null, ends_at: input.endsAt || null,
+            max_redemptions: input.maxRedemptions ? Number(input.maxRedemptions) : null,
+            combinable: input.combinable === true, banner_enabled: input.bannerEnabled === true,
+            banner_text: String(input.bannerText || '').slice(0, 250),
+            active: input.active === true, created_by: admin.user.id,
+          }),
+        })
+        await db('audit_log', {
+          method: 'POST',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ actor_user_id: admin.user.id, action: 'promotion_created', entity_type: 'promotion', entity_id: rows?.[0]?.id || null }),
+        })
+        return json(res, 201, { promotion: rows?.[0] || null })
+      }
+
       return json(res, 404, { error: 'Admin endpoint not found.' })
     }
     return json(res, 404, { error: 'Not found.' })
