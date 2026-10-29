@@ -238,10 +238,16 @@ const server = createServer(async (req, res) => {
         return json(res, 400, { error: 'Please check the name, email, feedback and star rating.' })
       }
       reviewRate.set(key, now)
+      if (reviewRate.size > 5000) {
+        for (const [address, timestamp] of reviewRate) {
+          if (now - timestamp > 60000) reviewRate.delete(address)
+          if (reviewRate.size <= 4000) break
+        }
+      }
       const rows = await db('reviews', {
         method: 'POST',
         headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ customer_name: name, customer_email: email, remarks, rating, status: 'published' }),
+        body: JSON.stringify({ customer_name: name, customer_email: email, remarks, rating, status: 'hidden' }),
       })
       return json(res, 201, { submitted: true, message: 'Thank you for sharing your feedback.' })
     }
