@@ -1,4 +1,5 @@
-import { FormEvent, useState } from 'react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 
 const googleReviews = [
   { name: 'Chicago Office', url: 'https://g.page/r/CUAb_0ORRHwlEBM/review' },
@@ -71,7 +72,7 @@ export default function CustomerExperience() {
               <li>Ask our team for help choosing a stone</li>
               <li>Create an account for a more personal experience</li>
             </ul>
-            <a className="button-secondary" href="mailto:sales@heymandiamond.com?subject=Customer%20Account%20Inquiry">Get Started <span>↗</span></a>
+            <a className="button-secondary" href="#account">Get Started <span>↗</span></a>
           </article>
         </div>
       </section>
