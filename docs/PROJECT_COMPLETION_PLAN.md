@@ -2,7 +2,7 @@
 
 ## Product goals
 - Responsive luxury website for retail customers and diamond professionals.
-- Flomiz-backed diamond catalog with search, filters, fresh stock and safe product fields.
+- Flomiz-backed diamond catalog with search, filters, fresh stock and safe product fields only; customer identity and records live in the website's own account/database system.
 - Customer/dealer signup; new dealer KYC review; existing-dealer verification.
 - Protected Admin Portal for dealer applications, orders, reviews, promotions and integration settings.
 - Reviews publish immediately, with fair abuse moderation, company replies, email notices and account notifications after email ownership is verified.
@@ -31,6 +31,9 @@ The existing Vite/React site is a frontend. A form or dashboard mockup is not a 
 - Business/legal review of KYC, signature consent, data retention, privacy notice, terms and review moderation.
 
 ## Security invariants
+- Flomiz is a product/inventory data source only. Never use it as a source of customer names, emails, accounts, orders or other customer records.
+- Customers must authenticate with the website account system before saving a quote or placing an order; derive customer identity from the verified session, not request-body email fields.
+- Keep website customer profiles, orders and quote requests in our own database, linked to the website auth user ID.
 - Never put Flomiz credentials, database service-role keys, payment secrets or email API keys in browser code or VITE_ variables.
 - Never trust client-supplied role, price, discount, stock or order total.
 - Enforce dealer permissions server-side.
@@ -49,7 +52,9 @@ A green build verifies frontend compilation only; it does not verify integration
 
 ## Customer cart and quote negotiation
 - Customers can add multiple diamonds to a cart and choose either checkout at the currently displayed price or **Quote your price**.
-- Quote mode keeps the full selected cart and asks for one requested unit price per diamond; customers can review and save the request.
+- Quote mode keeps the full selected cart and asks for one requested unit price per diamond; customers can review and save the request only after signing in.
+- Quote submission derives the customer's ID and email from the authenticated website session and stores the request in our own database; it does not retrieve customer information from Flomiz.
+- Actual order placement/checkout must also require sign-in and use the authenticated account identity. Guest browsing can remain available.
 - Saving creates one quote request plus item-level rows containing SKU, product snapshot, quantity, current displayed price when available, and the customer's requested price for each item.
 - New quote requests appear in the authenticated Admin Portal inbox and are counted as new until an administrator updates their status. Admin APIs: `GET /api/admin/quotes` and `PATCH /api/admin/quotes/:id`.
 - This API/data foundation is not a completed checkout or a finished customer-facing cart UI. The current catalog intentionally omits prices until the business-approved price source and retail/dealer permissions are implemented.
