@@ -83,6 +83,8 @@ function App() {
           <a href="#collection">Diamonds</a>
           <a href="#wholesale">Wholesale</a>
           <a href="#about">About</a>
+          <a href="#reviews">Reviews</a>
+          <a href="#account">Account</a>
           <a href="#contact">Contact</a>
         </nav>
 
