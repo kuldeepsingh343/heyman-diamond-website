@@ -341,23 +341,6 @@ function App() {
             sales@heymandiamond.com
           </a>
           <a href="tel:+13126460070">+1 312 646 0070</a>
-        </div>
-
-
-        <div className="footer-contact footer-offices">
-          <strong>Our Offices</strong>
-
-          <span>
-            <b>New York Office:</b> 23 W 47th St., #502,
-            New York, NY 10063, USA
-          </span>
-
-          <span>
-            <b>Chicago Office:</b> 5 S Wabash Ave, #1704,
-            Chicago, IL 60603, USA
-          </span>
-
-
           <div className="footer-socials">
             <a
               href="https://wa.me/13127202099"
@@ -389,6 +372,24 @@ function App() {
               <i className="fa-brands fa-instagram" aria-hidden="true"></i>
             </a>
           </div>
+        </div>
+
+
+        <div className="footer-contact footer-offices">
+          <strong>Our Offices</strong>
+
+          <span>
+            <b>New York Office:</b> 23 W 47th St., #502,
+            New York, NY 10063, USA
+          </span>
+
+          <span>
+            <b>Chicago Office:</b> 5 S Wabash Ave, #1704,
+            Chicago, IL 60603, USA
+          </span>
+
+
+
         </div>
 
         <div className="footer-bottom">
