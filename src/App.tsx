@@ -1,7 +1,6 @@
 
 import './App.css'
 import CustomerExperience from './CustomerExperience'
-import AccountRegistration from './AccountRegistration'
 
 const categories = [
   {
@@ -84,7 +83,7 @@ function App() {
           <a href="#wholesale">Wholesale</a>
           <a href="#about">About</a>
           <a href="#reviews">Reviews</a>
-          <a href="#account">Account</a>
+          <a href="#customer-paths-title">For Customers</a>
           <a href="#contact">Contact</a>
         </nav>
 
@@ -232,9 +231,6 @@ function App() {
           <a className="button-primary" href="mailto:sales@heymandiamond.com?subject=Wholesale%20Account%20Inquiry">
             Ask About Wholesale <span>↗</span>
           </a>
-          <small>
-            Wholesale pricing is reserved for approved wholesale accounts.
-          </small>
         </div>
       </section>
 
@@ -308,7 +304,6 @@ function App() {
         </div>
       </section>
 
-      <AccountRegistration />
       <CustomerExperience />
 
       <section className="contact-banner" id="contact">
