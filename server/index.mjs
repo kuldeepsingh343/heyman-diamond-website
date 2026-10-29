@@ -135,6 +135,26 @@ const server = createServer(async (req, res) => {
       })
     }
 
+    if (req.method === 'POST' && url.pathname === '/api/inquiries') {
+      if (!supabaseReady()) return json(res, 503, { error: 'Inquiry service is not configured yet.' })
+      const input = await bodyJson(req)
+      const name = String(input.name || '').trim()
+      const email = String(input.email || '').trim().toLowerCase()
+      const message = String(input.message || '').trim()
+      if (name.length < 1 || name.length > 120 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254 || message.length < 1 || message.length > 3000) {
+        return json(res, 400, { error: 'Please check your name, email and message.' })
+      }
+      const rows = await db('orders', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          customer_name: name, customer_email: email, status: 'inquiry',
+          customer_message: message, currency: 'USD', subtotal: 0, discount_total: 0, tax_total: 0, total: 0,
+        }),
+      })
+      return json(res, 201, { submitted: true, inquiryNumber: rows?.[0]?.order_number || null, message: 'Thank you. Our team will follow up.' })
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/reviews') {
       if (!supabaseReady()) return json(res, 503, { error: 'Review submission is not configured yet.' })
       const now = Date.now()
