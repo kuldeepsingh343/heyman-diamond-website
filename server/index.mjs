@@ -322,7 +322,7 @@ const server = createServer(async (req, res) => {
         return json(res, 201, { reply: replyRows?.[0] || { review_id: reviewId }, notificationQueued: false })
       }
 
-      if (req.method === 'PATCH' && /^\\/api\\/admin\\/dealer-applications\\/[0-9a-f-]+$/.test(url.pathname)) {
+      if (req.method === 'PATCH' && /^\/api\/admin\/dealer-applications\/[0-9a-f-]+$/i.test(url.pathname)) {
         if (!p.can_review_kyc) return json(res, 403, { error: 'KYC review permission required.' })
         const input = await bodyJson(req)
         const allowed = ['pending_review', 'more_information_required', 'approved', 'rejected', 'suspended']
