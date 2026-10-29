@@ -247,7 +247,7 @@ const server = createServer(async (req, res) => {
         const rows = await db('quote_requests?select=id,quote_number,customer_name,customer_email,customer_message,status,created_at,quote_request_items(id,flomiz_sku,product_name,product_snapshot,quantity,current_unit_price,requested_unit_price)&order=created_at.desc')
         return json(res, 200, { items: rows, unreadCount: (rows || []).filter(row => row.status === 'new').length })
       }
-      if (req.method === 'PATCH' && /^\\/api\\/admin\\/quotes\\/[0-9a-f-]+$/i.test(url.pathname)) {
+      if (req.method === 'PATCH' && /^\/api\/admin\/quotes\/[0-9a-f-]+$/i.test(url.pathname)) {
         if (!p.can_manage_orders) return json(res, 403, { error: 'Order-management permission required.' })
         const input = await bodyJson(req)
         const allowed = ['new', 'under_review', 'counter_offered', 'accepted', 'declined', 'converted_to_order', 'closed']
