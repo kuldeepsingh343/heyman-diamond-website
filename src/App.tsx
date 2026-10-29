@@ -1,6 +1,8 @@
 
+import { useEffect, useState } from 'react'
 import './App.css'
 import CustomerExperience from './CustomerExperience'
+import PolicyPages from './PolicyPages'
 
 const categories = [
   {
@@ -62,6 +64,23 @@ const team = [
 ]
 
 function App() {
+  const [policySlug, setPolicySlug] = useState(() => {
+    const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
+    return match?.[1] ?? ''
+  })
+
+  useEffect(() => {
+    const syncPolicyRoute = () => {
+      const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
+      setPolicySlug(match?.[1] ?? '')
+      if (match) window.scrollTo({ top: 0, behavior: 'auto' })
+    }
+    window.addEventListener('hashchange', syncPolicyRoute)
+    return () => window.removeEventListener('hashchange', syncPolicyRoute)
+  }, [])
+
+  if (policySlug) return <PolicyPages slug={policySlug} />
+
   return (
     <main className="website">
       <div className="announcement">
@@ -391,6 +410,15 @@ function App() {
 
 
         </div>
+
+        <nav className="footer-policy-links" aria-label="Policies and customer help">
+          <a href="#policy-shipping">Shipping &amp; Delivery</a>
+          <a href="#policy-returns">Returns &amp; Refunds</a>
+          <a href="#policy-privacy">Privacy Policy</a>
+          <a href="#policy-terms">Terms of Service</a>
+          <a href="#policy-faq">FAQ</a>
+          <a href="#policy-sizing">Ring Sizing Guide</a>
+        </nav>
 
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} Hey Man Diamond LLC</span>
