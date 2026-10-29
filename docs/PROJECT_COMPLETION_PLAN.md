@@ -91,3 +91,34 @@ This checklist is a practical implementation aid, not a legal opinion. Have qual
 - **Policies in context:** Link privacy information at or before data collection, and show shipping, return, tax, payment, and cancellation terms before the order is submitted. Keep an accessible copy of the exact policy version shown for each order.
 - **Ring sizing:** Do not publish a printable chart until the source measurements, international conversions, and print calibration have been independently checked.
 - **References for counsel/implementation:** [FTC online shopping and shipping/return guidance](https://consumer.ftc.gov/articles/online-shopping); [FTC Jewelry Guides, 16 CFR Part 23](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-B/part-23); [California Attorney General CCPA overview](https://oag.ca.gov/privacy/ccpa); [California Privacy Protection Agency laws and regulations](https://privacy.ca.gov/laws-and-regulations/).
+
+
+## Phase 1 execution status — updated 2026-10-29
+
+**Status: repository groundwork documented; hosted-backend setup remains blocked. Do not mark Phase 1 fully complete yet.**
+
+### Completed in the repository
+- React/Vite/TypeScript project and Node API entry point exist.
+- CI workflow is configured to run `npm ci`, lint, frontend build, and Node syntax validation on pushes and pull requests.
+- API configuration is read from server environment variables; privileged database credentials are intended to remain server-side.
+- API health endpoint reports only whether configuration values are present, not credential values.
+- Existing API scaffolding includes session-token validation against Supabase Auth and database-backed admin permission lookup.
+
+### Blocking items discovered
+- The Supabase organization exists, but no Supabase projects are currently listed. Project creation was not completed. No database, Auth configuration, RLS policies, or project credentials have therefore been verified.
+- No successful CI workflow run was found for the latest branch commits; local lint/build and API checks remain unverified.
+- The API code still needs a security pass before production: fix/verify inquiry email validation and dealer-application route matching; enforce explicit review permissions on admin review listing/status/reply actions; add durable rate limiting and origin validation; and validate quote SKUs/prices against the website-owned catalog rather than trusting client snapshots/prices.
+- Do not collect real dealer KYC data until secure database policies, access controls, retention, and audit logging have been deployed and tested.
+- Hosting, production secrets, authorized Flomiz credentials, and transactional email remain unconfigured.
+
+### Phase 1 exit criteria
+- [ ] Create/confirm the Supabase project and region; confirm any quoted recurring cost before creation.
+- [ ] Apply reviewed schema/migrations and enable RLS on every exposed table with least-privilege policies.
+- [ ] Configure email confirmation, password reset, redirect URLs, and verified sender/SMTP before enabling account signup.
+- [ ] Keep privileged credentials in server-only secret storage; never commit them or expose them through `VITE_*` variables.
+- [ ] Fix and test the API validation/authorization findings above.
+- [ ] Add automated tests for unauthenticated, ordinary-customer, dealer, and authorized-admin access; test cross-account data isolation.
+- [ ] Run CI successfully and record the passing commit/run.
+- [ ] Verify deployment health and database connectivity without logging secrets.
+
+**Decision:** Phase 1 is *in progress*, not production-ready. Continue to Phase 2 only after the exit criteria relevant to authentication, database security, and CI are met. The current frontend/API scaffold is not a live account system.
