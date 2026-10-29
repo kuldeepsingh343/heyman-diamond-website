@@ -20,7 +20,5 @@ create index reviews_status_submitted_idx on public.reviews(status, submitted_at
 
 
 revoke all on function public.handle_new_user() from public, anon, authenticated;
-revoke all on function public.set_updated_at() from public, anon, authenticated;
-
 -- Trigger execution does not require callers to have direct EXECUTE permission.
 -- The service role retains its privileged backend access; never expose its key to browsers.
