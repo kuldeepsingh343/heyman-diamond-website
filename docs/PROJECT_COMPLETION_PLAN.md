@@ -130,3 +130,16 @@ This checklist is a practical implementation aid, not a legal opinion. Have qual
 - Supabase security advisor returned no lint findings at this initial empty-database stage; this is not proof of application security.
 - A publishable key exists. Configure credentials through local/server environment settings; never commit secret/service-role keys or share them in chat. Prefer the current publishable/secret key types where supported.
 - Phase 1 remains in progress until schema and least-privilege RLS policies are applied, Auth settings are configured, API issues are fixed, and CI/tests pass.
+
+
+## Supabase foundation status — 2026-10-29
+
+- Connected Supabase project `heyman-diamond-website` in `us-east-1`; project reference is recorded in deployment configuration, not as a secret.
+- Applied database migration `20261029203058_initial_website_schema_rls`: profiles, admin permissions, dealer applications, orders/inquiries, quote requests and items, reviews and replies, audit log, and promotions.
+- Enabled Row Level Security (RLS) on all ten public tables. No browser-facing table policies are granted yet; this deliberately keeps direct browser table access denied while the server API uses a service-role credential. The server must enforce every user/admin permission itself. Do not treat this as launch-ready until policy design and authorization tests are completed.
+- Added a follow-up migration to lock down the user-creation trigger function's execution privileges, set a fixed function search path, and index several foreign-key columns.
+- Initial schema has no customer records. No service-role secret was added to the repository.
+- Supabase advisors still report informational RLS-enabled/no-policy notices. These are expected for the current server-mediated design, but must be revisited before enabling direct client access. Performance advisor may still flag indexes as unused on a fresh, empty database.
+- **Still incomplete:** align and commit SQL migration files in the repository; add/verify per-user RLS policies if browser database access is needed; create the first admin account securely; configure Supabase Auth URL/redirect/email settings; update API permission checks and fix identified route/validation defects; add integration/security tests; run CI and local build; configure hosting/domain and production secrets.
+- Never send KYC documents to public storage. Before accepting any sensitive documents, configure a private storage bucket and narrowly scoped, tested access rules; avoid collecting full tax IDs until legal and retention requirements are approved.
+- This backend setup is a meaningful foundation step, not a finished or deployed website. Keep Phase 1 marked **in progress** until the remaining checks above pass.
