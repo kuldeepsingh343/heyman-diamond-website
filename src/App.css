@@ -1181,3 +1181,44 @@ a:focus-visible {
   .customer-path-card, .google-review-link, .star-picker button { transition: none; }
   .customer-path-card:hover, .google-review-link:hover, .star-picker button:hover { transform: none; }
 }
+
+.account-section { padding: 84px clamp(24px, 8vw, 120px); background: var(--page); }
+.account-heading { max-width: 760px; margin-bottom: 34px; }
+.account-heading h2 { margin: 20px 0 14px; font: 500 clamp(36px, 4vw, 50px)/1.12 'Playfair Display', Georgia, serif; letter-spacing: -1px; }
+.account-heading h2 em { color: var(--gold); }
+.account-heading > p { max-width: 650px; color: var(--muted); font-size: 13px; line-height: 1.9; }
+.account-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); border: 1px solid var(--line); background: var(--surface); }
+.account-steps { padding: 28px 22px; display: flex; flex-direction: column; gap: 20px; background: #f2eee5; }
+.account-step { display: flex; align-items: flex-start; gap: 10px; color: #918b7e; font-size: 10px; letter-spacing: .7px; }
+.account-step b { color: #77746b; font-weight: 500; letter-spacing: 0; }
+.account-step.current, .account-step.complete { color: #9c8045; }
+.account-step.current b, .account-step.complete b { color: #292820; }
+.account-form { padding: clamp(22px, 4vw, 42px); min-width: 0; }
+.account-form h3 { margin: 0 0 25px; font: 500 29px/1.2 'Playfair Display', Georgia, serif; }
+.account-field { margin-bottom: 20px; min-width: 0; }
+.account-field > label, .account-field-grid label { display: block; margin-bottom: 8px; color: #514e44; font-size: 10px; font-weight: 700; letter-spacing: .4px; }
+.account-field input:not([type="radio"]) { width: 100%; min-width: 0; min-height: 44px; padding: 12px; border: 1px solid #dcd5c8; background: #fffefa; color: var(--ink); font: 12px 'DM Sans', sans-serif; }
+.account-field input:focus { outline: 2px solid rgb(165 138 80 / 35%); outline-offset: 1px; }
+.account-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+.account-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.account-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 112px; padding: 17px; border: 1px solid var(--line); background: #fffefa; color: var(--ink); text-align: left; cursor: pointer; transition: border-color 180ms ease, background 180ms ease; }
+.account-choice.selected { border-color: #a58a50; background: #f7f2e7; box-shadow: inset 0 0 0 1px #a58a50; }
+.account-choice > span { color: #a58a50; font-size: 22px; }
+.account-choice strong { font-size: 12px; }
+.account-choice small { color: var(--muted); font-size: 11px; line-height: 1.6; }
+.kyc-form { margin-top: 30px; padding-top: 28px; border-top: 1px solid var(--line); }
+.kyc-heading h4 { margin: 9px 0; font: 500 25px/1.25 'Playfair Display', Georgia, serif; }
+.kyc-heading p, .account-help { color: var(--muted); font-size: 11px; line-height: 1.8; }
+.kyc-heading { margin-bottom: 24px; }
+.aml-options { display: flex; gap: 22px; }
+.aml-options label { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; }
+.aml-options input { accent-color: #9b8048; }
+.trade-reference { margin: 0 0 22px; padding: 18px; border: 1px solid var(--line); }
+.trade-reference legend { padding: 0 7px; font: 500 17px 'Playfair Display', Georgia, serif; }
+.account-submit { margin-top: 4px; }
+@media (max-width: 760px) {
+ .account-section { padding-top: 60px; padding-bottom: 60px; }
+ .account-shell { grid-template-columns: 1fr; }
+ .account-steps { flex-direction: row; flex-wrap: wrap; gap: 12px 18px; }
+ .account-field-grid, .account-choice-grid { grid-template-columns: 1fr; }
+}
