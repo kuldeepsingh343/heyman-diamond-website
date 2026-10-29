@@ -41,6 +41,10 @@ The existing Vite/React site is a frontend. A form or dashboard mockup is not a 
 - Restrict KYC to authorized reviewers; audit status changes.
 - Revalidate stock and prices before accepting orders; make checkout idempotent.
 - Enable RLS and test unauthorized access.
+- Keep bank account details out of public source code and browser bundles; payment instructions must be managed through authenticated, authorized Admin Portal settings and delivered only when needed for checkout.
+- For manual bank transfer and Zelle payments, create orders as pending payment. Only an authorized admin may mark funds received after independently confirming receipt in the bank account; screenshots or customer claims alone are not proof.
+- Offer direct bank transfer and Zelle as the preferred direct-payment methods, with Stripe card payment as an optional alternative. Confirm business-account eligibility, limits, fees, and payment policies with the bank/provider before launch.
+- Any Stripe/card surcharge must remain disabled until eligibility, applicable laws, card-network rules, required disclosures, and actual account pricing have been verified. Calculate any permitted fee server-side and show the full amount before payment confirmation. Never hard-code a flat fee.
 
 ## Local validation
 Run in the project folder:
