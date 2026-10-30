@@ -10,8 +10,7 @@ const categories = [
     number: '01',
     name: 'Loose Fancy Diamonds',
     description: 'Explore fancy shapes and distinctive diamond styles.',
-    image:
-      'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=900&q=85',
+    image: '/loose-fancy-diamonds.png',
   },
   {
     number: '02',
