@@ -173,3 +173,24 @@ This checklist is a practical implementation aid, not a legal opinion. Have qual
 - Added Node smoke tests for API startup, health response secrecy, origin rejection, and fail-closed behavior when database/inventory configuration is absent; CI now runs `npm test`.
 - **Not yet verified:** the new test suite and full CI for the latest commits have not returned a passing run at the time this note was written.
 - **Still blocking Phase 1 completion:** reconstruct the first two applied SQL migrations from the live schema and test them against a clean database; integration tests for authenticated customer/admin roles and cross-account isolation; review current authorization paths end-to-end; configure Supabase Auth redirect/email settings and production secrets; verify deployed hosting. No public deployment has been performed.
+
+## Phase 1 verification record — 2026-10-30
+
+### Completed and verified
+- Supabase project selected; the ten core public tables have row-level security enabled.
+- Database migrations are recorded in Supabase for the initial schema, function/index hardening, promotion fields, client-role privilege revocation, and the dedicated review-management permission.
+- Confirmed with live database privilege checks that `anon` and `authenticated` have no SELECT or INSERT privileges on the ten public tables; direct execution of `handle_new_user()` is denied to those roles.
+- Server-side admin allowlist and permission checks are implemented. Review moderation/replies have a dedicated `can_manage_reviews` permission, separate from order management.
+- API rejects disallowed browser origins, does not expose secret configuration through health responses, validates request fields, and now returns 400/413 for malformed/oversized JSON.
+- GitHub Actions CI includes dependency installation, lint, production build, Node test suite, and server syntax validation.
+
+### Remaining launch blockers (not code-only work)
+- Latest CI run must be confirmed after the final security/test commits.
+- A clean, isolated database migration test has not been run. Do not reset the existing project to perform it; a separate Supabase branch/project requires review of any additional cost first.
+- Live authenticated-user tests for owner isolation, admin permission combinations, and auth email/redirect settings remain outstanding.
+- No administrator account is provisioned; this requires a deliberately authorized account ID.
+- Production hosting/domain/origin and secret configuration are not set or verified.
+- Flomiz credentials/customer ID, email provider, and payment provider are not configured; their integrations are not verified.
+- Public review abuse protection currently uses process-local rate limiting and needs durable edge/WAF or shared-store protection before public launch.
+
+Phase 1 should be treated as **code and database baseline implemented, production verification incomplete** until the remaining checks above are completed. Do not claim the site is production-ready or deployed.
