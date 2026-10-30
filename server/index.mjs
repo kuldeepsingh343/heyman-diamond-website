@@ -169,7 +169,9 @@ const server = createServer(async (req, res) => {
       if (!fullName || fullName.length > 120 || !address || address.length > 500 || !phone || phone.length > 40 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !['female','male','non_binary','prefer_not_to_say'].includes(gender) || password.length < 10 || password.length > 128 || (accountType === 'dealer' && (!companyName || companyName.length > 160))) {
         return json(res, 400, { error: 'Please complete all required fields. Password must be at least 10 characters.' })
       }
-      const signup = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+      const signupUrl = new URL('/auth/v1/signup', SUPABASE_URL)
+      signupUrl.searchParams.set('redirect_to', 'https://hey-man-diamond-test.onrender.com/#signin')
+      const signup = await fetch(signupUrl, {
         method: 'POST',
         headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, data: { full_name: fullName, account_type: accountType } }),
