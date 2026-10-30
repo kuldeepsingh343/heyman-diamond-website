@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import CustomerExperience from './CustomerExperience'
 import PolicyPages from './PolicyPages'
+import AuthPages from './AuthPages'
 
 const categories = [
   {
@@ -64,6 +65,7 @@ const team = [
 ]
 
 function App() {
+  const [authRoute, setAuthRoute] = useState(() => window.location.hash.match(/^#(signup-customer|signup-dealer|signin)$/)?.[1] ?? '')
   const [policySlug, setPolicySlug] = useState(() => {
     const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
     return match?.[1] ?? ''
@@ -73,6 +75,7 @@ function App() {
     const syncPolicyRoute = () => {
       const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
       setPolicySlug(match?.[1] ?? '')
+      setAuthRoute(window.location.hash.match(/^#(signup-customer|signup-dealer|signin)$/)?.[1] ?? '')
       if (match) window.scrollTo({ top: 0, behavior: 'auto' })
     }
     window.addEventListener('hashchange', syncPolicyRoute)
@@ -80,6 +83,7 @@ function App() {
   }, [])
 
   if (policySlug) return <PolicyPages slug={policySlug} />
+  if (authRoute) return <AuthPages mode={authRoute} />
 
   return (
     <main className="website">
