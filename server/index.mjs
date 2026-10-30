@@ -1,6 +1,9 @@
 import { createServer } from 'node:http'
+import { readFile } from 'node:fs/promises'
+import { extname, resolve, sep } from 'node:path'
 
-const PORT = Number(process.env.API_PORT || 3000)
+const PORT = Number(process.env.PORT || process.env.API_PORT || 3000)
+const DIST_DIR = resolve(process.cwd(), 'dist')
 const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, '')
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY
@@ -96,7 +99,8 @@ function publicProduct(product) {
 }
 const server = createServer(async (req, res) => {
   const requestOrigin = req.headers.origin
-  if (requestOrigin && requestOrigin !== ALLOWED_ORIGIN) {
+  const sameOrigin = requestOrigin && requestOrigin === `https://${req.headers.host}`
+  if (requestOrigin && requestOrigin !== ALLOWED_ORIGIN && !sameOrigin) {
     return json(res, 403, { error: 'This website origin is not allowed.' })
   }
   if (req.method === 'OPTIONS') {
@@ -398,6 +402,26 @@ const server = createServer(async (req, res) => {
       }
 
       return json(res, 404, { error: 'Admin endpoint not found.' })
+    }
+    if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found.' })
+
+    // Serve the Vite production build from the same origin as the API.
+    const requestedPath = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)
+    const assetPath = resolve(DIST_DIR, `.${requestedPath}`)
+    if (assetPath === DIST_DIR || assetPath.startsWith(DIST_DIR + sep)) {
+      try {
+        const file = await readFile(assetPath)
+        const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff': 'font/woff', '.woff2': 'font/woff2' }
+        res.writeHead(200, { 'Content-Type': types[extname(assetPath)] || 'application/octet-stream', 'Cache-Control': extname(assetPath) === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable' })
+        return res.end(file)
+      } catch {
+        // Client-side routes fall back to the application shell.
+        if (!extname(url.pathname)) {
+          const html = await readFile(resolve(DIST_DIR, 'index.html'))
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
+          return res.end(html)
+        }
+      }
     }
     return json(res, 404, { error: 'Not found.' })
   } catch (error) {
