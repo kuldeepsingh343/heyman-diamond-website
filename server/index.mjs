@@ -154,6 +154,60 @@ const server = createServer(async (req, res) => {
       })
     }
 
+
+    if (req.method === 'POST' && url.pathname === '/api/auth/signup') {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !supabaseReady()) return json(res, 503, { error: 'Account service is not configured yet.' })
+      const input = await bodyJson(req)
+      const accountType = input.accountType === 'dealer' ? 'dealer' : 'customer'
+      const fullName = String(input.fullName || '').trim()
+      const address = String(input.address || '').trim()
+      const phone = String(input.phone || '').trim()
+      const email = String(input.email || '').trim().toLowerCase()
+      const gender = String(input.gender || '').trim()
+      const password = String(input.password || '')
+      const companyName = String(input.companyName || '').trim()
+      if (!fullName || fullName.length > 120 || !address || address.length > 500 || !phone || phone.length > 40 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254 || !['female','male','non_binary','prefer_not_to_say'].includes(gender) || password.length < 10 || password.length > 128 || (accountType === 'dealer' && (!companyName || companyName.length > 160))) {
+        return json(res, 400, { error: 'Please complete all required fields. Password must be at least 10 characters.' })
+      }
+      const signup = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, data: { full_name: fullName, account_type: accountType } }),
+      })
+      const authData = await signup.json()
+      if (!signup.ok) return json(res, signup.status, { error: authData.msg || authData.message || authData.error_description || 'Unable to create this account. Check the details or sign in if the email is already registered.' })
+      if (authData.user?.id) {
+        await db(`profiles?id=eq.${authData.user.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ full_name: fullName, phone, address, gender, account_type: accountType, dealer_status: accountType === 'dealer' ? 'pending_review' : 'not_applied' }) })
+        if (accountType === 'dealer') {
+          await db('dealer_applications', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ user_id: authData.user.id, registered_business_name: companyName, primary_contact: fullName, primary_email: email, business_address: { address }, business_phone: phone, status: 'pending_review' }) })
+        }
+      }
+      return json(res, 201, { submitted: true, emailConfirmationRequired: !authData.session, accountType, message: accountType === 'dealer' ? 'Your dealer account request has been received. Please confirm your email; dealer access will remain pending until an administrator approves it.' : 'Your account has been created. Please check your email to confirm your address before signing in.' })
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/auth/signin') {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Sign-in service is not configured yet.' })
+      const input = await bodyJson(req)
+      const email = String(input.email || '').trim().toLowerCase()
+      const password = String(input.password || '')
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !password || password.length > 128) return json(res, 400, { error: 'Enter a valid email and password.' })
+      const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
+      const data = await response.json()
+      if (!response.ok) return json(res, response.status, { error: data.msg || data.message || 'Email or password is incorrect.' })
+      const profiles = await db(`profiles?id=eq.${data.user.id}&select=account_type,dealer_status,full_name`)
+      return json(res, 200, { accessToken: data.access_token, refreshToken: data.refresh_token, expiresIn: data.expires_in, user: { email: data.user.email, ...(profiles?.[0] || {}) } })
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/auth/forgot-password') {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Password reset is not configured yet.' })
+      const input = await bodyJson(req)
+      const email = String(input.email || '').trim().toLowerCase()
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return json(res, 400, { error: 'Enter a valid email address.' })
+      const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, redirect_to: 'https://hey-man-diamond-test.onrender.com/#signin' }) })
+      if (!response.ok) return json(res, response.status, { error: 'Unable to send a password reset email right now.' })
+      return json(res, 200, { sent: true, message: 'If this email has an account, a password reset link has been sent.' })
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/inquiries') {
       if (!supabaseReady()) return json(res, 503, { error: 'Inquiry service is not configured yet.' })
       const input = await bodyJson(req)
