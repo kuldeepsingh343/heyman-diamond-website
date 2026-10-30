@@ -1,13 +1,16 @@
 
+import { useEffect, useState } from 'react'
 import './App.css'
+import CustomerExperience from './CustomerExperience'
+import PolicyPages from './PolicyPages'
+import AuthPages from './AuthPages'
 
 const categories = [
   {
     number: '01',
     name: 'Loose Fancy Diamonds',
     description: 'Explore fancy shapes and distinctive diamond styles.',
-    image:
-      'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=900&q=85',
+    image: '/loose-fancy-diamonds.png',
   },
   {
     number: '02',
@@ -61,6 +64,26 @@ const team = [
 ]
 
 function App() {
+  const [authRoute, setAuthRoute] = useState(() => window.location.hash.match(/^#(signup-customer|signup-dealer|signin)$/)?.[1] ?? '')
+  const [policySlug, setPolicySlug] = useState(() => {
+    const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
+    return match?.[1] ?? ''
+  })
+
+  useEffect(() => {
+    const syncPolicyRoute = () => {
+      const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
+      setPolicySlug(match?.[1] ?? '')
+      setAuthRoute(window.location.hash.match(/^#(signup-customer|signup-dealer|signin)$/)?.[1] ?? '')
+      if (match) window.scrollTo({ top: 0, behavior: 'auto' })
+    }
+    window.addEventListener('hashchange', syncPolicyRoute)
+    return () => window.removeEventListener('hashchange', syncPolicyRoute)
+  }, [])
+
+  if (policySlug) return <PolicyPages slug={policySlug} />
+  if (authRoute) return <AuthPages mode={authRoute} />
+
   return (
     <main className="website">
       <div className="announcement">
@@ -69,11 +92,11 @@ function App() {
 
       <header className="navbar">
         <a className="brand" href="#home" aria-label="Hey Man Diamond home">
-          <span className="brand-mark">H</span>
-          <span>
-            <strong>HEY MAN DIAMOND LLC</strong>
-            <small>Harvesting Dreams, Together</small>
-          </span>
+          <img
+            className="brand-logo"
+            src="/heyman-diamond-logo.png"
+            alt="Hey Man Diamond LLC — Harvesting Dreams, Together"
+          />
         </a>
 
         <nav className="nav-links" aria-label="Main navigation">
@@ -81,12 +104,16 @@ function App() {
           <a href="#collection">Diamonds</a>
           <a href="#wholesale">Wholesale</a>
           <a href="#about">About</a>
+          <a href="#reviews">Reviews</a>
+          <a href="#customer-paths-title">For Customers</a>
           <a href="#contact">Contact</a>
         </nav>
 
-        <a className="nav-button" href="#contact">
-          Talk to Our Team <span>↗</span>
-        </a>
+        <div className="nav-actions">
+          <a className="nav-button nav-signin" href="#signin">Sign In</a>
+          <a className="nav-button nav-signup" href="#signup-customer">Sign Up</a>
+          <a className="nav-button nav-contact" href="#contact">Talk to Our Team <span aria-hidden="true">↗</span></a>
+        </div>
       </header>
 
       <section className="hero" id="home">
@@ -136,7 +163,7 @@ function App() {
         </div>
       </section>
 
-      <section className="trust-strip" id="about">
+      <section className="trust-strip">
         <div>
           <span className="trust-number">01</span>
           <p>
@@ -156,6 +183,35 @@ function App() {
           <p>
             <strong>Personal Support</strong>
             <small>A real sales team ready to help</small>
+          </p>
+        </div>
+      </section>
+
+      <section className="about-section" id="about">
+        <div className="about-copy">
+          <h2>WHO WE ARE</h2>
+          <p>
+            One of the leading suppliers of grown diamonds, located in the
+            Diamond District of India. Trusted by thousands of retailers,
+            jewelry manufacturers, and repair shops across North America.
+          </p>
+          <p>
+            At HeyMan Diamond LLC, we strive to understand customer’s
+            requirements and give our best to provide impeccable customer
+            service to all our clients. All our team members have in-depth
+            knowledge of the product, as customer satisfaction is our
+            top-most priority.
+          </p>
+          <p>
+            We are a one stop shop for all your lab grown diamond requirements.
+          </p>
+          <p>
+            Our inventory includes Melees, Pointers, Certified Inventory, Fancy
+            shape Layout and Colored lab grown diamonds (Pink, Yellow, Blue,
+            Green).
+          </p>
+          <p>
+            Along with wholesale we provide service orders and bagging service.
           </p>
         </div>
       </section>
@@ -228,9 +284,6 @@ function App() {
           <a className="button-primary" href="mailto:sales@heymandiamond.com?subject=Wholesale%20Account%20Inquiry">
             Ask About Wholesale <span>↗</span>
           </a>
-          <small>
-            Wholesale pricing is reserved for approved wholesale accounts.
-          </small>
         </div>
       </section>
 
@@ -304,6 +357,8 @@ function App() {
         </div>
       </section>
 
+      <CustomerExperience />
+
       <section className="contact-banner" id="contact">
         <div>
           <div className="eyebrow">
@@ -326,11 +381,11 @@ function App() {
 
       <footer className="footer">
         <a className="brand footer-brand" href="#home">
-          <span className="brand-mark">H</span>
-          <span>
-            <strong>HEY MAN DIAMOND LLC</strong>
-            <small>Harvesting Dreams, Together</small>
-          </span>
+          <img
+            className="brand-logo"
+            src="/heyman-diamond-logo.png"
+            alt="Hey Man Diamond LLC — Harvesting Dreams, Together"
+          />
         </a>
 
         <div className="footer-contact">
@@ -339,23 +394,6 @@ function App() {
             sales@heymandiamond.com
           </a>
           <a href="tel:+13126460070">+1 312 646 0070</a>
-        </div>
-
-
-        <div className="footer-contact footer-offices">
-          <strong>Our Offices</strong>
-
-          <span>
-            <b>New York Office:</b> 23 W 47th St., #502,
-            New York, NY 10063, USA
-          </span>
-
-          <span>
-            <b>Chicago Office:</b> 5 S Wabash Ave, #1704,
-            Chicago, IL 60603, USA
-          </span>
-
-
           <div className="footer-socials">
             <a
               href="https://wa.me/13127202099"
@@ -389,9 +427,36 @@ function App() {
           </div>
         </div>
 
+
+        <div className="footer-contact footer-offices">
+          <strong>Our Offices</strong>
+
+          <span>
+            <b>New York Office:</b> 23 W 47th St., #502,
+            New York, NY 10063, USA
+          </span>
+
+          <span>
+            <b>Chicago Office:</b> 5 S Wabash Ave, #1704,
+            Chicago, IL 60603, USA
+          </span>
+
+
+
+        </div>
+
+        <nav className="footer-policy-links" aria-label="Policies and customer help">
+          <a href="#policy-shipping">Shipping &amp; Delivery</a>
+          <a href="#policy-returns">Returns &amp; Refunds</a>
+          <a href="#policy-privacy">Privacy Policy</a>
+          <a href="#policy-terms">Terms of Service</a>
+          <a href="#policy-faq">FAQ</a>
+          <a href="#policy-sizing">Ring Sizing Guide</a>
+        </nav>
+
         <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} Hey Man Diamond LLC</span>
-          <span>Lab-grown diamonds. Personal service.</span>
+          <span>© 2026 HEY MAN DIAMOND LLC. ALL RIGHTS RESERVED.</span>
+          <span>Made with ❤️ by Kuldeep Singh Chauhan</span>
         </div>
       </footer>
 
