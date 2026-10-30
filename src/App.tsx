@@ -163,7 +163,7 @@ function App() {
         </div>
       </section>
 
-      <section className="trust-strip" id="about">
+      <section className="trust-strip">
         <div>
           <span className="trust-number">01</span>
           <p>
@@ -183,6 +183,35 @@ function App() {
           <p>
             <strong>Personal Support</strong>
             <small>A real sales team ready to help</small>
+          </p>
+        </div>
+      </section>
+
+      <section className="about-section" id="about">
+        <div className="about-copy">
+          <h2>WHO WE ARE</h2>
+          <p>
+            One of the leading suppliers of grown diamonds, located in the
+            Diamond District of India. Trusted by thousands of retailers,
+            jewelry manufacturers, and repair shops across North America.
+          </p>
+          <p>
+            At HeyMan Diamond LLC, we strive to understand customer’s
+            requirements and give our best to provide impeccable customer
+            service to all our clients. All our team members have in-depth
+            knowledge of the product, as customer satisfaction is our
+            top-most priority.
+          </p>
+          <p>
+            We are a one stop shop for all your lab grown diamond requirements.
+          </p>
+          <p>
+            Our inventory includes Melees, Pointers, Certified Inventory, Fancy
+            shape Layout and Colored lab grown diamonds (Pink, Yellow, Blue,
+            Green).
+          </p>
+          <p>
+            Along with wholesale we provide service orders and bagging service.
           </p>
         </div>
       </section>
