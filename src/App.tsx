@@ -110,6 +110,7 @@ function App() {
           <a href="#contact">Contact</a>
         </nav>
 
+        <a className="nav-button" href="#signin">Sign In <span>↗</span></a>
         <a className="nav-button" href="#contact">
           Talk to Our Team <span>↗</span>
         </a>
