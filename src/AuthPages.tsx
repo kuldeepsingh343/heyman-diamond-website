@@ -16,6 +16,8 @@ export default function AuthPages({ mode }: { mode: string }) {
   const [password,setPassword]=useState('')
   const [status,setStatus]=useState('')
   const [busy,setBusy]=useState(false)
+  const [resendBusy,setResendBusy]=useState(false)
+  const [canResend,setCanResend]=useState(false)
   useEffect(() => {
     if (window.location.hash.includes('access_token=')) {
       const params = new URLSearchParams(window.location.hash.slice(1))
@@ -41,9 +43,20 @@ export default function AuthPages({ mode }: { mode: string }) {
         localStorage.setItem('hmd_access_token',data.accessToken)
         localStorage.setItem('hmd_refresh_token',data.refreshToken||'')
         setStatus(data.user?.account_type==='dealer' && data.user?.dealer_status!=='approved'?'Signed in. Your dealer access is still awaiting administrator approval.':'You are signed in successfully.')
-      } else setStatus(data.message||'Request received.')
+      } else { setStatus(data.message||'Request received.'); setCanResend(true) }
     } catch(error) { setStatus(error instanceof Error?error.message:'Something went wrong.') }
     finally { setBusy(false) }
+  }
+  async function resendConfirmation() {
+    setResendBusy(true)
+    setStatus('')
+    try {
+      const response=await fetch('/api/auth/resend-confirmation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})})
+      const data=await response.json()
+      if(!response.ok) throw new Error(data.error||'Unable to request a new confirmation email.')
+      setStatus(data.message||'If confirmation is still required, a new email has been requested.')
+    } catch(error) { setStatus(error instanceof Error?error.message:'Unable to request a new confirmation email.') }
+    finally { setResendBusy(false) }
   }
   return <main className="auth-page">
     <header className="auth-header"><a href="#home"><img src="/heyman-diamond-logo.png" alt="Hey Man Diamond LLC" /></a><a href="#home">← Back to website</a></header>
@@ -62,6 +75,7 @@ export default function AuthPages({ mode }: { mode: string }) {
         <button type="submit" disabled={busy}>{busy?'Please wait…':signup?'Create account':'Sign in'}</button>
       </form>
       {status&&<p className="auth-status" role="status">{status}</p>}
+      {canResend&&<button type="button" className="auth-resend" onClick={resendConfirmation} disabled={resendBusy || !email}>{resendBusy?'Requesting…':'Resend confirmation email'}</button>}
       {signup?<p className="auth-switch">Already registered? <a href="#signin">Sign in</a></p>:<p className="auth-switch">New here? <a href="#signup-customer">Customer signup</a> · <a href="#signup-dealer">Dealer signup</a></p>}
       <p className="auth-footnote">Passwords are handled by Supabase authentication. Dealer accounts remain restricted until an administrator approves the application.</p>
     </section>
