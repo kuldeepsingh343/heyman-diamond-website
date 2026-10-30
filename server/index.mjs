@@ -161,9 +161,9 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/quotes') {
-      if (!supabaseReady()) return json(res, 503, { error: 'Quote service is not configured yet.' })
       const customer = await authenticatedUser(req)
       if (!customer?.id || !customer.email) return json(res, 401, { error: 'Please sign in to save a price quote.' })
+      if (!supabaseReady()) return json(res, 503, { error: 'Quote service is not configured yet.' })
       const input = await bodyJson(req)
       // Identity comes from the signed-in website account, never from Flomiz or client-supplied email.
       const email = String(customer.email).trim().toLowerCase()
