@@ -185,7 +185,7 @@ This checklist is a practical implementation aid, not a legal opinion. Have qual
 - GitHub Actions CI includes dependency installation, lint, production build, Node test suite, and server syntax validation.
 
 ### Remaining launch blockers (not code-only work)
-- Latest CI run must be confirmed after the final security/test commits.
+- GitHub Actions CI run #123 passed on 2026-10-30: dependency install, lint, production build, automated tests, and server syntax check. Run again after any further code changes.
 - A clean, isolated database migration test has not been run. Do not reset the existing project to perform it; a separate Supabase branch/project requires review of any additional cost first.
 - Live authenticated-user tests for owner isolation, admin permission combinations, and auth email/redirect settings remain outstanding.
 - No administrator account is provisioned; this requires a deliberately authorized account ID.
