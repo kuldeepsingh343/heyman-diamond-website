@@ -9,6 +9,7 @@ test('reconstructed migrations cover live schema and hardening', async () => {
   const hardening = await readFile(new URL('20261029203109_tighten_function_privileges_and_indexes.sql', root), 'utf8')
   const promotion = await readFile(new URL('20261029203343_align_promotion_fields_with_api.sql', root), 'utf8')
   const grants = await readFile(new URL('20261030151610_revoke_client_table_privileges.sql', root), 'utf8')
+  const reviewPermission = await readFile(new URL('20261030162000_add_review_management_permission.sql', root), 'utf8')
 
   for (const table of [
     'profiles', 'admin_users', 'dealer_applications', 'orders', 'quote_requests',
@@ -28,5 +29,7 @@ test('reconstructed migrations cover live schema and hardening', async () => {
   assert.ok(promotion.includes('add column if not exists banner_text'))
   assert.ok(grants.includes('revoke all privileges on all tables in schema public from anon, authenticated'))
   assert.ok(grants.includes('alter default privileges in schema public revoke all privileges on tables from anon, authenticated'))
+  assert.ok(initial.includes('can_manage_reviews boolean not null default false'))
+  assert.ok(reviewPermission.includes('add column if not exists can_manage_reviews boolean not null default false'))
   assert.doesNotMatch(initial, /service_role_key/i)
 })
