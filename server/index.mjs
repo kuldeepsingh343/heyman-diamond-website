@@ -166,7 +166,7 @@ const server = createServer(async (req, res) => {
       const gender = String(input.gender || '').trim()
       const password = String(input.password || '')
       const companyName = String(input.companyName || '').trim()
-      if (!fullName || fullName.length > 120 || !address || address.length > 500 || !phone || phone.length > 40 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254 || !['female','male','non_binary','prefer_not_to_say'].includes(gender) || password.length < 10 || password.length > 128 || (accountType === 'dealer' && (!companyName || companyName.length > 160))) {
+      if (!fullName || fullName.length > 120 || !address || address.length > 500 || !phone || phone.length > 40 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !['female','male','non_binary','prefer_not_to_say'].includes(gender) || password.length < 10 || password.length > 128 || (accountType === 'dealer' && (!companyName || companyName.length > 160))) {
         return json(res, 400, { error: 'Please complete all required fields. Password must be at least 10 characters.' })
       }
       const signup = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
@@ -190,7 +190,7 @@ const server = createServer(async (req, res) => {
       const input = await bodyJson(req)
       const email = String(input.email || '').trim().toLowerCase()
       const password = String(input.password || '')
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !password || password.length > 128) return json(res, 400, { error: 'Enter a valid email and password.' })
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password || password.length > 128) return json(res, 400, { error: 'Enter a valid email and password.' })
       const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
       const data = await response.json()
       if (!response.ok) return json(res, response.status, { error: data.msg || data.message || 'Email or password is incorrect.' })
@@ -202,7 +202,7 @@ const server = createServer(async (req, res) => {
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Password reset is not configured yet.' })
       const input = await bodyJson(req)
       const email = String(input.email || '').trim().toLowerCase()
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return json(res, 400, { error: 'Enter a valid email address.' })
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'Enter a valid email address.' })
       const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, redirect_to: 'https://hey-man-diamond-test.onrender.com/#signin' }) })
       if (!response.ok) return json(res, response.status, { error: 'Unable to send a password reset email right now.' })
       return json(res, 200, { sent: true, message: 'If this email has an account, a password reset link has been sent.' })
