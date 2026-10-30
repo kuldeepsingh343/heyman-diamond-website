@@ -234,7 +234,6 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/reviews') {
-      if (!supabaseReady()) return json(res, 503, { error: 'Review submission is not configured yet.' })
       const now = Date.now()
       const key = req.socket.remoteAddress || 'unknown'
       const previous = reviewRate.get(key) || 0
@@ -247,6 +246,7 @@ const server = createServer(async (req, res) => {
       if (name.length < 1 || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || remarks.length < 1 || remarks.length > 2000 || !Number.isInteger(rating) || rating < 1 || rating > 5) {
         return json(res, 400, { error: 'Please check the name, email, feedback and star rating.' })
       }
+      if (!supabaseReady()) return json(res, 503, { error: 'Review submission is not configured yet.' })
       reviewRate.set(key, now)
       if (reviewRate.size > 5000) {
         for (const [address, timestamp] of reviewRate) {
