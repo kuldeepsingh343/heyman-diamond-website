@@ -90,36 +90,13 @@ a:focus-visible {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
   flex-shrink: 0;
 }
 
-.brand-mark {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--gold);
-  color: var(--gold);
-  font-family: 'Playfair Display', serif;
-  font-size: 27px;
-}
-
-.brand strong,
-.brand small {
+.brand-logo {
   display: block;
-}
-
-.brand strong {
-  font-size: 11px;
-  letter-spacing: 1.1px;
-}
-
-.brand small {
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 10px;
-  letter-spacing: 0.25px;
+  width: clamp(150px, 17vw, 230px);
+  height: auto;
 }
 
 .nav-links {
@@ -669,13 +646,8 @@ a:focus-visible {
   color: #f9f6ed;
 }
 
-.footer .brand-mark {
-  border-color: #a58e58;
-  color: #e0cd9d;
-}
-
-.footer .brand small {
-  color: #c5c0b2;
+.footer-brand .brand-logo {
+  width: min(230px, 100%);
 }
 
 .footer-contact {
@@ -785,18 +757,8 @@ a:focus-visible {
     gap: 17px;
   }
 
-  .brand-mark {
-    width: 39px;
-    height: 39px;
-  }
-
-  .brand strong {
-    font-size: 10px;
-    letter-spacing: 0.7px;
-  }
-
-  .brand small {
-    font-size: 9px;
+  .brand-logo {
+    width: clamp(130px, 40vw, 180px);
   }
 
   .nav-button {

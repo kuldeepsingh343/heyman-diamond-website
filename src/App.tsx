@@ -89,11 +89,11 @@ function App() {
 
       <header className="navbar">
         <a className="brand" href="#home" aria-label="Hey Man Diamond home">
-          <span className="brand-mark">H</span>
-          <span>
-            <strong>HEY MAN DIAMOND LLC</strong>
-            <small>Harvesting Dreams, Together</small>
-          </span>
+          <img
+            className="brand-logo"
+            src="/heyman-diamond-logo.png"
+            alt="Hey Man Diamond LLC — Harvesting Dreams, Together"
+          />
         </a>
 
         <nav className="nav-links" aria-label="Main navigation">
@@ -347,11 +347,11 @@ function App() {
 
       <footer className="footer">
         <a className="brand footer-brand" href="#home">
-          <span className="brand-mark">H</span>
-          <span>
-            <strong>HEY MAN DIAMOND LLC</strong>
-            <small>Harvesting Dreams, Together</small>
-          </span>
+          <img
+            className="brand-logo"
+            src="/heyman-diamond-logo.png"
+            alt="Hey Man Diamond LLC — Harvesting Dreams, Together"
+          />
         </a>
 
         <div className="footer-contact">
