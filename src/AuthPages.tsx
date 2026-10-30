@@ -1,5 +1,5 @@
 import './AuthPages.css'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 
 type Mode = 'signup-customer' | 'signup-dealer' | 'signin'
@@ -16,6 +16,19 @@ export default function AuthPages({ mode }: { mode: string }) {
   const [password,setPassword]=useState('')
   const [status,setStatus]=useState('')
   const [busy,setBusy]=useState(false)
+  useEffect(() => {
+    if (window.location.hash.includes('access_token=')) {
+      const params = new URLSearchParams(window.location.hash.slice(1))
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+      if (accessToken && params.get('type') === 'signup') {
+        localStorage.setItem('hmd_access_token', accessToken)
+        if (refreshToken) localStorage.setItem('hmd_refresh_token', refreshToken)
+        setStatus('Your email has been confirmed successfully. You can now sign in to your account.')
+        window.history.replaceState(null, '', window.location.pathname + '#signin')
+      }
+    }
+  }, [])
   async function submit(e:FormEvent<HTMLFormElement>) {
     e.preventDefault(); setBusy(true); setStatus('')
     try {
