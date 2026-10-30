@@ -27,9 +27,19 @@ async function bodyJson(req) {
   let raw = ''
   for await (const chunk of req) {
     raw += chunk
-    if (raw.length > 20000) throw new Error('Request body too large')
+    if (raw.length > 20000) {
+      const error = new Error('Request body too large')
+      error.statusCode = 413
+      throw error
+    }
   }
-  return JSON.parse(raw || '{}')
+  try {
+    return JSON.parse(raw || '{}')
+  } catch {
+    const error = new Error('Invalid JSON request body')
+    error.statusCode = 400
+    throw error
+  }
 }
 function supabaseReady() {
   return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
@@ -391,8 +401,19 @@ const server = createServer(async (req, res) => {
     }
     return json(res, 404, { error: 'Not found.' })
   } catch (error) {
-    console.error('API request failed:', error instanceof Error ? error.message : 'unknown error')
-    return json(res, 500, { error: 'The request could not be completed.' })
+    const statusCode = error && typeof error === 'object' && 'statusCode' in error
+      ? Number(error.statusCode)
+      : 500
+    if (statusCode >= 500) {
+      console.error('API request failed:', error instanceof Error ? error.message : 'unknown error')
+    }
+    return json(res, statusCode === 400 || statusCode === 413 ? statusCode : 500, {
+      error: statusCode === 400
+        ? 'Request body must be valid JSON.'
+        : statusCode === 413
+          ? 'Request body is too large.'
+          : 'The request could not be completed.',
+    })
   }
 })
 server.listen(PORT, () => console.log(`Hey Man Diamond API listening on port ${PORT}`))
