@@ -110,10 +110,11 @@ function App() {
           <a href="#contact">Contact</a>
         </nav>
 
-        <a className="nav-button" href="#signin">Sign In <span>↗</span></a>
-        <a className="nav-button" href="#contact">
-          Talk to Our Team <span>↗</span>
-        </a>
+        <div className="nav-actions">
+          <a className="nav-button nav-signin" href="#signin">Sign In</a>
+          <a className="nav-button nav-signup" href="#signup-customer">Sign Up</a>
+          <a className="nav-button nav-contact" href="#contact">Talk to Our Team <span aria-hidden="true">↗</span></a>
+        </div>
       </header>
 
       <section className="hero" id="home">
