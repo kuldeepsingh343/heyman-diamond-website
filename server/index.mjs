@@ -62,6 +62,15 @@ async function db(path, options = {}) {
   if (!response.ok) throw new Error(`Database request failed (${response.status}): ${text.slice(0, 300)}`)
   return text ? JSON.parse(text) : null
 }
+async function findAuthUserByEmail(email) {
+  if (!supabaseReady()) throw new Error('Database API is not configured')
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`, {
+    headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+  })
+  if (!response.ok) throw new Error(`Unable to check account status (${response.status})`)
+  const data = await response.json()
+  return (data.users || []).find(user => String(user.email || '').toLowerCase() === email) || null
+}
 async function authenticatedUser(req) {
   const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1]
   if (!token || !SUPABASE_URL || !SUPABASE_ANON_KEY) return null
@@ -168,6 +177,22 @@ const server = createServer(async (req, res) => {
       const companyName = String(input.companyName || '').trim()
       if (!fullName || fullName.length > 120 || !address || address.length > 500 || !phone || phone.length > 40 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !['female','male','non_binary','prefer_not_to_say'].includes(gender) || password.length < 10 || password.length > 128 || (accountType === 'dealer' && (!companyName || companyName.length > 160))) {
         return json(res, 400, { error: 'Please complete all required fields. Password must be at least 10 characters.' })
+      }
+      const existingUser = await findAuthUserByEmail(email)
+      if (existingUser?.email_confirmed_at) {
+        return json(res, 409, { code: 'already_registered', error: 'You are already a registered customer. Please sign in to your account.' })
+      }
+      if (existingUser && !existingUser.email_confirmed_at) {
+        const resend = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
+          method: 'POST',
+          headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'signup', email, options: { emailRedirectTo: 'https://hey-man-diamond-test.onrender.com/#signin' } }),
+        })
+        if (!resend.ok) {
+          const detail = await resend.json().catch(() => ({}))
+          return json(res, resend.status, { error: detail.msg || detail.message || 'Your account is not confirmed yet, but a new email could not be sent. Please wait and try again.' })
+        }
+        return json(res, 200, { submitted: true, confirmationResent: true, message: 'Your account is not confirmed yet. We have requested a fresh confirmation email. Please check your inbox and spam folder.' })
       }
       const signupUrl = new URL('/auth/v1/signup', SUPABASE_URL)
       signupUrl.searchParams.set('redirect_to', 'https://hey-man-diamond-test.onrender.com/#signin')
