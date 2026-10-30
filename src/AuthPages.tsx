@@ -1,3 +1,4 @@
+import './AuthPages.css'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
