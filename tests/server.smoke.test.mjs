@@ -58,6 +58,26 @@ test('API smoke checks', async t => {
     assert.equal(response.status, 503)
   })
 
+  await t.test('rejects malformed JSON with a client error', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/reviews`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: '{not-json',
+    })
+    assert.equal(response.status, 400)
+    assert.deepEqual(await response.json(), { error: 'Request body must be valid JSON.' })
+  })
+
+  await t.test('rejects oversized request bodies', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/reviews`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remarks: 'x'.repeat(21000) }),
+    })
+    assert.equal(response.status, 413)
+    assert.deepEqual(await response.json(), { error: 'Request body is too large.' })
+  })
+
   await t.test('inquiries fail closed until the database is configured', async () => {
     const response = await fetch(`http://127.0.0.1:${port}/api/inquiries`, {
       method: 'POST',
