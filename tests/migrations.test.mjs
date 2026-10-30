@@ -8,7 +8,7 @@ test('reconstructed migrations cover live schema and hardening', async () => {
   const initial = await readFile(new URL('20261029203058_initial_website_schema_rls.sql', root), 'utf8')
   const hardening = await readFile(new URL('20261029203109_tighten_function_privileges_and_indexes.sql', root), 'utf8')
   const promotion = await readFile(new URL('20261029203343_align_promotion_fields_with_api.sql', root), 'utf8')
-  const grants = await readFile(new URL('20261030160000_revoke_client_table_privileges.sql', root), 'utf8')
+  const grants = await readFile(new URL('20261030151610_revoke_client_table_privileges.sql', root), 'utf8')
 
   for (const table of [
     'profiles', 'admin_users', 'dealer_applications', 'orders', 'quote_requests',
