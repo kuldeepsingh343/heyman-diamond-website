@@ -426,8 +426,8 @@ function App() {
         </nav>
 
         <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} Hey Man Diamond LLC</span>
-          <span>Lab-grown diamonds. Personal service.</span>
+          <span>© 2026 HEY MAN DIAMOND LLC. ALL RIGHTS RESERVED.</span>
+          <span>Made with ❤️ by Kuldeep Singh Chauhan</span>
         </div>
       </footer>
 

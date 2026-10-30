@@ -682,12 +682,14 @@ a:focus-visible {
   grid-column: 1 / -1;
   padding-top: 20px;
   display: flex;
-  justify-content: space-between;
-  gap: 15px;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   border-top: 1px solid #4b4b40;
   color: #c5c0b2;
   font-size: 10px;
   line-height: 1.8;
+  text-align: center;
 }
 
 @media (min-width: 1450px) {
