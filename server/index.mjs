@@ -187,6 +187,23 @@ const server = createServer(async (req, res) => {
       return json(res, 201, { submitted: true, emailConfirmationRequired: !authData.session, accountType, message: accountType === 'dealer' ? 'Your dealer account request has been received. Please confirm your email; dealer access will remain pending until an administrator approves it.' : 'Your account has been created. Please check your email to confirm your address before signing in.' })
     }
 
+    if (req.method === 'POST' && url.pathname === '/api/auth/resend-confirmation') {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Email confirmation is not configured yet.' })
+      const input = await bodyJson(req)
+      const email = String(input.email || '').trim().toLowerCase()
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254) return json(res, 400, { error: 'Enter a valid email address.' })
+      const response = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'signup', email, options: { emailRedirectTo: 'https://hey-man-diamond-test.onrender.com/#signin' } }),
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        return json(res, response.status, { error: data.msg || data.message || 'Unable to resend confirmation. The account may already be confirmed or email sending may be rate-limited.' })
+      }
+      return json(res, 200, { sent: true, message: 'If this account still needs email confirmation, a new confirmation email has been requested. Check your inbox and spam folder.' })
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/auth/signin') {
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Sign-in service is not configured yet.' })
       const input = await bodyJson(req)
