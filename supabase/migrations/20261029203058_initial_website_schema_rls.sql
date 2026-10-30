@@ -16,6 +16,7 @@ create table public.admin_users (
   user_id uuid primary key references auth.users(id) on delete cascade,
   can_review_kyc boolean not null default false,
   can_manage_orders boolean not null default false,
+  can_manage_reviews boolean not null default false,
   can_manage_promotions boolean not null default false,
   created_at timestamptz not null default now()
 );
