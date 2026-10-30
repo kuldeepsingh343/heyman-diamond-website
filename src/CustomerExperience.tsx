@@ -61,7 +61,7 @@ export default function CustomerExperience() {
               <li>Business verification for new applicants</li>
               <li>Support for sourcing and repeat orders</li>
             </ul>
-            <a className="button-primary" href="mailto:sales@heymandiamond.com?subject=Wholesale%20Account%20Application">Request a Dealer Account <span>↗</span></a>
+            <a className="button-primary" href="#signup-dealer">Create Dealer Account <span>↗</span></a>
           </article>
           <article className="customer-path-card">
             <div className="path-icon" aria-hidden="true">✧</div>
@@ -72,9 +72,10 @@ export default function CustomerExperience() {
               <li>Ask our team for help choosing a stone</li>
               <li>Create an account for a more personal experience</li>
             </ul>
-            <a className="button-secondary" href="#contact">Get Started <span>↗</span></a>
+            <a className="button-secondary" href="#signup-customer">Get Started <span>↗</span></a>
           </article>
         </div>
+      <p className="account-signin-link">Already have an account? <a href="#signin">Sign in here</a>.</p>
       </section>
 
       <section className="review-section" id="reviews" aria-labelledby="reviews-title">
