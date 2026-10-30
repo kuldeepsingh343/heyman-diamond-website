@@ -1214,3 +1214,86 @@ a:focus-visible {
   .footer-policy-links { grid-column: auto; gap: 10px 18px; }
 }
 
+
+
+/* Header and page-width refinements */
+.navbar {
+  padding: 15px clamp(18px, 3.2vw, 48px);
+  display: grid;
+  grid-template-columns: minmax(150px, 205px) minmax(0, 1fr) auto;
+  gap: clamp(14px, 1.8vw, 26px);
+}
+.brand-logo { width: clamp(150px, 16vw, 205px); }
+.nav-links { min-width: 0; gap: clamp(10px, 1.25vw, 18px); }
+.nav-links a { white-space: nowrap; font-size: 11px; }
+.nav-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+.nav-button {
+  min-height: 42px;
+  padding: 0 14px;
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.nav-signup {
+  background: transparent;
+  color: var(--dark);
+  border: 1px solid #b8a77d;
+}
+.nav-signup:hover { background: #f0ece2; color: var(--dark); }
+.nav-contact { padding-inline: 14px; }
+.hero,
+.trust-strip,
+.collection,
+.wholesale-section,
+.team-section,
+.social-section,
+.customer-paths,
+.review-section,
+.account-section,
+.contact-banner {
+  padding-left: clamp(22px, 4.5vw, 68px);
+  padding-right: clamp(22px, 4.5vw, 68px);
+}
+.hero { gap: clamp(28px, 4vw, 60px); }
+.collection,
+.team-section,
+.social-section,
+.customer-paths,
+.review-section,
+.account-section { padding-top: 76px; padding-bottom: 76px; }
+
+@media (max-width: 1120px) {
+  .navbar {
+    grid-template-columns: minmax(145px, 190px) 1fr;
+    gap: 14px 20px;
+  }
+  .nav-actions { grid-column: 2; grid-row: 1; }
+  .nav-links {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    order: initial;
+    width: 100%;
+    justify-content: space-between;
+    padding-top: 5px;
+  }
+}
+@media (max-width: 650px) {
+  .navbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 14px 18px;
+    gap: 12px;
+  }
+  .brand-logo { width: clamp(130px, 38vw, 170px); }
+  .nav-actions { grid-column: 2; grid-row: 1; gap: 6px; }
+  .nav-button { min-height: 38px; padding: 0 10px; font-size: 10px; }
+  .nav-contact { display: none; }
+  .nav-links { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (max-width: 380px) {
+  .nav-button { padding-inline: 8px; font-size: 9px; }
+}
