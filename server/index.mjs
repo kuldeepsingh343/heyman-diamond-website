@@ -71,7 +71,7 @@ async function authenticatedUser(req) {
 async function requireAdmin(req) {
   const user = await authenticatedUser(req)
   if (!user?.id) return null
-  const rows = await db(`admin_users?user_id=eq.${encodeURIComponent(user.id)}&select=user_id,can_review_kyc,can_manage_orders,can_manage_promotions`)
+  const rows = await db(`admin_users?user_id=eq.${encodeURIComponent(user.id)}&select=user_id,can_review_kyc,can_manage_orders,can_manage_reviews,can_manage_promotions`)
   return rows?.[0] ? { user, permissions: rows[0] } : null
 }
 function publicProduct(product) {
@@ -285,7 +285,7 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { updated: true, status: input.status })
       }
       if (req.method === 'GET' && url.pathname === '/api/admin/reviews') {
-        if (!p.can_manage_orders) return json(res, 403, { error: 'Review-management permission required.' })
+        if (!p.can_manage_reviews) return json(res, 403, { error: 'Review-management permission required.' })
         const rows = await db('reviews?select=id,customer_name,rating,remarks,status,submitted_at&order=submitted_at.desc')
         return json(res, 200, { items: rows })
       }
