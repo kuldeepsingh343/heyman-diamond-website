@@ -112,7 +112,7 @@ function App() {
         <div className="nav-actions">
           <a className="nav-button nav-signin" href="#signin">Sign In</a>
           <a className="nav-button nav-signup" href="#signup-customer">Sign Up</a>
-          <a className="nav-button nav-contact" href="#contact">Talk to Our Team <span aria-hidden="true">↗</span></a>
+          <a className="nav-button nav-contact" href="#contact">Talk to Our Team</a>
         </div>
       </header>
 
@@ -137,7 +137,7 @@ function App() {
 
           <div className="hero-actions">
             <a className="button-primary" href="#collection">
-              Explore Our Diamonds <span>↗</span>
+              Explore Our Diamonds
             </a>
             <a className="button-secondary" href="#contact">
               Meet Our Team
@@ -248,12 +248,11 @@ function App() {
                   loading="lazy"
                 />
                 <span className="category-number">{category.number}</span>
-                <span className="category-arrow">↗</span>
               </div>
               <div className="category-copy">
                 <h3>{category.name}</h3>
                 <p>{category.description}</p>
-                <span className="text-link">Ask about availability ↗</span>
+                <span className="text-link">Ask about availability</span>
               </div>
             </a>
           ))}
@@ -282,7 +281,7 @@ function App() {
             wholesale services.
           </p>
           <a className="button-primary" href="mailto:sales@heymandiamond.com?subject=Wholesale%20Account%20Inquiry">
-            Ask About Wholesale <span>↗</span>
+            Ask About Wholesale
           </a>
         </div>
       </section>
@@ -338,7 +337,7 @@ function App() {
             target="_blank"
             rel="noreferrer"
           >
-            Follow us on Instagram ↗
+            Follow us on Instagram
           </a>
         </div>
 
@@ -374,7 +373,7 @@ function App() {
           </p>
         </div>
         <a className="button-primary" href="mailto:sales@heymandiamond.com">
-          Contact Sales <span>↗</span>
+          Contact Sales
         </a>
       </section>
 

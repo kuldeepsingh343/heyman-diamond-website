@@ -171,7 +171,7 @@ function PolicyPages({ slug }: { slug: string }) {
         <nav className="policy-related" aria-label="Other policy pages">
           <strong>More customer information</strong>
           {(Object.keys(pageTitles) as PolicySlug[]).filter((item) => item !== page).map((item) => (
-            <a key={item} href={`#policy-${item}`}>{pageTitles[item]} ↗</a>
+            <a key={item} href={`#policy-${item}`}>{pageTitles[item]}</a>
           ))}
         </nav>
         <p className="policy-contact">Questions? Contact <a href="mailto:sales@heymandiamond.com">sales@heymandiamond.com</a>.</p>

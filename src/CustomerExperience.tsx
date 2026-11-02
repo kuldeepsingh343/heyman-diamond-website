@@ -61,7 +61,7 @@ export default function CustomerExperience() {
               <li>Business verification for new applicants</li>
               <li>Support for sourcing and repeat orders</li>
             </ul>
-            <a className="button-primary" href="#signup-dealer">Create Dealer Account <span>↗</span></a>
+            <a className="button-primary" href="#signup-dealer">Create Dealer Account</a>
           </article>
           <article className="customer-path-card">
             <div className="path-icon" aria-hidden="true">✧</div>
@@ -72,7 +72,7 @@ export default function CustomerExperience() {
               <li>Ask our team for help choosing a stone</li>
               <li>Create an account for a more personal experience</li>
             </ul>
-            <a className="button-secondary" href="#signup-customer">Get Started <span>↗</span></a>
+            <a className="button-secondary" href="#signup-customer">Get Started</a>
           </article>
         </div>
       <p className="account-signin-link">Already have an account? <a href="#signin">Sign in here</a>.</p>
@@ -86,10 +86,10 @@ export default function CustomerExperience() {
             <p>We value honest feedback. Tell us about your experience with Hey Man Diamond LLC, and help us continue improving our service.</p>
             <div className="google-review-links">
               <a className="google-review-link" href={googleReviews[0].url} target="_blank" rel="noreferrer">
-                <span><strong>Give us a Google review</strong><br /><small>Chicago Office</small></span><span aria-hidden="true">↗</span>
+                <span><strong>Give us a Google review</strong><br /><small>Chicago Office</small></span>
               </a>
               <a className="google-review-link" href={googleReviews[1].url} target="_blank" rel="noreferrer">
-                <span><strong>Give us a Google review</strong><br /><small>New York Office</small></span><span aria-hidden="true">↗</span>
+                <span><strong>Give us a Google review</strong><br /><small>New York Office</small></span>
               </a>
             </div>
           </div>
