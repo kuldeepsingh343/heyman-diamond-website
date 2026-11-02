@@ -25,8 +25,7 @@ function PolicyPages({ slug }: { slug: string }) {
     <main className="policy-page">
       <header className="policy-header">
         <a className="policy-brand" href="#home" aria-label="Return to Hey Man Diamond home">
-          <span className="policy-mark">H</span>
-          <span><strong>HEY MAN DIAMOND LLC</strong><small>Harvesting Dreams, Together</small></span>
+          <img src="/heyman-diamond-logo.png" alt="Hey Man Diamond LLC" style={{ height: '48px', width: 'auto', objectFit: 'contain' }} />
         </a>
         <a className="policy-back" href="#home">← Back to website</a>
       </header>

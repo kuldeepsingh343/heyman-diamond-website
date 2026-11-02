@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap');
 
 :root {
   font-family: 'DM Sans', sans-serif;
@@ -9,14 +9,27 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
+
+  /* ── Colour palette ── */
   --page: #fbfaf7;
   --surface: #fffefa;
   --soft: #f1eee6;
   --ink: #292820;
   --muted: #77746b;
   --gold: #a58a50;
+  --gold-light: #c9a96e;
+  --gold-dark: #8e7437;
   --line: #e7e1d5;
   --dark: #282920;
+
+  /* ── Elevation & motion ── */
+  --shadow-sm: 0 2px 8px rgb(41 40 32 / 6%), 0 1px 3px rgb(41 40 32 / 4%);
+  --shadow-md: 0 8px 24px rgb(41 40 32 / 9%), 0 2px 8px rgb(41 40 32 / 5%);
+  --shadow-lg: 0 20px 48px rgb(41 40 32 / 11%), 0 4px 12px rgb(41 40 32 / 6%);
+  --shadow-gold: 0 8px 28px rgb(165 138 80 / 18%);
+  --ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --duration: 220ms;
 }
 
 * {
@@ -47,9 +60,11 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
-a:focus-visible {
+a:focus-visible,
+button:focus-visible {
   outline: 2px solid var(--gold);
-  outline-offset: 4px;
+  outline-offset: 3px;
+  border-radius: 2px;
 }
 
 .website {
@@ -123,17 +138,21 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 10px;
   background: var(--dark);
   color: #fffdf7;
+  font-family: 'DM Sans', sans-serif;
   font-size: 12px;
-  transition: background 180ms ease, transform 180ms ease;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  transition: background var(--duration) var(--ease), transform var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
 }
 
 .nav-button:hover,
 .button-primary:hover {
-  background: #8e7746;
-  transform: translateY(-1px);
+  background: var(--gold-dark);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-gold);
 }
 
 .hero {
@@ -144,7 +163,7 @@ a:focus-visible {
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   align-items: center;
   gap: clamp(32px, 6vw, 84px);
-  background: radial-gradient(ellipse at 80% 45%, #eee8da 0%, #f7f4ed 43%, #fbfaf7 78%);
+  background: radial-gradient(ellipse at 75% 50%, #e8dfc9 0%, #f2ede0 38%, #f8f5ef 65%, #fbfaf7 100%);
 }
 
 .hero-content {
@@ -214,15 +233,20 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #d9d2c4;
+  gap: 10px;
+  border: 1px solid #c8bfa8;
   color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
   font-size: 12px;
-  transition: background 180ms ease, border-color 180ms ease;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease), transform var(--duration) var(--ease);
 }
 
 .button-secondary:hover {
   background: #f0ece2;
   border-color: var(--gold);
+  transform: translateY(-1px);
 }
 
 .hero-note {
@@ -330,26 +354,46 @@ a:focus-visible {
 }
 
 .about-section {
-  padding: 76px clamp(22px, 4.5vw, 68px);
-  background: #f5f1e8;
+  padding: 84px clamp(22px, 4.5vw, 68px);
+  background: linear-gradient(160deg, #f6f2e9 0%, #ede7d8 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Decorative diamond motif */
+.about-section::before {
+  content: '◇';
+  position: absolute;
+  right: clamp(24px, 6vw, 88px);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: clamp(120px, 18vw, 220px);
+  color: rgb(165 138 80 / 7%);
+  font-family: 'Playfair Display', serif;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
 }
 
 .about-copy {
-  max-width: 900px;
+  max-width: 820px;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 .about-copy h2 {
-  margin: 0 0 22px;
+  margin: 0 0 28px;
   color: var(--ink);
-  font: 500 clamp(32px, 4vw, 46px)/1.15 'Playfair Display', Georgia, serif;
+  font: 500 clamp(32px, 4vw, 48px)/1.12 'Playfair Display', Georgia, serif;
+  letter-spacing: -0.5px;
 }
 
 .about-copy p {
-  margin: 0 0 16px;
+  margin: 0 0 18px;
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.9;
+  font-size: 14px;
+  line-height: 1.95;
 }
 
 .about-copy p:last-child {
@@ -406,12 +450,13 @@ a:focus-visible {
   flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--line);
-  transition: box-shadow 200ms ease, transform 200ms ease;
+  transition: box-shadow var(--duration) var(--ease), transform var(--duration) var(--ease), border-color var(--duration) var(--ease);
 }
 
 .category-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgb(46 39 24 / 8%);
+  transform: translateY(-4px);
+  border-color: #d4be90;
+  box-shadow: var(--shadow-md), var(--shadow-gold);
 }
 
 .category-image-wrap {
@@ -558,23 +603,31 @@ a:focus-visible {
 
 .team-card {
   min-width: 0;
-  padding: 30px 20px;
+  padding: 36px 24px;
   text-align: center;
   border: 1px solid var(--line);
   background: var(--page);
+  transition: transform var(--duration) var(--ease), box-shadow var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+
+.team-card:hover {
+  transform: translateY(-3px);
+  border-color: #d4be90;
+  box-shadow: var(--shadow-md);
 }
 
 .team-initial {
-  width: 68px;
-  height: 68px;
-  margin: 0 auto 18px;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
   display: grid;
   place-items: center;
-  border: 1px solid #cbbb94;
+  border: 1.5px solid #cbbb94;
   border-radius: 50%;
   color: #8d7645;
   font-family: 'Playfair Display', serif;
-  font-size: 23px;
+  font-size: 24px;
+  background: linear-gradient(135deg, #fdf8ef 0%, #f5edd8 100%);
 }
 
 .team-card h3 {
@@ -685,13 +738,23 @@ a:focus-visible {
 }
 
 .contact-banner {
-  padding: 55px clamp(24px, 8vw, 120px);
+  padding: 72px clamp(24px, 4.5vw, 68px);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 35px;
   border-top: 1px solid var(--line);
-  background: #f5f1e8;
+  background: linear-gradient(135deg, #f0ead9 0%, #e8dfc9 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.contact-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 85% 50%, rgb(165 138 80 / 10%) 0%, transparent 65%);
+  pointer-events: none;
 }
 
 .contact-banner>div {
@@ -713,12 +776,13 @@ a:focus-visible {
 }
 
 .footer {
-  padding: 45px clamp(24px, 6vw, 88px) 20px;
+  padding: 56px clamp(22px, 4.5vw, 68px) 24px;
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr;
-  gap: 35px;
-  background: var(--dark);
+  gap: 40px;
+  background: #1e1f17;
   color: #f9f6ed;
+  border-top: 1px solid rgb(255 255 255 / 5%);
 }
 
 .footer-brand .brand-logo {
@@ -1325,8 +1389,24 @@ a:focus-visible {
   color: var(--dark);
   border: 1px solid #b8a77d;
 }
-.nav-signup:hover { background: #f0ece2; color: var(--dark); }
+/* Bug fix: hover must not lose text visibility */
+.nav-signup:hover {
+  background: #f0ece2;
+  color: var(--dark);
+  transform: translateY(-1px);
+  box-shadow: none;
+}
 .nav-contact { padding-inline: 14px; }
+
+/* Prevent double rule — nav-signin keeps dark background on hover */
+.nav-signin {
+  background: var(--dark);
+  color: #fffdf7;
+}
+.nav-signin:hover {
+  background: var(--gold-dark);
+  color: #fff;
+}
 .hero,
 .trust-strip,
 .collection,

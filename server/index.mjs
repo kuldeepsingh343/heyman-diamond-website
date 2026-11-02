@@ -161,7 +161,7 @@ async function instagramReels() {
 }
 const server = createServer(async (req, res) => {
   const requestOrigin = req.headers.origin
-  const sameOrigin = requestOrigin && requestOrigin === `https://${req.headers.host}`
+  const sameOrigin = requestOrigin && (requestOrigin === `https://${req.headers.host}` || requestOrigin === `http://${req.headers.host}`)
   if (requestOrigin && requestOrigin !== ALLOWED_ORIGIN && !sameOrigin) {
     return json(res, 403, { error: 'This website origin is not allowed.' })
   }
@@ -275,7 +275,7 @@ const server = createServer(async (req, res) => {
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Email confirmation is not configured yet.' })
       const input = await bodyJson(req)
       const email = String(input.email || '').trim().toLowerCase()
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254) return json(res, 400, { error: 'Enter a valid email address.' })
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return json(res, 400, { error: 'Enter a valid email address.' })
       const response = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
         method: 'POST',
         headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },

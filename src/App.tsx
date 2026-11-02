@@ -83,7 +83,7 @@ function App() {
   }, [])
 
   if (policySlug) return <PolicyPages slug={policySlug} />
-  if (authRoute) return <AuthPages mode={authRoute} />
+  if (authRoute) return <AuthPages key={authRoute} mode={authRoute} />
 
   return (
     <main className="website">
