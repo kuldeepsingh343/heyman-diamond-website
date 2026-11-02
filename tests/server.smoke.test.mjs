@@ -8,7 +8,17 @@ let server
 
 test('API smoke checks', async t => {
   server = spawn(process.execPath, ['server/index.mjs'], {
-    env: { ...process.env, API_PORT: String(port), ALLOWED_ORIGIN: origin, SUPABASE_URL: '', SUPABASE_SERVICE_ROLE_KEY: '', FLOMIZ_CUSTOMER_ID: '' },
+    env: {
+      ...process.env,
+      API_PORT: String(port),
+      ALLOWED_ORIGIN: origin,
+      SUPABASE_URL: '',
+      SUPABASE_SERVICE_ROLE_KEY: '',
+      FLOMIZ_CUSTOMER_ID: '',
+      INSTAGRAM_USER_ID: '',
+      INSTAGRAM_ACCESS_TOKEN: '',
+      INSTAGRAM_GRAPH_API_VERSION: '',
+    },
     stdio: 'ignore',
   })
   t.after(() => { if (server && !server.killed) server.kill('SIGTERM') })
@@ -56,6 +66,12 @@ test('API smoke checks', async t => {
   await t.test('catalog stays unavailable until Flomiz is configured', async () => {
     const response = await fetch(`http://127.0.0.1:${port}/api/catalog`, { headers: { Origin: origin } })
     assert.equal(response.status, 503)
+  })
+
+  await t.test('Instagram feed stays unavailable until configured', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/instagram/reels`, { headers: { Origin: origin } })
+    assert.equal(response.status, 503)
+    assert.deepEqual(await response.json(), { error: 'Instagram feed is not configured.' })
   })
 
   await t.test('rejects malformed JSON with a client error', async () => {

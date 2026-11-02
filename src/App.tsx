@@ -4,6 +4,7 @@ import './App.css'
 import CustomerExperience from './CustomerExperience'
 import PolicyPages from './PolicyPages'
 import AuthPages from './AuthPages'
+import InstagramReels from './InstagramReels'
 
 const categories = [
   {
@@ -341,19 +342,7 @@ function App() {
           </a>
         </div>
 
-        <div className="social-gallery">
-          {categories.slice(0, 4).map((category) => (
-            <a
-              href="https://www.instagram.com/heymandiamond_llc"
-              target="_blank"
-              rel="noreferrer"
-              key={category.number}
-              aria-label={`View Hey Man Diamond on Instagram`}
-            >
-              <img src={category.image} alt="" loading="lazy" />
-            </a>
-          ))}
-        </div>
+        <InstagramReels />
       </section>
 
       <CustomerExperience />

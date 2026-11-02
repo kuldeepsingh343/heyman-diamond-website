@@ -12,6 +12,10 @@ const FLOMIZ_CUSTOMER_ID = process.env.FLOMIZ_CUSTOMER_ID
 const FLOMIZ_PORTAL_TYPE = Number(process.env.FLOMIZ_PORTAL_TYPE || 1000)
 const FLOMIZ_API_USERNAME = process.env.FLOMIZ_API_USERNAME
 const FLOMIZ_API_PASSWORD = process.env.FLOMIZ_API_PASSWORD
+const INSTAGRAM_USER_ID = process.env.INSTAGRAM_USER_ID
+const INSTAGRAM_ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN
+const INSTAGRAM_GRAPH_API_VERSION = process.env.INSTAGRAM_GRAPH_API_VERSION
+const INSTAGRAM_CACHE_TTL_MS = 5 * 60 * 1000
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:5173'
 const headers = {
@@ -21,9 +25,10 @@ const headers = {
   'Vary': 'Origin',
 }
 const reviewRate = new Map()
+let instagramCache = { expiresAt: 0, reels: [] }
 
-function json(res, status, body) {
-  res.writeHead(status, { ...headers, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+function json(res, status, body, responseHeaders = {}) {
+  res.writeHead(status, { ...headers, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...responseHeaders })
   res.end(JSON.stringify(body))
 }
 async function bodyJson(req) {
@@ -106,6 +111,54 @@ function publicProduct(product) {
     imageData: image?.base64FileByte || null,
   }
 }
+async function instagramReels() {
+  if (!INSTAGRAM_USER_ID || !INSTAGRAM_ACCESS_TOKEN || !/^v\d+\.\d+$/.test(INSTAGRAM_GRAPH_API_VERSION || '')) {
+    return null
+  }
+  if (instagramCache.expiresAt > Date.now()) return instagramCache.reels
+
+  const reels = []
+  let after
+  for (let page = 0; page < 5 && reels.length < 24; page++) {
+    const endpoint = new URL(`https://graph.facebook.com/${INSTAGRAM_GRAPH_API_VERSION}/${encodeURIComponent(INSTAGRAM_USER_ID)}/media`)
+    endpoint.searchParams.set('fields', 'id,caption,media_type,media_product_type,permalink,thumbnail_url,timestamp')
+    endpoint.searchParams.set('limit', '100')
+    endpoint.searchParams.set('access_token', INSTAGRAM_ACCESS_TOKEN)
+    if (after) endpoint.searchParams.set('after', after)
+
+    const upstream = await fetch(endpoint, { signal: AbortSignal.timeout(10000) })
+    if (!upstream.ok) throw new Error(`Instagram Graph API returned status ${upstream.status}`)
+    const data = await upstream.json()
+    if (!Array.isArray(data.data)) throw new Error('Instagram response could not be validated')
+
+    for (const media of data.data) {
+      if (
+        media?.media_product_type !== 'REELS'
+        || media?.media_type !== 'VIDEO'
+        || typeof media.id !== 'string'
+        || typeof media.permalink !== 'string'
+        || !media.permalink.startsWith('https://www.instagram.com/')
+        || typeof media.thumbnail_url !== 'string'
+        || !media.thumbnail_url.startsWith('https://')
+      ) continue
+
+      reels.push({
+        id: media.id,
+        caption: typeof media.caption === 'string' ? media.caption.slice(0, 1000) : '',
+        permalink: media.permalink,
+        thumbnailUrl: media.thumbnail_url,
+        timestamp: typeof media.timestamp === 'string' ? media.timestamp : '',
+      })
+      if (reels.length >= 24) break
+    }
+
+    after = data.paging?.cursors?.after
+    if (!data.paging?.next || typeof after !== 'string') break
+  }
+
+  instagramCache = { expiresAt: Date.now() + INSTAGRAM_CACHE_TTL_MS, reels }
+  return reels
+}
 const server = createServer(async (req, res) => {
   const requestOrigin = req.headers.origin
   const sameOrigin = requestOrigin && requestOrigin === `https://${req.headers.host}`
@@ -125,6 +178,12 @@ const server = createServer(async (req, res) => {
         flomizConfigured: Boolean(FLOMIZ_CUSTOMER_ID),
         note: 'Configuration presence only; provider credentials and connectivity are not verified by this endpoint.',
       })
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/instagram/reels') {
+      const reels = await instagramReels()
+      if (!reels) return json(res, 503, { error: 'Instagram feed is not configured.' })
+      return json(res, 200, { reels }, { 'Cache-Control': 'public, max-age=300' })
     }
 
     if (req.method === 'GET' && url.pathname === '/api/catalog') {
