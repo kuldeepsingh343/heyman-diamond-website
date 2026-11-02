@@ -64,22 +64,53 @@ const team = [
   },
 ]
 
+function resolveAuthRoute(hash?: string): string {
+  const currentHash = hash ?? (typeof window !== 'undefined' ? window.location.hash : '')
+  if (!currentHash) return ''
+
+  // Standard auth routes: #signup-customer, #signup-dealer, #signin
+  const standardMatch = currentHash.match(/^#(signup-customer|signup-dealer|signin)$/)
+  if (standardMatch) return standardMatch[1]
+
+  // Supabase verification redirect tokens (e.g. #access_token=... or #signin#access_token=...)
+  // or error fragments (e.g. #error=... or #error_description=...)
+  if (currentHash.includes('access_token=') || currentHash.includes('error=')) {
+    // If the hash contains a duplicate fragment prefix like #signin#access_token=...,
+    // normalize the hash in window.history so that URLSearchParams in AuthPages can parse access_token cleanly.
+    if (typeof window !== 'undefined' && (currentHash.includes('#signin#') || (currentHash.includes('#') && currentHash.indexOf('access_token=') > 1))) {
+      const tokenIndex = currentHash.indexOf('access_token=')
+      if (tokenIndex !== -1) {
+        const tokenFragment = currentHash.slice(tokenIndex)
+        window.history.replaceState(null, '', window.location.pathname + '#' + tokenFragment)
+      }
+    }
+    return 'signin'
+  }
+
+  // Handle #signin with query parameters or trailing fragment, e.g. #signin?... or #signin&...
+  if (/^#signin[#&?]/.test(currentHash)) {
+    return 'signin'
+  }
+
+  return ''
+}
+
 function App() {
-  const [authRoute, setAuthRoute] = useState(() => window.location.hash.match(/^#(signup-customer|signup-dealer|signin)$/)?.[1] ?? '')
+  const [authRoute, setAuthRoute] = useState(() => resolveAuthRoute())
   const [policySlug, setPolicySlug] = useState(() => {
     const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
     return match?.[1] ?? ''
   })
 
   useEffect(() => {
-    const syncPolicyRoute = () => {
+    const syncRoute = () => {
       const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
       setPolicySlug(match?.[1] ?? '')
-      setAuthRoute(window.location.hash.match(/^#(signup-customer|signup-dealer|signin)$/)?.[1] ?? '')
+      setAuthRoute(resolveAuthRoute())
       if (match) window.scrollTo({ top: 0, behavior: 'auto' })
     }
-    window.addEventListener('hashchange', syncPolicyRoute)
-    return () => window.removeEventListener('hashchange', syncPolicyRoute)
+    window.addEventListener('hashchange', syncRoute)
+    return () => window.removeEventListener('hashchange', syncRoute)
   }, [])
 
   if (policySlug) return <PolicyPages slug={policySlug} />

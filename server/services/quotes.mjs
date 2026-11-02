@@ -1,0 +1,107 @@
+import { db, json, bodyJson, supabaseReady } from './shared.mjs'
+import { authenticatedUser } from './auth.mjs'
+
+export async function handleCreateInquiry(req, res) {
+  const input = await bodyJson(req)
+  if (!supabaseReady()) return json(res, 503, { error: 'Inquiry service is not configured yet.' })
+  const name = String(input.name || '').trim()
+  const email = String(input.email || '').trim().toLowerCase()
+  const phone = String(input.phone || '').trim()
+  const interest = String(input.interest || '').trim()
+  const message = String(input.message || '').trim()
+
+  if (name.length < 1 || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || message.length < 1 || message.length > 3000) {
+    return json(res, 400, { error: 'Please provide a valid name, email address, and message under 3,000 characters.' })
+  }
+
+  const rows = await db('orders', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      order_number: `INQ-${Date.now().toString().slice(-6)}`,
+      customer_name: name,
+      customer_email: email,
+      customer_phone: phone || null,
+      notes: interest ? `[Interest: ${interest}] ${message}` : message,
+      status: 'new',
+      total: 0,
+      currency: 'USD',
+    }),
+  })
+  return json(res, 201, { inquiryId: rows?.[0]?.id, message: 'Thank you. A sales manager will respond shortly.' })
+}
+
+export async function handleCreateQuote(req, res) {
+  const customer = await authenticatedUser(req)
+  if (!customer?.id || !customer.email) return json(res, 401, { error: 'Please sign in to save a price quote.' })
+  if (!supabaseReady()) return json(res, 503, { error: 'Quote service is not configured yet.' })
+
+  const input = await bodyJson(req)
+  const name = String(customer.user_metadata?.full_name || customer.user_metadata?.name || input.name || '').trim()
+  const email = String(customer.email).trim().toLowerCase()
+  const phone = String(input.phone || '').trim()
+  const message = String(input.message || '').trim()
+  const items = Array.isArray(input.items) ? input.items : []
+
+  if (!name || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || message.length > 3000 || items.length === 0 || items.length > 25) {
+    return json(res, 400, { error: 'Provide your name, a valid email, and between 1 and 25 items for the quote request.' })
+  }
+
+  const quoteRows = await db('quote_requests', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      user_id: customer.id,
+      quote_number: `QR-${Date.now().toString().slice(-6)}`,
+      customer_name: name,
+      customer_email: email,
+      customer_phone: phone || null,
+      customer_message: message || null,
+      status: 'new',
+    }),
+  })
+  const quote = quoteRows?.[0]
+  if (!quote?.id) return json(res, 500, { error: 'Unable to record your quote request.' })
+
+  const itemPayloads = items.map(item => ({
+    quote_request_id: quote.id,
+    flomiz_sku: String(item.sku || '').slice(0, 80),
+    product_name: String(item.name || item.shape || 'Lab-Grown Diamond').slice(0, 160),
+    product_snapshot: {
+      submitted_snapshot: item,
+      disclaimer: 'Client-supplied reference snapshot. Authoritative stone specifications, availability, and pricing require independent verification prior to sale.',
+    },
+    quantity: Math.max(1, Math.min(100, Number(item.quantity) || 1)),
+    current_unit_price: null,
+    requested_unit_price: item.requestedPrice && !isNaN(Number(item.requestedPrice)) ? Number(item.requestedPrice) : null,
+  }))
+
+  await db('quote_request_items', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify(itemPayloads),
+  })
+
+  return json(res, 201, { quoteId: quote.id, quoteNumber: quote.quote_number, message: 'Quote request submitted. Our team will review stock and confirm pricing.' })
+}
+
+export async function handleGetAdminQuotes(req, res, admin) {
+  if (!admin?.permissions?.can_manage_orders) return json(res, 403, { error: 'Order-management permission required.' })
+  const rows = await db('quote_requests?select=id,quote_number,customer_name,customer_email,customer_message,status,created_at,quote_request_items(id,flomiz_sku,product_name,product_snapshot,quantity,current_unit_price,requested_unit_price)&order=created_at.desc')
+  return json(res, 200, { items: rows, unreadCount: (rows || []).filter(row => row.status === 'new').length })
+}
+
+export async function handleUpdateQuoteStatus(req, res, admin, id) {
+  if (!admin?.permissions?.can_manage_orders) return json(res, 403, { error: 'Order-management permission required.' })
+  const input = await bodyJson(req)
+  const allowed = ['new', 'under_review', 'counter_offered', 'accepted', 'declined', 'converted_to_order', 'closed']
+  if (!allowed.includes(input.status)) return json(res, 400, { error: 'Invalid quote request status.' })
+
+  const rows = await db(`quote_requests?id=eq.${id}&select=id,quote_number,status`)
+  if (!rows?.[0]) return json(res, 404, { error: 'Quote request not found.' })
+
+  await db(`quote_requests?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: input.status, updated_at: new Date().toISOString() }) })
+  await db('audit_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ actor_user_id: admin.user.id, action: 'quote_request_status_changed', entity_type: 'quote_request', entity_id: id, metadata: { status: input.status } }) })
+
+  return json(res, 200, { updated: true, status: input.status })
+}
