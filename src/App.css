@@ -1416,6 +1416,17 @@ button:focus-visible {
   background: var(--gold-dark);
   color: #fff;
 }
+.nav-cart {
+  background: #f6f3eb;
+  color: #292820;
+  border: 1px solid #dcd5c8;
+  font-weight: 700;
+}
+.nav-cart:hover {
+  background: #ede7db;
+  border-color: #a58a50;
+  color: #1a1a14;
+}
 .nav-signout {
   background: transparent;
   color: #77746b;

@@ -539,6 +539,383 @@
   cursor: pointer;
 }
 
+/* ─── Account Tabs Navigation ────────────────────────────────────────────── */
+.account-tabs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 2px solid #ede7db;
+  margin: 18px 0 28px;
+  padding-bottom: 4px;
+}
+
+.account-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #77746b;
+  font: 600 12px 'DM Sans', sans-serif;
+  letter-spacing: 0.2px;
+  padding: 10px 16px;
+  cursor: pointer;
+  margin-bottom: -6px;
+  transition: all 180ms ease;
+  white-space: nowrap;
+}
+
+.account-tab-btn:hover {
+  color: #94763d;
+  background: #fbf9f4;
+}
+
+.account-tab-btn--active {
+  color: #1a1a14;
+  border-bottom-color: #a58a50;
+  background: #ffffff;
+}
+
+.tab-content {
+  animation: fadeInTab 200ms ease;
+}
+
+@keyframes fadeInTab {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Diamond Products Explorer ─────────────────────────────────────────── */
+.catalog-header-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.catalog-header-bar h2 {
+  font: 500 24px 'Playfair Display', Georgia, serif;
+  color: #1a1a14;
+  margin: 0 0 4px;
+}
+
+.catalog-header-bar p {
+  color: #77746b;
+  font-size: 13px;
+  margin: 0;
+}
+
+.shape-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.shape-pill {
+  background: #f6f3eb;
+  border: 1px solid #dcd5c8;
+  color: #55524a;
+  font: 500 11px 'DM Sans', sans-serif;
+  padding: 6px 14px;
+  cursor: pointer;
+  border-radius: 20px;
+  transition: all 180ms ease;
+}
+
+.shape-pill:hover {
+  border-color: #a58a50;
+  color: #1a1a14;
+}
+
+.shape-pill--active {
+  background: #292820;
+  color: #fffdf7;
+  border-color: #292820;
+}
+
+.diamond-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.diamond-product-card {
+  background: #ffffff;
+  border: 1px solid #e4ddcf;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: all 180ms ease;
+}
+
+.diamond-product-card:hover {
+  transform: translateY(-2px);
+  border-color: #a58a50;
+  box-shadow: 0 8px 24px rgba(41, 40, 32, 0.08);
+}
+
+.diamond-card-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background: #f0ece2;
+  color: #6a5228;
+  padding: 3px 8px;
+  border-radius: 2px;
+}
+
+.diamond-card-shape {
+  font: 500 18px 'Playfair Display', Georgia, serif;
+  color: #1a1a14;
+  margin-bottom: 6px;
+}
+
+.diamond-card-specs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: #55524a;
+  margin-bottom: 14px;
+}
+
+.spec-highlight {
+  font-weight: 700;
+  color: #94763d;
+}
+
+.spec-divider {
+  color: #dcd5c8;
+}
+
+.diamond-card-details {
+  background: #fbfaf7;
+  padding: 10px 12px;
+  border: 1px solid #ede7db;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #66635a;
+  margin-bottom: 16px;
+}
+
+.diamond-card-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #f0ece2;
+}
+
+.diamond-card-price {
+  font: 600 17px 'DM Sans', sans-serif;
+  color: #1a1a14;
+}
+
+.add-cart-btn {
+  font-size: 11px;
+  min-height: 36px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+/* ─── Cart & Shortlist View ──────────────────────────────────────────────── */
+.cart-table-wrap,
+.orders-table-wrap {
+  overflow-x: auto;
+  margin-top: 18px;
+  border: 1px solid #e4ddcf;
+  background: #ffffff;
+}
+
+.cart-table,
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+
+.cart-table th,
+.orders-table th {
+  background: #f6f3eb;
+  padding: 12px 14px;
+  color: #55524a;
+  font-weight: 600;
+  border-bottom: 1px solid #dfd8cb;
+  white-space: nowrap;
+}
+
+.cart-table td,
+.orders-table td {
+  padding: 14px;
+  border-bottom: 1px solid #f0ece2;
+  color: #292820;
+}
+
+.lab-tag {
+  background: #eef6ee;
+  color: #2e6930;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-bottom: 2px;
+}
+
+.cart-remove-btn {
+  background: transparent;
+  border: 1px solid #e4ddcf;
+  color: #b33939;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 180ms ease;
+}
+
+.cart-remove-btn:hover {
+  background: #fee;
+  border-color: #b33939;
+}
+
+.cart-summary-box {
+  padding: 20px;
+  background: #faf8f3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid #e4ddcf;
+}
+
+.cart-total-line {
+  font-size: 14px;
+  color: #55524a;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cart-grand-total {
+  font-size: 20px;
+  color: #1a1a14;
+}
+
+.checkout-btn {
+  font-size: 12px;
+  min-height: 42px;
+  padding: 0 20px;
+}
+
+.empty-cart-view,
+.empty-orders-view {
+  text-align: center;
+  padding: 40px 20px;
+  background: #fbfaf7;
+  border: 1px dashed #dcd5c8;
+  margin-top: 18px;
+}
+
+.empty-cart-view p,
+.empty-orders-view p {
+  color: #77746b;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+/* ─── Profile Form ───────────────────────────────────────────────────────── */
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 580px;
+  margin-top: 20px;
+}
+
+.profile-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #55524a;
+}
+
+.profile-form input,
+.profile-form textarea,
+.profile-form select {
+  font: 13px/1.5 'DM Sans', sans-serif;
+  color: #1a1a14;
+  padding: 10px 14px;
+  border: 1px solid #dcd5c8;
+  background: #fff;
+  outline: none;
+  transition: border-color 180ms ease;
+}
+
+.profile-form input:focus,
+.profile-form textarea:focus,
+.profile-form select:focus {
+  border-color: #a58a50;
+}
+
+.save-profile-btn {
+  margin-top: 10px;
+  min-height: 42px;
+  font-size: 12px;
+  align-self: flex-start;
+  padding: 0 24px;
+}
+
+/* ─── Orders & Transactions ──────────────────────────────────────────────── */
+.status-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-pill--new,
+.status-pill--inquiry {
+  background: #fdf5ea;
+  color: #9a6514;
+}
+
+.status-pill--under_review {
+  background: #edf4fb;
+  color: #1e5a8f;
+}
+
+.status-pill--accepted,
+.status-pill--delivered {
+  background: #eef6ee;
+  color: #2e6930;
+}
+
+.order-message {
+  font-size: 11px;
+  color: #77746b;
+  display: block;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ─── Footer Actions ─────────────────────────────────────────────────────── */
 .account-footer-actions {
   display: flex;

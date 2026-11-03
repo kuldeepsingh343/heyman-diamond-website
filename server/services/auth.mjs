@@ -193,3 +193,108 @@ export async function handleForgotPassword(req, res) {
   return json(res, 200, { sent: true, message: 'If this email has an account, a password reset link has been sent.' })
 }
 
+export async function handleGetProfile(req, res) {
+  const user = await authenticatedUser(req)
+  if (!user?.id) return json(res, 401, { error: 'Please sign in to view your profile.' })
+
+  let profileData = null
+  if (supabaseReady()) {
+    try {
+      const rows = await db(`profiles?id=eq.${user.id}`)
+      if (rows && rows.length > 0) {
+        profileData = rows[0]
+      }
+    } catch (err) {
+      console.warn('Profile fetch from DB failed:', err.message)
+    }
+  }
+
+  const meta = user.user_metadata || {}
+  return json(res, 200, {
+    id: user.id,
+    email: user.email,
+    full_name: profileData?.full_name || meta.full_name || '',
+    phone: profileData?.phone || meta.phone || '',
+    address: meta.address || '',
+    gender: meta.gender || 'prefer_not_to_say',
+    account_type: profileData?.account_type || meta.account_type || 'customer',
+    dealer_status: profileData?.dealer_status || 'not_applied',
+    created_at: profileData?.created_at || user.created_at,
+  })
+}
+
+export async function handleUpdateProfile(req, res) {
+  const user = await authenticatedUser(req)
+  if (!user?.id) return json(res, 401, { error: 'Please sign in to update your profile.' })
+
+  const input = await bodyJson(req)
+  const fullName = String(input.fullName || input.full_name || '').trim()
+  const phone = String(input.phone || '').trim()
+  const address = String(input.address || '').trim()
+  const gender = String(input.gender || 'prefer_not_to_say').trim()
+
+  if (fullName && fullName.length > 120) {
+    return json(res, 400, { error: 'Full name must be 120 characters or fewer.' })
+  }
+  if (phone && phone.length > 40) {
+    return json(res, 400, { error: 'Phone number must be 40 characters or fewer.' })
+  }
+
+  // Update in public.profiles table
+  if (supabaseReady()) {
+    try {
+      await db(`profiles?id=eq.${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          full_name: fullName,
+          phone,
+          updated_at: new Date().toISOString(),
+        }),
+      })
+    } catch (dbErr) {
+      console.warn('Profile DB patch failed:', dbErr.message)
+    }
+  }
+
+  // Update user_metadata in GoTrue auth
+  const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1]
+  if (token && SUPABASE_URL && SUPABASE_ANON_KEY) {
+    try {
+      await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        method: 'PUT',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            ...user.user_metadata,
+            full_name: fullName,
+            phone,
+            address,
+            gender,
+          },
+        }),
+      })
+    } catch (authErr) {
+      console.warn('GoTrue metadata update failed:', authErr.message)
+    }
+  }
+
+  return json(res, 200, {
+    success: true,
+    message: 'Profile updated successfully.',
+    user: {
+      email: user.email,
+      full_name: fullName,
+      phone,
+      address,
+      gender,
+      account_type: user.user_metadata?.account_type || 'customer',
+      dealer_status: user.user_metadata?.dealer_status || 'not_applied',
+    },
+  })
+}
+
+

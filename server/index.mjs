@@ -20,6 +20,8 @@ import {
   handleResendConfirmation,
   handleSignin,
   handleForgotPassword,
+  handleGetProfile,
+  handleUpdateProfile,
   requireAdmin,
   authenticatedUser,
 } from './services/auth.mjs'
@@ -35,6 +37,7 @@ import {
   handleCreateInquiry,
   handleGetAdminQuotes,
   handleUpdateQuoteStatus,
+  handleGetUserOrders,
 } from './services/quotes.mjs'
 
 import {
@@ -95,6 +98,17 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/auth/forgot-password') {
       return await handleForgotPassword(req, res)
+    }
+
+    // ── User Profile & Account Services ──────────────────────────────────────
+    if (req.method === 'GET' && url.pathname === '/api/user/profile') {
+      return await handleGetProfile(req, res)
+    }
+    if (req.method === 'PUT' && url.pathname === '/api/user/profile') {
+      return await handleUpdateProfile(req, res)
+    }
+    if (req.method === 'GET' && (url.pathname === '/api/user/orders' || url.pathname === '/api/user/quotes')) {
+      return await handleGetUserOrders(req, res)
     }
 
     // ── Inventory & Catalog Service ──────────────────────────────────────────

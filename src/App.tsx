@@ -81,6 +81,15 @@ function App() {
     }
     return null
   })
+  const [cartCount, setCartCount] = useState(() => {
+    if (typeof window === 'undefined') return 0
+    try {
+      const items = JSON.parse(localStorage.getItem('hmd_cart') || '[]')
+      return Array.isArray(items) ? items.reduce((s: number, i: { quantity?: number }) => s + (i.quantity || 1), 0) : 0
+    } catch {
+      return 0
+    }
+  })
   const [policySlug, setPolicySlug] = useState(() => {
     const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
     return match?.[1] ?? ''
@@ -98,7 +107,7 @@ function App() {
 
     normalizeCurrentHash()
 
-    const checkUser = () => {
+    const checkUserAndCart = () => {
       if (typeof window === 'undefined') return
       const token = localStorage.getItem('hmd_access_token')
       const raw = localStorage.getItem('hmd_user')
@@ -111,11 +120,18 @@ function App() {
       } else {
         setCurrentUser(null)
       }
+
+      try {
+        const items = JSON.parse(localStorage.getItem('hmd_cart') || '[]')
+        setCartCount(Array.isArray(items) ? items.reduce((s: number, i: { quantity?: number }) => s + (i.quantity || 1), 0) : 0)
+      } catch {
+        setCartCount(0)
+      }
     }
 
     const syncRoute = () => {
       normalizeCurrentHash()
-      checkUser()
+      checkUserAndCart()
       const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
       setPolicySlug(match?.[1] ?? '')
       setAuthRoute(resolveAuthRoute())
@@ -123,10 +139,10 @@ function App() {
     }
 
     window.addEventListener('hashchange', syncRoute)
-    window.addEventListener('storage', checkUser)
+    window.addEventListener('storage', checkUserAndCart)
     return () => {
       window.removeEventListener('hashchange', syncRoute)
-      window.removeEventListener('storage', checkUser)
+      window.removeEventListener('storage', checkUserAndCart)
     }
   }, [])
 
@@ -159,6 +175,9 @@ function App() {
         </nav>
 
         <div className="nav-actions">
+          <a className="nav-button nav-cart" href="#account" title="View Diamond Cart & Shortlist">
+            🛒 Cart {cartCount > 0 ? `(${cartCount})` : ''}
+          </a>
           {currentUser ? (
             <>
               <a className="nav-button nav-account" href="#account" title={currentUser.email}>

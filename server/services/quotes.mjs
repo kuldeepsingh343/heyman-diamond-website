@@ -105,3 +105,33 @@ export async function handleUpdateQuoteStatus(req, res, admin, id) {
 
   return json(res, 200, { updated: true, status: input.status })
 }
+
+export async function handleGetUserOrders(req, res) {
+  const customer = await authenticatedUser(req)
+  if (!customer?.id) return json(res, 401, { error: 'Please sign in to view your orders and quotes.' })
+
+  let quotes = []
+  let orders = []
+
+  if (supabaseReady()) {
+    try {
+      quotes = await db(`quote_requests?user_id=eq.${customer.id}&select=id,quote_number,customer_name,customer_email,customer_message,status,created_at,quote_request_items(id,flomiz_sku,product_name,quantity,current_unit_price)&order=created_at.desc`)
+    } catch (err) {
+      console.warn('Fetch user quotes failed:', err.message)
+    }
+
+    try {
+      orders = await db(`orders?user_id=eq.${customer.id}&order=created_at.desc`)
+    } catch (err) {
+      console.warn('Fetch user orders failed:', err.message)
+    }
+  }
+
+  return json(res, 200, {
+    quotes: quotes || [],
+    orders: orders || [],
+    totalQuotes: quotes?.length || 0,
+    totalOrders: orders?.length || 0,
+  })
+}
+

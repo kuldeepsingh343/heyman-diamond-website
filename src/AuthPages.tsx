@@ -1,15 +1,57 @@
 import './AuthPages.css'
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
 import { parseAuthStatusFromHash } from './routeUtils'
 
 type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account'
+type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools'
 
 export interface UserProfile {
   email: string
   full_name?: string
+  phone?: string
+  address?: string
+  gender?: string
   account_type?: 'customer' | 'dealer' | 'admin'
   dealer_status?: string
+}
+
+export interface DiamondItem {
+  sku: string
+  shape: string
+  carat: number
+  color: string
+  clarity: string
+  cut: string
+  polish?: string
+  symmetry?: string
+  fluorescence?: string
+  lab: string
+  certificateNumber: string
+  price: number
+  wholesalePrice?: number
+  measurements?: string
+  status?: string
+}
+
+export interface CartItem extends DiamondItem {
+  quantity: number
+}
+
+interface UserOrder {
+  id: string
+  quote_number?: string | number
+  order_number?: string | number
+  customer_name: string
+  status: string
+  created_at: string
+  customer_message?: string
+  quote_request_items?: Array<{
+    flomiz_sku: string
+    product_name: string
+    quantity: number
+    current_unit_price?: number
+  }>
 }
 
 function getInitialStatus(): { text: string; kind: 'info' | 'error' | 'success' } {
@@ -51,7 +93,9 @@ export default function AuthPages({
     return null
   })
 
-  // ── form state ──────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<AccountTab>('overview')
+
+  // ── signup / signin form state ──────────────────────────────────────────
   const [fullName, setFullName] = useState('')
   const [address, setAddress] = useState('')
   const [phone, setPhone] = useState('')
@@ -67,6 +111,36 @@ export default function AuthPages({
   const [resendBusy, setResendBusy] = useState(false)
   const [canResend, setCanResend] = useState(false)
 
+  // ── profile editing state ───────────────────────────────────────────────
+  const [editName, setEditName] = useState(user?.full_name || '')
+  const [editPhone, setEditPhone] = useState(user?.phone || '')
+  const [editAddress, setEditAddress] = useState(user?.address || '')
+  const [editGender, setEditGender] = useState(user?.gender || 'prefer_not_to_say')
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileMsg, setProfileMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+
+  // ── catalog / diamond inventory state ───────────────────────────────────
+  const [catalogItems, setCatalogItems] = useState<DiamondItem[]>([])
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
+  const [selectedShape, setSelectedShape] = useState('all')
+
+  // ── cart state ──────────────────────────────────────────────────────────
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const saved = localStorage.getItem('hmd_cart')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+  const [submittingCart, setSubmittingCart] = useState(false)
+  const [cartMsg, setCartMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+
+  // ── orders & quotes state ───────────────────────────────────────────────
+  const [orders, setOrders] = useState<UserOrder[]>([])
+  const [loadingOrders, setLoadingOrders] = useState(false)
+
   // ── inventory upload state (Admin / Dealer portal) ──────────────────────
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadBusy, setUploadBusy] = useState(false)
@@ -75,10 +149,105 @@ export default function AuthPages({
 
   const updateUserSession = (profile: UserProfile | null) => {
     setUser(profile)
+    if (profile) {
+      setEditName(profile.full_name || '')
+      setEditPhone(profile.phone || '')
+      setEditAddress(profile.address || '')
+      setEditGender(profile.gender || 'prefer_not_to_say')
+    }
     if (onUserChange) onUserChange(profile)
   }
 
-  // ── client-side validation ───────────────────────────────────────────────
+  // Save cart to localStorage
+  const updateCart = (newCart: CartItem[]) => {
+    setCart(newCart)
+    localStorage.setItem('hmd_cart', JSON.stringify(newCart))
+    window.dispatchEvent(new Event('storage'))
+  }
+
+  const addToCart = (diamond: DiamondItem) => {
+    const existing = cart.find(c => c.sku === diamond.sku)
+    if (existing) {
+      updateCart(cart.map(c => c.sku === diamond.sku ? { ...c, quantity: c.quantity + 1 } : c))
+    } else {
+      updateCart([...cart, { ...diamond, quantity: 1 }])
+    }
+    setCartMsg({ text: `Added ${diamond.shape} ${diamond.carat}ct (${diamond.sku}) to your cart.`, kind: 'success' })
+  }
+
+  const removeFromCart = (sku: string) => {
+    updateCart(cart.filter(c => c.sku !== sku))
+  }
+
+  const loadCatalog = () => {
+    setLoadingCatalog(true)
+    const token = localStorage.getItem('hmd_access_token')
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    fetch('/api/inventory', { headers })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.items)) {
+          setCatalogItems(data.items)
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to load catalog:', err)
+      })
+      .finally(() => setLoadingCatalog(false))
+  }
+
+  const loadOrders = () => {
+    setLoadingOrders(true)
+    const token = localStorage.getItem('hmd_access_token')
+    fetch('/api/user/orders', {
+      headers: { Authorization: `Bearer ${token || ''}` },
+    })
+      .then(res => res.json())
+      .then(data => {
+        const combined = [...(data.quotes || []), ...(data.orders || [])]
+        setOrders(combined)
+      })
+      .catch(err => {
+        console.warn('Failed to load orders:', err)
+      })
+      .finally(() => setLoadingOrders(false))
+  }
+
+  const switchTab = (tab: AccountTab) => {
+    setActiveTab(tab)
+    if (tab === 'catalog' && catalogItems.length === 0) {
+      loadCatalog()
+    }
+    if (tab === 'orders') {
+      loadOrders()
+    }
+  }
+
+  // Load profile from server when entering profile tab
+  useEffect(() => {
+    if (user && activeTab === 'profile') {
+      const token = localStorage.getItem('hmd_access_token')
+      if (token) {
+        fetch('/api/user/profile', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data?.email) {
+              setEditName(data.full_name || '')
+              setEditPhone(data.phone || '')
+              setEditAddress(data.address || '')
+              setEditGender(data.gender || 'prefer_not_to_say')
+            }
+          })
+          .catch(() => {})
+      }
+    }
+  }, [user, activeTab])
+
+  // ── client-side validation for signup ─────────────────────────────────────
   function validate(): string | null {
     if (signup) {
       if (!fullName.trim() || fullName.trim().length < 2)
@@ -141,6 +310,90 @@ export default function AuthPages({
       setStatus({ text: error instanceof Error ? error.message : 'Something went wrong.', kind: 'error' })
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function handleSaveProfile(e: FormEvent) {
+    e.preventDefault()
+    setProfileSaving(true)
+    setProfileMsg(null)
+
+    try {
+      const token = localStorage.getItem('hmd_access_token') || ''
+      const res = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fullName: editName.trim(),
+          phone: editPhone.trim(),
+          address: editAddress.trim(),
+          gender: editGender,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update profile.')
+
+      const updated: UserProfile = {
+        ...(user || { email: '' }),
+        full_name: editName.trim(),
+        phone: editPhone.trim(),
+        address: editAddress.trim(),
+        gender: editGender,
+      }
+      localStorage.setItem('hmd_user', JSON.stringify(updated))
+      updateUserSession(updated)
+      setProfileMsg({ text: 'Your account profile and shipping details have been saved.', kind: 'success' })
+    } catch (err) {
+      setProfileMsg({ text: err instanceof Error ? err.message : 'Error updating profile.', kind: 'error' })
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
+  async function handleCheckoutCart() {
+    if (cart.length === 0) return
+    setSubmittingCart(true)
+    setCartMsg(null)
+
+    try {
+      const token = localStorage.getItem('hmd_access_token')
+      const itemPayloads = cart.map(item => ({
+        flomiz_sku: item.sku,
+        name: `${item.shape} ${item.carat}ct ${item.color} ${item.clarity} (${item.lab})`,
+        requestedPrice: item.price,
+        quantity: item.quantity,
+      }))
+
+      const res = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          name: user?.full_name || user?.email || 'Valued Customer',
+          phone: user?.phone || '',
+          message: `Cart checkout order containing ${cart.length} diamond items. Total value: $${cartTotal.toLocaleString()}.`,
+          items: itemPayloads,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to submit quote request.')
+
+      updateCart([])
+      setCartMsg({
+        text: `Success! Your order request (${data.quoteNumber || 'Received'}) has been submitted to Hey Man Diamond sales team. We will review and confirm availability immediately.`,
+        kind: 'success',
+      })
+    } catch (err) {
+      setCartMsg({ text: err instanceof Error ? err.message : 'Could not submit cart order.', kind: 'error' })
+    } finally {
+      setSubmittingCart(false)
     }
   }
 
@@ -216,6 +469,8 @@ export default function AuthPages({
       })
       setUploadFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
+      // Refresh catalog
+      setCatalogItems([])
     } catch (err) {
       setUploadStatus({
         text: err instanceof Error ? err.message : 'Spreadsheet upload failed.',
@@ -227,6 +482,10 @@ export default function AuthPages({
   }
 
   const statusClass = `auth-status auth-status--${status.kind}`
+  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  const filteredCatalog = selectedShape === 'all'
+    ? catalogItems
+    : catalogItems.filter(item => item.shape.toLowerCase() === selectedShape.toLowerCase())
 
   // ── Account Dashboard View (Rendered when signed in) ──────────────────────
   if (user) {
@@ -240,17 +499,11 @@ export default function AuthPages({
         </header>
 
         <section className="auth-card account-dashboard">
-          <span className="auth-eyebrow">HEY MAN DIAMOND LLC · MY ACCOUNT PORTAL</span>
+          <span className="auth-eyebrow">HEY MAN DIAMOND LLC · SECURE CUSTOMER PORTAL</span>
           <h1>Welcome, {user.full_name || user.email.split('@')[0]}!</h1>
           <p className="account-subtitle">
             Signed in as <strong>{user.email}</strong>
           </p>
-
-          {status.text && (
-            <p className={statusClass} role="status" aria-live="polite">
-              {status.text}
-            </p>
-          )}
 
           <div className="account-badge-container">
             <span className={`account-badge account-badge--${user.account_type || 'customer'}`}>
@@ -267,87 +520,437 @@ export default function AuthPages({
             )}
           </div>
 
-          <div className="account-cards-grid">
-            <div className="account-card-item">
-              <div>
-                <h3>💎 Diamond Inventory</h3>
-                <p>Browse our certified lab-grown diamonds, custom shapes, and matching pairs with live 4Cs search.</p>
-              </div>
-              <a href="#collection" className="button-primary">Browse Diamonds</a>
-            </div>
+          {/* ── Account Navigation Tabs ── */}
+          <nav className="account-tabs-bar" aria-label="Account navigation">
+            <button
+              type="button"
+              className={`account-tab-btn ${activeTab === 'overview' ? 'account-tab-btn--active' : ''}`}
+              onClick={() => switchTab('overview')}
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              className={`account-tab-btn ${activeTab === 'catalog' ? 'account-tab-btn--active' : ''}`}
+              onClick={() => switchTab('catalog')}
+            >
+              💎 Diamond Products ({catalogItems.length > 0 ? catalogItems.length : '5+'})
+            </button>
+            <button
+              type="button"
+              className={`account-tab-btn ${activeTab === 'cart' ? 'account-tab-btn--active' : ''}`}
+              onClick={() => switchTab('cart')}
+            >
+              🛒 Cart & Shortlist ({cart.reduce((s, i) => s + i.quantity, 0)})
+            </button>
+            <button
+              type="button"
+              className={`account-tab-btn ${activeTab === 'profile' ? 'account-tab-btn--active' : ''}`}
+              onClick={() => switchTab('profile')}
+            >
+              👤 Edit Profile & Address
+            </button>
+            <button
+              type="button"
+              className={`account-tab-btn ${activeTab === 'orders' ? 'account-tab-btn--active' : ''}`}
+              onClick={() => switchTab('orders')}
+            >
+              📋 Orders & Transactions
+            </button>
+            {(user.account_type === 'dealer' || user.account_type === 'admin') && (
+              <button
+                type="button"
+                className={`account-tab-btn ${activeTab === 'tools' ? 'account-tab-btn--active' : ''}`}
+                onClick={() => switchTab('tools')}
+              >
+                ⚙️ Inventory Upload & API
+              </button>
+            )}
+          </nav>
 
-            <div className="account-card-item">
-              <div>
-                <h3>📋 Request a Quote</h3>
-                <p>Submit custom specifications, melee parcels, or special diamond cuts directly to our sales managers.</p>
-              </div>
-              <a href="#contact" className="button-secondary">Request Quote</a>
-            </div>
+          {/* ── TAB 1: OVERVIEW ── */}
+          {activeTab === 'overview' && (
+            <div className="tab-content tab-content--overview">
+              {status.text && (
+                <p className={statusClass} role="status" aria-live="polite">
+                  {status.text}
+                </p>
+              )}
 
-            <div className="account-card-item">
-              <div>
-                <h3>📞 Dedicated Concierge</h3>
-                <p>Direct assistance from our Chicago Diamond District showroom for any custom requests.</p>
-              </div>
-              <a href="mailto:sales@heymandiamond.com" className="button-secondary">Email Concierge</a>
-            </div>
-          </div>
-
-          {/* ── Inventory Management Portal (API + CSV / Excel upload) ── */}
-          <div className="account-inventory-box">
-            <div className="inventory-box-header">
-              <h3>📦 Inventory Management Options</h3>
-              <p>Two methods to maintain real-time certified diamond stock:</p>
-            </div>
-
-            <div className="inventory-options-grid">
-              <div className="inventory-option-card">
-                <span className="option-tag">Option 1 · Automated</span>
-                <h4>Supplier API Integration</h4>
-                <p>Real-time sync directly with Flomiz Diamond B2B API for live carat weights, cut grades, certificates, and pricing.</p>
-                <div className="api-status-pill">
-                  <span className="api-status-dot" /> Flomiz Gateway Ready
-                </div>
-              </div>
-
-              <div className="inventory-option-card">
-                <span className="option-tag">Option 2 · Bulk File</span>
-                <h4>Excel / CSV Upload Portal</h4>
-                <p>Upload your own diamond inventory sheet in standard Excel (.csv or .tsv) format.</p>
-                <a href="/api/inventory/template" download="heyman_diamond_template.csv" className="template-download-link">
-                  ⬇ Download Standard CSV Template
-                </a>
-
-                <div className="upload-dropzone">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,.tsv,text/csv,application/vnd.ms-excel"
-                    onChange={handleFileSelected}
-                    disabled={uploadBusy}
-                    id="diamond-csv-file"
-                  />
-                  {uploadFile && <span className="selected-filename">📄 {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)</span>}
-
-                  <button
-                    type="button"
-                    className="button-primary upload-btn"
-                    onClick={handleInventoryUpload}
-                    disabled={uploadBusy || !uploadFile}
-                  >
-                    {uploadBusy ? 'Uploading & Validating…' : 'Upload Spreadsheet'}
+              <div className="account-cards-grid">
+                <div className="account-card-item">
+                  <div>
+                    <h3>💎 Certified Diamonds</h3>
+                    <p>Search lab-grown diamonds, filter 4Cs, compare certifications (IGI/GIA), and add to your cart.</p>
+                  </div>
+                  <button type="button" className="button-primary" onClick={() => switchTab('catalog')}>
+                    Browse Diamond Products
                   </button>
                 </div>
 
-                {uploadStatus && (
-                  <p className={`auth-status auth-status--${uploadStatus.kind}`} style={{ marginTop: '12px' }}>
-                    {uploadStatus.text}
-                  </p>
-                )}
+                <div className="account-card-item">
+                  <div>
+                    <h3>🛒 Cart & Shortlist</h3>
+                    <p>Review items currently in your cart ({cart.reduce((s, i) => s + i.quantity, 0)} items) and submit your quote order.</p>
+                  </div>
+                  <button type="button" className="button-secondary" onClick={() => switchTab('cart')}>
+                    View Cart (${cartTotal.toLocaleString()})
+                  </button>
+                </div>
+
+                <div className="account-card-item">
+                  <div>
+                    <h3>👤 My Profile & Details</h3>
+                    <p>Update your full name, contact phone number, and primary shipping/billing address.</p>
+                  </div>
+                  <button type="button" className="button-secondary" onClick={() => switchTab('profile')}>
+                    Manage Profile
+                  </button>
+                </div>
+
+                <div className="account-card-item">
+                  <div>
+                    <h3>📋 Past Quotes & Orders</h3>
+                    <p>View your past order history, quote statuses, and active diamond purchase requests.</p>
+                  </div>
+                  <button type="button" className="button-secondary" onClick={() => switchTab('orders')}>
+                    View Order History
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
+          {/* ── TAB 2: PRODUCT CATALOG ── */}
+          {activeTab === 'catalog' && (
+            <div className="tab-content tab-content--catalog">
+              <div className="catalog-header-bar">
+                <div>
+                  <h2>Lab-Grown Certified Diamonds</h2>
+                  <p>Individual certified stones in stock with live 4Cs specifications.</p>
+                </div>
+
+                <div className="shape-filter-group">
+                  {['all', 'Round', 'Oval', 'Emerald', 'Radiant', 'Pear'].map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`shape-pill ${selectedShape.toLowerCase() === s.toLowerCase() ? 'shape-pill--active' : ''}`}
+                      onClick={() => setSelectedShape(s)}
+                    >
+                      {s === 'all' ? 'All Shapes' : s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {cartMsg && (
+                <p className={`auth-status auth-status--${cartMsg.kind}`} style={{ margin: '14px 0' }}>
+                  {cartMsg.text}
+                </p>
+              )}
+
+              {loadingCatalog ? (
+                <p style={{ padding: '30px', textAlign: 'center', color: '#77746b' }}>Loading diamond inventory…</p>
+              ) : (
+                <div className="diamond-products-grid">
+                  {filteredCatalog.map(item => (
+                    <div className="diamond-product-card" key={item.sku}>
+                      <div className="diamond-card-badge">{item.lab} Certified</div>
+                      <div className="diamond-card-shape">{item.shape} Diamond</div>
+                      <div className="diamond-card-specs">
+                        <span className="spec-highlight">{item.carat} Carat</span>
+                        <span className="spec-divider">·</span>
+                        <span>Color {item.color}</span>
+                        <span className="spec-divider">·</span>
+                        <span>{item.clarity}</span>
+                        <span className="spec-divider">·</span>
+                        <span>{item.cut}</span>
+                      </div>
+
+                      <div className="diamond-card-details">
+                        <div><strong>Cert #:</strong> {item.certificateNumber}</div>
+                        <div><strong>Dimensions:</strong> {item.measurements || 'Available on request'}</div>
+                        <div><strong>Polish/Symm:</strong> {item.polish || 'Ex'} / {item.symmetry || 'Ex'}</div>
+                        <div><strong>SKU:</strong> {item.sku}</div>
+                      </div>
+
+                      <div className="diamond-card-footer">
+                        <div className="diamond-card-price">${item.price.toLocaleString()}</div>
+                        <button
+                          type="button"
+                          className="button-primary add-cart-btn"
+                          onClick={() => addToCart(item)}
+                        >
+                          + Add to Cart
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB 3: CART & SHORTLIST ── */}
+          {activeTab === 'cart' && (
+            <div className="tab-content tab-content--cart">
+              <h2>Your Diamond Cart & Shortlist</h2>
+              <p>Items in your cart are reserved for direct quote submission and ordering.</p>
+
+              {cartMsg && (
+                <p className={`auth-status auth-status--${cartMsg.kind}`} style={{ margin: '14px 0' }}>
+                  {cartMsg.text}
+                </p>
+              )}
+
+              {cart.length === 0 ? (
+                <div className="empty-cart-view">
+                  <p>Your cart is currently empty.</p>
+                  <button type="button" className="button-primary" onClick={() => switchTab('catalog')}>
+                    Explore Diamond Products
+                  </button>
+                </div>
+              ) : (
+                <div className="cart-table-wrap">
+                  <table className="cart-table">
+                    <thead>
+                      <tr>
+                        <th>Stone / Spec</th>
+                        <th>Lab Report</th>
+                        <th>Price</th>
+                        <th>Qty</th>
+                        <th>Total</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cart.map(item => (
+                        <tr key={item.sku}>
+                          <td>
+                            <strong>{item.shape} {item.carat} ct</strong>
+                            <div style={{ fontSize: '11px', color: '#77746b' }}>
+                              Color {item.color} · Clarity {item.clarity} · Cut {item.cut}
+                            </div>
+                            <div style={{ fontSize: '10px', color: '#999' }}>SKU: {item.sku}</div>
+                          </td>
+                          <td>
+                            <span className="lab-tag">{item.lab}</span>
+                            <div style={{ fontSize: '11px' }}>{item.certificateNumber}</div>
+                          </td>
+                          <td>${item.price.toLocaleString()}</td>
+                          <td>{item.quantity}</td>
+                          <td><strong>${(item.price * item.quantity).toLocaleString()}</strong></td>
+                          <td>
+                            <button
+                              type="button"
+                              className="cart-remove-btn"
+                              onClick={() => removeFromCart(item.sku)}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="cart-summary-box">
+                    <div className="cart-total-line">
+                      <span>Total Quote Estimate ({cart.reduce((s, i) => s + i.quantity, 0)} stones):</span>
+                      <strong className="cart-grand-total">${cartTotal.toLocaleString()}</strong>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="button-primary checkout-btn"
+                      onClick={handleCheckoutCart}
+                      disabled={submittingCart}
+                    >
+                      {submittingCart ? 'Submitting Order Request…' : 'Submit Cart for Order & Quote'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB 4: EDIT PROFILE & ADDRESS ── */}
+          {activeTab === 'profile' && (
+            <div className="tab-content tab-content--profile">
+              <h2>My Profile & Account Settings</h2>
+              <p>Update your personal information, contact number, and shipping address.</p>
+
+              {profileMsg && (
+                <p className={`auth-status auth-status--${profileMsg.kind}`} style={{ margin: '14px 0' }}>
+                  {profileMsg.text}
+                </p>
+              )}
+
+              <form className="profile-form" onSubmit={handleSaveProfile}>
+                <label>
+                  Email Address (Verified)
+                  <input type="email" value={user.email} disabled style={{ background: '#f5f4ef', cursor: 'not-allowed' }} />
+                </label>
+
+                <label>
+                  Full Name
+                  <input
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    required
+                    maxLength={120}
+                    placeholder="Your legal or preferred full name"
+                  />
+                </label>
+
+                <label>
+                  Mobile / Phone Number
+                  <input
+                    type="tel"
+                    value={editPhone}
+                    onChange={e => setEditPhone(e.target.value)}
+                    maxLength={40}
+                    placeholder="+1 (555) 000-0000"
+                  />
+                </label>
+
+                <label>
+                  Shipping & Billing Address
+                  <textarea
+                    value={editAddress}
+                    onChange={e => setEditAddress(e.target.value)}
+                    rows={3}
+                    maxLength={500}
+                    placeholder="Street, Suite/Apt, City, State, ZIP Code"
+                  />
+                </label>
+
+                <label>
+                  Gender
+                  <select value={editGender} onChange={e => setEditGender(e.target.value)}>
+                    <option value="prefer_not_to_say">Prefer not to say</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                    <option value="non_binary">Non-binary</option>
+                  </select>
+                </label>
+
+                <button type="submit" className="button-primary save-profile-btn" disabled={profileSaving}>
+                  {profileSaving ? 'Saving Changes…' : 'Save Profile Changes'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* ── TAB 5: ORDERS & TRANSACTIONS ── */}
+          {activeTab === 'orders' && (
+            <div className="tab-content tab-content--orders">
+              <h2>Order & Transaction History</h2>
+              <p>Review your historical quote requests, custom diamond inquiries, and order transactions.</p>
+
+              {loadingOrders ? (
+                <p style={{ padding: '30px', textAlign: 'center', color: '#77746b' }}>Loading your orders…</p>
+              ) : orders.length === 0 ? (
+                <div className="empty-orders-view">
+                  <p>No past orders or quote requests found for this account.</p>
+                  <button type="button" className="button-primary" onClick={() => switchTab('catalog')}>
+                    Browse Diamond Products
+                  </button>
+                </div>
+              ) : (
+                <div className="orders-table-wrap">
+                  <table className="orders-table">
+                    <thead>
+                      <tr>
+                        <th>Order / Quote #</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Items</th>
+                        <th>Message</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.map(order => (
+                        <tr key={order.id}>
+                          <td><strong>{order.quote_number || order.order_number || order.id.slice(0, 8)}</strong></td>
+                          <td>{new Date(order.created_at).toLocaleDateString()}</td>
+                          <td>
+                            <span className={`status-pill status-pill--${order.status}`}>
+                              {order.status.replace(/_/g, ' ')}
+                            </span>
+                          </td>
+                          <td>{order.quote_request_items?.length || 1} stone(s)</td>
+                          <td><span className="order-message">{order.customer_message || 'Standard quote request'}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB 6: INVENTORY TOOLS (DEALER / ADMIN) ── */}
+          {activeTab === 'tools' && (user.account_type === 'dealer' || user.account_type === 'admin') && (
+            <div className="tab-content tab-content--tools">
+              <div className="account-inventory-box" style={{ margin: 0 }}>
+                <div className="inventory-box-header">
+                  <h3>📦 Wholesale & Inventory Tools</h3>
+                  <p>Two methods to maintain certified diamond stock:</p>
+                </div>
+
+                <div className="inventory-options-grid">
+                  <div className="inventory-option-card">
+                    <span className="option-tag">Option 1 · Automated</span>
+                    <h4>Supplier API Integration</h4>
+                    <p>Real-time sync directly with Flomiz Diamond B2B API for live carat weights, cut grades, certificates, and pricing.</p>
+                    <div className="api-status-pill">
+                      <span className="api-status-dot" /> Flomiz Gateway Ready
+                    </div>
+                  </div>
+
+                  <div className="inventory-option-card">
+                    <span className="option-tag">Option 2 · Bulk File</span>
+                    <h4>Excel / CSV Upload Portal</h4>
+                    <p>Upload your own diamond inventory sheet in standard Excel (.csv or .tsv) format.</p>
+                    <a href="/api/inventory/template" download="heyman_diamond_template.csv" className="template-download-link">
+                      ⬇ Download Standard CSV Template
+                    </a>
+
+                    <div className="upload-dropzone">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,.tsv,text/csv,application/vnd.ms-excel"
+                        onChange={handleFileSelected}
+                        disabled={uploadBusy}
+                        id="diamond-csv-file"
+                      />
+                      {uploadFile && <span className="selected-filename">📄 {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)</span>}
+
+                      <button
+                        type="button"
+                        className="button-primary upload-btn"
+                        onClick={handleInventoryUpload}
+                        disabled={uploadBusy || !uploadFile}
+                      >
+                        {uploadBusy ? 'Uploading & Validating…' : 'Upload Spreadsheet'}
+                      </button>
+                    </div>
+
+                    {uploadStatus && (
+                      <p className={`auth-status auth-status--${uploadStatus.kind}`} style={{ marginTop: '12px' }}>
+                        {uploadStatus.text}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Footer Actions ── */}
           <div className="account-footer-actions">
             <a href="#home" className="button-primary">Return to Shop</a>
             <button
@@ -573,4 +1176,3 @@ export default function AuthPages({
     </main>
   )
 }
-
