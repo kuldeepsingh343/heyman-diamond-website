@@ -3,156 +3,76 @@
 /**
  * Heyman Diamond LLC — Live Customer & Dealer Authentication Validation Suite
  *
- * Requirements Verified:
- *  1. API Health Check (GET /api/health)
- *  2. Customer Registration Flow (POST /api/auth/signup - accountType: 'customer')
- *  3. Dealer Registration Flow (POST /api/auth/signup - accountType: 'dealer', companyName)
- *  4. Role & Permissions Verification (profiles.account_type, profiles.dealer_status, dealer_applications)
- *  5. Rate-Limit Resistance Test (multiple sequential confirmation resends)
- *  6. Zero-Pollution Teardown (deletes dealer_applications first to respect ON DELETE RESTRICT, then auth user)
+ * Operational Live Verification Tool (Iteration 2 Architecture)
  *
- * Execution Modes:
- *  - Live Mode (Default): Sends real HTTPS network requests to LIVE_SITE_URL (Render or custom domain).
- *  - In-Process Mode (--simulate / --local / auto-fallback when sandbox blocks sockets): Dispatches
- *    real HTTP requests directly into server/index.mjs request pipeline with real state tracking.
+ * Requirements Verified:
+ *  1. Live API Health Check (GET /api/health)
+ *  2. Synthetic Customer Registration Flow (POST /api/auth/signup - accountType: 'customer')
+ *  3. Synthetic Dealer Registration Flow (POST /api/auth/signup - accountType: 'dealer', companyName)
+ *  4. Live PostgREST & GoTrue Role/Permissions Verification
+ *     - public.profiles (account_type, dealer_status, full_name, phone)
+ *     - public.dealer_applications (status, registered_business_name, primary_contact, primary_email)
+ *  5. Live Rate-Limit Resistance Test (multiple sequential confirmation resends, asserting >3 resends without HTTP 429)
+ *  6. Live Sign-In & Authentication Verification
+ *     - Pre-confirmation login rejection check (HTTP 400)
+ *     - Programmatic GoTrue email confirmation
+ *     - Confirmed customer sign-in (accessToken issuance, profile role matching)
+ *     - Dealer admin approval & approved dealer sign-in
+ *  7. Zero-Pollution Teardown Routine
+ *     - Strict ON DELETE RESTRICT adherence (dealer_applications -> quote_requests -> auth.users)
+ *     - Post-teardown verification of 0 residual records in profiles, dealer_applications, and auth.users
  */
 
-import { EventEmitter } from 'node:events'
-import { Readable } from 'node:stream'
-import { server } from '../server/index.mjs'
+import { strict as assert } from 'node:assert'
 
-const args = process.argv.slice(2)
-const FORCE_SIMULATE = args.includes('--simulate') || args.includes('--in-memory') || args.includes('--local')
-
-const TARGET_URL = (process.env.LIVE_SITE_URL || process.env.APP_URL || 'https://hey-man-diamond-test.onrender.com').replace(/\/$/, '')
+// ── Environment & Prerequisite Checks ──────────────────────────────────────────
+const TARGET_URL = (process.env.LIVE_SITE_URL || process.env.APP_URL || process.env.TARGET_URL || 'https://hey-man-diamond-test.onrender.com').replace(/\/$/, '')
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://qdjqdbuozbgghasmeksw.supabase.co').replace(/\/$/, '')
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+// Critical safety check: production domain is strictly off-limits for live testing
+if (/heymandiamond(llc)?\.com/i.test(TARGET_URL)) {
+  console.error('\n❌ SAFETY CHECK FAILED:')
+  console.error(`TARGET_URL (${TARGET_URL}) targets production domain, which is strictly prohibited.`)
+  console.error('Validation must target the test deployment (https://hey-man-diamond-test.onrender.com) or local server.\n')
+  process.exit(1)
+}
+
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('\n❌ FATAL CONFIGURATION ERROR:')
+  console.error('SUPABASE_SERVICE_ROLE_KEY is required to run live authentication validation.')
+  console.error('This operational tool verifies PostgREST RBAC rows and executes zero-pollution teardown.')
+  console.error('Usage: SUPABASE_SERVICE_ROLE_KEY=your-service-role-key node scripts/validate_live_auth.mjs\n')
+  process.exit(1)
+}
 
 const timestamp = Date.now()
 const runId = Math.random().toString(36).substring(2, 8)
 
 const customerPayload = {
   accountType: 'customer',
-  fullName: `[QA Test] Synthetic Customer ${runId}`,
+  fullName: `[QA Live] Synthetic Customer ${runId}`,
   address: '123 Fifth Avenue, Suite 500, New York, NY 10001',
   phone: '+1 555-010-0001',
   gender: 'prefer_not_to_say',
   email: `synthetic_qa_cust_${timestamp}_${runId}@heymandiamond-qa.test`,
-  password: 'QaTestPass2026!Customer',
+  password: 'QaLivePass2026!Cust',
   companyName: '',
 }
 
 const dealerPayload = {
   accountType: 'dealer',
-  fullName: `[QA Test] Synthetic Dealer ${runId}`,
+  fullName: `[QA Live] Synthetic Dealer ${runId}`,
   companyName: `QA Wholesale Gemological Corp ${runId}`,
   address: '456 Diamond Street, Floor 17, Chicago, IL 60603',
   phone: '+1 555-010-0002',
   gender: 'prefer_not_to_say',
   email: `synthetic_qa_dealer_${timestamp}_${runId}@heymandiamond-qa.test`,
-  password: 'QaTestPass2026!Dealer',
+  password: 'QaLivePass2026!Deal',
 }
 
-// In-process state tracker for simulation / DB verification
-const memoryDb = {
-  users: new Map(),
-  profiles: new Map(),
-  dealerApplications: new Map(),
-  quoteRequests: new Map(),
-  resendCounts: new Map(),
-}
-
-let activeDispatcherMode = 'live'
-
-class MockReq extends Readable {
-  constructor(method, url, headers, body) {
-    super()
-    this.method = method
-    this.url = url
-    this.headers = headers || {}
-    this._body = body ? Buffer.from(body) : null
-    this._sent = false
-    this.socket = { remoteAddress: '127.0.0.1' }
-  }
-  _read() {
-    if (this._sent) return
-    this._sent = true
-    if (this._body) this.push(this._body)
-    this.push(null)
-  }
-}
-
-class MockRes extends EventEmitter {
-  constructor() {
-    super()
-    this.statusCode = 200
-    this.headers = {}
-    this.body = ''
-  }
-  writeHead(code, headers) {
-    this.statusCode = code
-    Object.assign(this.headers, headers || {})
-    return this
-  }
-  end(chunk) {
-    if (chunk) this.body += chunk.toString()
-    this.emit('finish')
-    return this
-  }
-}
-
-async function dispatchInMemory(method, path, headers = {}, body = null) {
-  return new Promise((resolve, reject) => {
-    try {
-      const parsedUrl = new URL(path, 'http://localhost:3000')
-      const reqHeaders = { host: 'localhost:3000', ...headers }
-      const req = new MockReq(method, parsedUrl.pathname + parsedUrl.search, reqHeaders, body ? JSON.stringify(body) : null)
-      const res = new MockRes()
-
-      res.on('finish', () => {
-        let json = null
-        try { json = JSON.parse(res.body) } catch {}
-        resolve({
-          ok: res.statusCode >= 200 && res.statusCode < 300,
-          status: res.statusCode,
-          statusText: res.statusCode === 200 ? 'OK' : res.statusCode === 201 ? 'Created' : 'Error',
-          headers: res.headers,
-          json: async () => json ?? {},
-          text: async () => res.body,
-        })
-      })
-
-      // Dispatch to actual server instance
-      server.emit('request', req, res)
-    } catch (err) {
-      reject(err)
-    }
-  })
-}
-
-async function universalFetch(url, options = {}) {
-  if (activeDispatcherMode === 'in-memory') {
-    const urlObj = new URL(url)
-    const method = options.method || 'GET'
-    let body = null
-    if (options.body) {
-      body = typeof options.body === 'string' ? JSON.parse(options.body) : options.body
-    }
-    return dispatchInMemory(method, urlObj.pathname + urlObj.search, options.headers, body)
-  }
-
-  // Live network fetch
-  try {
-    return await fetch(url, options)
-  } catch (netErr) {
-    if (activeDispatcherMode === 'live' && (netErr.code === 'ENOTFOUND' || netErr.message?.includes('fetch failed'))) {
-      log('Dispatcher', 'Live network endpoint unreachable in current environment. Engaging in-process protocol dispatcher.', 'WARN')
-      activeDispatcherMode = 'in-memory'
-      return universalFetch(url, options)
-    }
-    throw netErr
-  }
-}
+// Track IDs of users created during execution to guarantee zero-pollution teardown
+const createdUsers = new Map() // email -> { id, accountType }
 
 function log(phase, message, status = 'INFO') {
   const icon = status === 'PASS' ? '✅' : status === 'FAIL' ? '❌' : status === 'WARN' ? '⚠️' : 'ℹ️'
@@ -171,305 +91,360 @@ async function runStep(name, fn) {
   }
 }
 
-// ── STEP 1: API Health Check ──────────────────────────────────────────────────
+// ── STEP 1: Live API Health Check ─────────────────────────────────────────────
 async function stepHealthCheck() {
-  log('HealthCheck', `Probing ${TARGET_URL}/api/health ...`)
-  const res = await universalFetch(`${TARGET_URL}/api/health`, {
+  log('HealthCheck', `Probing live health endpoint at ${TARGET_URL}/api/health ...`)
+  const res = await fetch(`${TARGET_URL}/api/health`, {
     headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(15000),
   })
-  if (!res.ok) throw new Error(`Health endpoint returned HTTP ${res.status}: ${res.statusText}`)
+  assert.equal(res.status, 200, `Health endpoint returned unexpected status HTTP ${res.status}`)
+  const contentType = res.headers.get('content-type') || ''
+  assert.ok(contentType.includes('application/json'), `Expected JSON content-type but received '${contentType}'`)
+
   const body = await res.json()
-  if (body.status !== 'ok') throw new Error(`Unexpected health status: ${JSON.stringify(body)}`)
-  log('HealthCheck', `Target healthy. Mode: ${activeDispatcherMode.toUpperCase()}. Database configured: ${body.databaseConfigured}`, 'PASS')
+  assert.equal(body.status, 'ok', `Expected health body status 'ok', received: ${JSON.stringify(body)}`)
+  assert.equal(body.databaseConfigured, true, 'Health check reported databaseConfigured: false')
+  log('HealthCheck', `Target healthy. Database configured: ${body.databaseConfigured}`, 'PASS')
   return body
 }
 
-// ── STEP 2: Customer Registration Flow ─────────────────────────────────────────
+// ── STEP 2: Synthetic Customer Registration ───────────────────────────────────
 async function stepCustomerSignup() {
   log('CustomerSignup', `Registering synthetic customer: ${customerPayload.email}`)
-  if (activeDispatcherMode === 'in-memory') {
-    // Record synthetic state in memory table for role validation
-    const userId = `cust_usr_${timestamp}`
-    memoryDb.users.set(userId, { id: userId, email: customerPayload.email, confirmed: false })
-    memoryDb.profiles.set(userId, {
-      id: userId,
-      full_name: customerPayload.fullName,
-      phone: customerPayload.phone,
-      address: customerPayload.address,
-      gender: customerPayload.gender,
-      account_type: 'customer',
-      dealer_status: 'not_applied',
-    })
-    log('CustomerSignup', `Simulated customer signup generated user ID: ${userId}`)
-    return { submitted: true, emailConfirmationRequired: true, accountType: 'customer', message: 'Your account has been created. Please check your email to confirm your address before signing in.' }
-  }
-
-  const res = await universalFetch(`${TARGET_URL}/api/auth/signup`, {
+  const res = await fetch(`${TARGET_URL}/api/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(customerPayload),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(20000),
   })
-  const body = await res.json()
-  if (res.status !== 201) {
-    throw new Error(`Customer signup returned HTTP ${res.status}: ${body.error || JSON.stringify(body)}`)
-  }
-  if (!body.submitted || body.accountType !== 'customer') {
-    throw new Error(`Invalid response structure: ${JSON.stringify(body)}`)
-  }
-  log('CustomerSignup', `Customer account created. Email confirmation required: ${body.emailConfirmationRequired}`, 'PASS')
+  const body = await res.json().catch(() => ({}))
+  assert.equal(res.status, 201, `Customer signup failed with HTTP ${res.status}: ${JSON.stringify(body)}`)
+  assert.equal(body.submitted, true, `Expected submitted: true, got ${JSON.stringify(body)}`)
+  assert.equal(body.accountType, 'customer', `Expected accountType 'customer', got '${body.accountType}'`)
+  assert.equal(body.emailConfirmationRequired, true, 'Expected emailConfirmationRequired to be true')
+  log('CustomerSignup', `Customer registered. Confirmation required: ${body.emailConfirmationRequired}`, 'PASS')
   return body
 }
 
-// ── STEP 3: Dealer Registration Flow ───────────────────────────────────────────
+// ── STEP 3: Synthetic Dealer Registration ─────────────────────────────────────
 async function stepDealerSignup() {
   log('DealerSignup', `Registering synthetic dealer: ${dealerPayload.email} (${dealerPayload.companyName})`)
-  if (activeDispatcherMode === 'in-memory') {
-    const userId = `deal_usr_${timestamp}`
-    const appId = `deal_app_${timestamp}`
-    memoryDb.users.set(userId, { id: userId, email: dealerPayload.email, confirmed: false })
-    memoryDb.profiles.set(userId, {
-      id: userId,
-      full_name: dealerPayload.fullName,
-      phone: dealerPayload.phone,
-      address: dealerPayload.address,
-      gender: dealerPayload.gender,
-      account_type: 'dealer',
-      dealer_status: 'pending_review',
-    })
-    memoryDb.dealerApplications.set(appId, {
-      id: appId,
-      user_id: userId,
-      registered_business_name: dealerPayload.companyName,
-      primary_contact: dealerPayload.fullName,
-      primary_email: dealerPayload.email,
-      status: 'pending_review',
-    })
-    log('DealerSignup', `Simulated dealer application generated user ID: ${userId}, app ID: ${appId}`)
-    return { submitted: true, emailConfirmationRequired: true, accountType: 'dealer', message: 'Your dealer account request has been received. Please confirm your email; dealer access will remain pending until an administrator approves it.' }
-  }
-
-  const res = await universalFetch(`${TARGET_URL}/api/auth/signup`, {
+  const res = await fetch(`${TARGET_URL}/api/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(dealerPayload),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(20000),
   })
-  const body = await res.json()
-  if (res.status !== 201) {
-    throw new Error(`Dealer signup returned HTTP ${res.status}: ${body.error || JSON.stringify(body)}`)
-  }
-  if (!body.submitted || body.accountType !== 'dealer') {
-    throw new Error(`Invalid response structure: ${JSON.stringify(body)}`)
-  }
-  log('DealerSignup', `Dealer application submitted. Message: "${body.message}"`, 'PASS')
+  const body = await res.json().catch(() => ({}))
+  assert.equal(res.status, 201, `Dealer signup failed with HTTP ${res.status}: ${JSON.stringify(body)}`)
+  assert.equal(body.submitted, true, `Expected submitted: true, got ${JSON.stringify(body)}`)
+  assert.equal(body.accountType, 'dealer', `Expected accountType 'dealer', got '${body.accountType}'`)
+  assert.equal(body.emailConfirmationRequired, true, 'Expected emailConfirmationRequired to be true')
+  log('DealerSignup', `Dealer registered. Message: "${body.message}"`, 'PASS')
   return body
 }
 
-// ── STEP 4: Role & Permission Verification ─────────────────────────────────────
+// ── STEP 4: Live Role & Schema Verification via PostgREST / GoTrue ────────────
 async function stepRoleVerification() {
-  log('RoleVerification', 'Verifying role-based segregation and gating...')
-
-  if (activeDispatcherMode === 'in-memory') {
-    const custProfile = Array.from(memoryDb.profiles.values()).find(p => p.account_type === 'customer')
-    const dealProfile = Array.from(memoryDb.profiles.values()).find(p => p.account_type === 'dealer')
-    const dealApp = Array.from(memoryDb.dealerApplications.values())[0]
-
-    if (!custProfile || custProfile.account_type !== 'customer' || custProfile.dealer_status !== 'not_applied') {
-      throw new Error(`Customer profile role validation failed: ${JSON.stringify(custProfile)}`)
-    }
-    log('RoleVerification', `Customer profile verified: account_type='${custProfile.account_type}', dealer_status='${custProfile.dealer_status}'`, 'PASS')
-
-    if (!dealProfile || dealProfile.account_type !== 'dealer' || dealProfile.dealer_status !== 'pending_review') {
-      throw new Error(`Dealer profile role validation failed: ${JSON.stringify(dealProfile)}`)
-    }
-    log('RoleVerification', `Dealer profile verified: account_type='${dealProfile.account_type}', dealer_status='${dealProfile.dealer_status}'`, 'PASS')
-
-    if (!dealApp || dealApp.status !== 'pending_review' || dealApp.registered_business_name !== dealerPayload.companyName) {
-      throw new Error(`Dealer application validation failed: ${JSON.stringify(dealApp)}`)
-    }
-    log('RoleVerification', `Dealer application row verified: id=${dealApp.id}, status='${dealApp.status}', company='${dealApp.registered_business_name}'`, 'PASS')
-
-    // Simulate Admin Approval
-    dealApp.status = 'approved'
-    dealProfile.dealer_status = 'approved'
-    log('RoleVerification', 'Simulated KYC Admin approval: dealer_status transitioned to "approved"', 'PASS')
-    return { customerVerified: true, dealerVerified: true, approvalSimulated: true }
+  log('RoleVerification', 'Querying GoTrue and PostgREST with Service Role Key...')
+  const authHeaders = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    Accept: 'application/json',
   }
 
-  // Live Verification
-  if (SUPABASE_SERVICE_ROLE_KEY) {
-    log('RoleVerification', 'Querying PostgREST / GoTrue with Service Role Key...')
-    const authUsersRes = await universalFetch(`${SUPABASE_URL}/auth/v1/admin/users?per_page=100`, {
-      headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-    })
-    if (authUsersRes.ok) {
-      const usersData = await authUsersRes.json()
-      const users = usersData.users || []
-      const custUser = users.find(u => u.email === customerPayload.email)
-      const dealUser = users.find(u => u.email === dealerPayload.email)
-      if (custUser) log('RoleVerification', `Found live customer auth user: ${custUser.id}`, 'PASS')
-      if (dealUser) log('RoleVerification', `Found live dealer auth user: ${dealUser.id}`, 'PASS')
-    }
-  } else {
-    log('RoleVerification', 'SUPABASE_SERVICE_ROLE_KEY not supplied in environment; direct DB inspection skipped.', 'WARN')
-  }
+  // 1. Locate auth users in GoTrue
+  const usersRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, {
+    headers: authHeaders,
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.ok(usersRes.ok, `Failed to query auth.users: HTTP ${usersRes.status}`)
+  const usersData = await usersRes.json()
+  const users = usersData.users || []
+
+  const custUser = users.find(u => u.email === customerPayload.email)
+  assert.ok(custUser, `Synthetic customer auth user ${customerPayload.email} was not found in GoTrue admin/users`)
+  createdUsers.set(customerPayload.email, { id: custUser.id, accountType: 'customer' })
+  log('RoleVerification', `Found customer auth user UUID: ${custUser.id}`, 'PASS')
+
+  const dealUser = users.find(u => u.email === dealerPayload.email)
+  assert.ok(dealUser, `Synthetic dealer auth user ${dealerPayload.email} was not found in GoTrue admin/users`)
+  createdUsers.set(dealerPayload.email, { id: dealUser.id, accountType: 'dealer' })
+  log('RoleVerification', `Found dealer auth user UUID: ${dealUser.id}`, 'PASS')
+
+  // 2. Query public.profiles for Customer
+  const custProfRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${custUser.id}&select=*`, {
+    headers: authHeaders,
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.equal(custProfRes.status, 200, `Query public.profiles for customer failed: HTTP ${custProfRes.status}`)
+  const custProfiles = await custProfRes.json()
+  assert.equal(custProfiles.length, 1, `Expected exactly 1 profile row for customer, got ${custProfiles.length}`)
+  const custProf = custProfiles[0]
+  assert.equal(custProf.account_type, 'customer', `Expected account_type 'customer', got '${custProf.account_type}'`)
+  assert.equal(custProf.dealer_status, 'not_applied', `Expected dealer_status 'not_applied', got '${custProf.dealer_status}'`)
+  assert.equal(custProf.full_name, customerPayload.fullName, `Profile full_name mismatch: '${custProf.full_name}'`)
+  assert.equal(custProf.phone, customerPayload.phone, `Profile phone mismatch: '${custProf.phone}'`)
+  log('RoleVerification', `Customer profile verified: account_type='${custProf.account_type}', dealer_status='${custProf.dealer_status}'`, 'PASS')
+
+  // 3. Query public.profiles for Dealer
+  const dealProfRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${dealUser.id}&select=*`, {
+    headers: authHeaders,
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.equal(dealProfRes.status, 200, `Query public.profiles for dealer failed: HTTP ${dealProfRes.status}`)
+  const dealProfiles = await dealProfRes.json()
+  assert.equal(dealProfiles.length, 1, `Expected exactly 1 profile row for dealer, got ${dealProfiles.length}`)
+  const dealProf = dealProfiles[0]
+  assert.equal(dealProf.account_type, 'dealer', `Expected account_type 'dealer', got '${dealProf.account_type}'`)
+  assert.equal(dealProf.dealer_status, 'pending_review', `Expected dealer_status 'pending_review', got '${dealProf.dealer_status}'`)
+  assert.equal(dealProf.full_name, dealerPayload.fullName, `Profile full_name mismatch: '${dealProf.full_name}'`)
+  assert.equal(dealProf.phone, dealerPayload.phone, `Profile phone mismatch: '${dealProf.phone}'`)
+  log('RoleVerification', `Dealer profile verified: account_type='${dealProf.account_type}', dealer_status='${dealProf.dealer_status}'`, 'PASS')
+
+  // 4. Query public.dealer_applications for Dealer
+  const dealAppRes = await fetch(`${SUPABASE_URL}/rest/v1/dealer_applications?user_id=eq.${dealUser.id}&select=*`, {
+    headers: authHeaders,
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.equal(dealAppRes.status, 200, `Query dealer_applications failed: HTTP ${dealAppRes.status}`)
+  const dealApps = await dealAppRes.json()
+  assert.equal(dealApps.length, 1, `Expected exactly 1 dealer application row, got ${dealApps.length}`)
+  const dealApp = dealApps[0]
+  assert.equal(dealApp.status, 'pending_review', `Expected application status 'pending_review', got '${dealApp.status}'`)
+  assert.equal(dealApp.registered_business_name, dealerPayload.companyName, `Business name mismatch: '${dealApp.registered_business_name}'`)
+  assert.equal(dealApp.primary_contact, dealerPayload.fullName, `Primary contact mismatch: '${dealApp.primary_contact}'`)
+  assert.equal(dealApp.primary_email, dealerPayload.email, `Primary email mismatch: '${dealApp.primary_email}'`)
+  log('RoleVerification', `Dealer application verified: status='${dealApp.status}', company='${dealApp.registered_business_name}'`, 'PASS')
+
+  return { customerId: custUser.id, dealerId: dealUser.id, dealerAppId: dealApp.id }
 }
 
-// ── STEP 5: Rate-Limit Resistance Test ─────────────────────────────────────────
+// ── STEP 5: Live Rate-Limit Resistance Test (Mailjet Custom SMTP) ─────────────
 async function stepRateLimitTest() {
   log('RateLimitTest', 'Testing confirmation resend resilience (testing beyond default 3-emails/hour restriction)...')
   const attempts = 4
   let successCount = 0
+  let rateLimitCount = 0
+  const responses = []
 
   for (let i = 1; i <= attempts; i++) {
-    log('RateLimitTest', `Sending confirmation resend attempt ${i}/${attempts}...`)
-    if (activeDispatcherMode === 'in-memory') {
-      // In-memory Mailjet SMTP resistance simulation
-      const current = memoryDb.resendCounts.get(customerPayload.email) || 0
-      memoryDb.resendCounts.set(customerPayload.email, current + 1)
-      successCount++
-      log('RateLimitTest', `Attempt ${i}: Accepted by Custom SMTP relay (resendCount: ${current + 1})`)
-    } else {
-      const res = await universalFetch(`${TARGET_URL}/api/auth/resend-confirmation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ email: customerPayload.email }),
-        signal: AbortSignal.timeout(10000),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (res.status === 200 && body.sent) {
-        successCount++
-        log('RateLimitTest', `Attempt ${i}: Accepted (sent: true)`)
-      } else if (res.status === 429) {
-        log('RateLimitTest', `Attempt ${i}: Encountered rate limit (HTTP 429: ${body.error || 'rate limit'})`, 'WARN')
-      } else {
-        log('RateLimitTest', `Attempt ${i}: HTTP ${res.status} - ${body.error || 'response'}`)
-      }
-    }
-    await new Promise(r => setTimeout(r, 200))
-  }
-
-  log('RateLimitTest', `Resend test complete. ${successCount}/${attempts} accepted.`, 'PASS')
-  return { attempts, successCount }
-}
-
-// ── STEP 6: Zero-Pollution Teardown Routine ────────────────────────────────────
-async function stepTeardown() {
-  log('Teardown', 'Initiating zero-pollution cleanup of synthetic accounts...')
-
-  if (activeDispatcherMode === 'in-memory') {
-    // Enforce strict foreign key order in memory
-    const userIds = Array.from(memoryDb.users.keys())
-    log('Teardown', `Purging ${userIds.length} synthetic test user(s) with ON DELETE RESTRICT enforcement...`)
-
-    for (const uid of userIds) {
-      // Step 1: Must delete dealer_applications before user
-      const appKeys = Array.from(memoryDb.dealerApplications.entries())
-        .filter(([, app]) => app.user_id === uid)
-        .map(([k]) => k)
-      for (const k of appKeys) {
-        memoryDb.dealerApplications.delete(k)
-        log('Teardown', `Deleted dealer application ${k} (satisfying ON DELETE RESTRICT)`)
-      }
-
-      // Step 2: Delete auth user (cascades to public.profiles)
-      memoryDb.users.delete(uid)
-      memoryDb.profiles.delete(uid)
-      log('Teardown', `Deleted user ${uid} (cascading to public.profiles)`)
-    }
-
-    if (memoryDb.users.size !== 0 || memoryDb.dealerApplications.size !== 0) {
-      throw new Error('Teardown failed: lingering records detected in database.')
-    }
-    log('Teardown', 'Zero-pollution teardown verified. Remaining test records: 0', 'PASS')
-    return { cleanedCount: userIds.length, residualRecords: 0 }
-  }
-
-  // Live teardown via Supabase Admin API
-  if (!SUPABASE_SERVICE_ROLE_KEY) {
-    log('Teardown', 'SUPABASE_SERVICE_ROLE_KEY is not set. Cannot run automated DB teardown directly.', 'WARN')
-    log('Teardown', `Target test emails for manual cleanup: ${customerPayload.email}, ${dealerPayload.email}`)
-    return { cleanedCount: 0, manualRequired: true }
-  }
-
-  const usersRes = await universalFetch(`${SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, {
-    headers: {
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-  })
-  if (!usersRes.ok) {
-    log('Teardown', 'Failed to query auth.users for teardown', 'WARN')
-    return { cleanedCount: 0 }
-  }
-
-  const usersData = await usersRes.json()
-  const syntheticUsers = (usersData.users || []).filter(u =>
-    u.email?.startsWith('synthetic_qa_') ||
-    u.email === customerPayload.email ||
-    u.email === dealerPayload.email
-  )
-
-  log('Teardown', `Found ${syntheticUsers.length} synthetic test user(s) to purge.`)
-
-  for (const user of syntheticUsers) {
-    const uid = user.id
-    log('Teardown', `Purging test user ${uid} (${user.email})...`)
-
-    try {
-      await universalFetch(`${SUPABASE_URL}/rest/v1/dealer_applications?user_id=eq.${uid}`, {
-        method: 'DELETE',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-      })
-      await universalFetch(`${SUPABASE_URL}/rest/v1/quote_requests?user_id=eq.${uid}`, {
-        method: 'DELETE',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-      })
-    } catch (e) {
-      log('Teardown', `Child deletion note: ${e.message}`, 'WARN')
-    }
-
-    const delRes = await universalFetch(`${SUPABASE_URL}/auth/v1/admin/users/${uid}`, {
-      method: 'DELETE',
-      headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
+    log('RateLimitTest', `Sending confirmation resend attempt ${i}/${attempts} for ${customerPayload.email}...`)
+    const res = await fetch(`${TARGET_URL}/api/auth/resend-confirmation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ email: customerPayload.email }),
+      signal: AbortSignal.timeout(15000),
     })
-    if (delRes.ok) {
-      log('Teardown', `Deleted auth user ${uid} (${user.email}) successfully.`, 'PASS')
+    const body = await res.json().catch(() => ({}))
+    responses.push({ attempt: i, status: res.status, body })
+
+    if (res.status === 200 && body.sent) {
+      successCount++
+      log('RateLimitTest', `Attempt ${i}: Accepted by server (HTTP 200, sent: true)`)
+    } else if (res.status === 429) {
+      rateLimitCount++
+      log('RateLimitTest', `Attempt ${i}: Rate limited (HTTP 429: ${body.error || 'rate limit'})`, 'WARN')
     } else {
-      log('Teardown', `Delete auth user ${uid} returned status ${delRes.status}`, 'WARN')
+      log('RateLimitTest', `Attempt ${i}: Unexpected response HTTP ${res.status}: ${JSON.stringify(body)}`, 'WARN')
+    }
+
+    if (i < attempts) {
+      await new Promise(r => setTimeout(r, 600))
     }
   }
 
-  log('Teardown', 'Zero-pollution teardown completed.', 'PASS')
-  return { cleanedCount: syntheticUsers.length }
+  // Strict Assertions for rate limit removal:
+  assert.equal(rateLimitCount, 0, `Custom SMTP rate limit violation! Received HTTP 429 on ${rateLimitCount} attempt(s). Responses: ${JSON.stringify(responses)}`)
+  assert.ok(successCount >= 4, `Expected at least 4 successful confirmation resends (proving >3 limit lifted), but only ${successCount} succeeded.`)
+
+  log('RateLimitTest', `Rate-limit resilience verified: ${successCount}/${attempts} accepted, 0 rate-limit (429) errors.`, 'PASS')
+  return { attempts, successCount, rateLimitCount }
 }
 
-// ── Main Orchestrator ──────────────────────────────────────────────────────────
-async function main() {
-  if (FORCE_SIMULATE) {
-    activeDispatcherMode = 'in-memory'
+// ── STEP 6: Live Sign-In & Authentication Flow Validation ─────────────────────
+async function stepSignInValidation(context) {
+  log('SignInValidation', 'Testing live sign-in flows and authentication gating...')
+  const authHeaders = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    'Content-Type': 'application/json',
+  }
+  const custId = context.customerId || createdUsers.get(customerPayload.email)?.id
+  const dealId = context.dealerId || createdUsers.get(dealerPayload.email)?.id
+
+  assert.ok(custId, 'Missing customer UUID for sign-in validation')
+  assert.ok(dealId, 'Missing dealer UUID for sign-in validation')
+
+  // 1. Verify unconfirmed user cannot sign in
+  log('SignInValidation', 'Testing pre-confirmation login rejection...')
+  const preConfirmRes = await fetch(`${TARGET_URL}/api/auth/signin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ email: customerPayload.email, password: customerPayload.password }),
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.equal(preConfirmRes.status, 400, `Expected HTTP 400 for unconfirmed user login, got HTTP ${preConfirmRes.status}`)
+  log('SignInValidation', 'Pre-confirmation login correctly rejected with HTTP 400', 'PASS')
+
+  // 2. Programmatically confirm customer email via GoTrue Admin API
+  log('SignInValidation', `Confirming customer email for user ${custId} via GoTrue Admin API...`)
+  const confirmCustRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${custId}`, {
+    method: 'PUT',
+    headers: authHeaders,
+    body: JSON.stringify({ email_confirm: true }),
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.ok(confirmCustRes.ok, `Failed to confirm customer email: HTTP ${confirmCustRes.status}`)
+  log('SignInValidation', 'Customer email confirmed successfully', 'PASS')
+
+  // 3. Authenticate confirmed customer
+  log('SignInValidation', 'Signing in confirmed customer...')
+  const custLoginRes = await fetch(`${TARGET_URL}/api/auth/signin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ email: customerPayload.email, password: customerPayload.password }),
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.equal(custLoginRes.status, 200, `Customer signin failed: HTTP ${custLoginRes.status}`)
+  const custLoginData = await custLoginRes.json()
+  assert.ok(typeof custLoginData.accessToken === 'string' && custLoginData.accessToken.length > 20, 'Missing or invalid accessToken')
+  assert.ok(typeof custLoginData.refreshToken === 'string', 'Missing refreshToken')
+  assert.equal(custLoginData.user?.email, customerPayload.email, 'Customer email in session mismatch')
+  assert.equal(custLoginData.user?.account_type, 'customer', `Expected account_type 'customer', got '${custLoginData.user?.account_type}'`)
+  assert.equal(custLoginData.user?.dealer_status, 'not_applied', `Expected dealer_status 'not_applied', got '${custLoginData.user?.dealer_status}'`)
+  log('SignInValidation', 'Confirmed customer signed in successfully with valid session and profile roles', 'PASS')
+
+  // 4. Simulate KYC Admin Approval and confirm dealer email
+  log('SignInValidation', `Simulating KYC admin approval and confirming dealer ${dealId}...`)
+  const approveAppRes = await fetch(`${SUPABASE_URL}/rest/v1/dealer_applications?user_id=eq.${dealId}`, {
+    method: 'PATCH',
+    headers: authHeaders,
+    body: JSON.stringify({ status: 'approved' }),
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.ok(approveAppRes.ok, `Failed to approve dealer application: HTTP ${approveAppRes.status}`)
+
+  const approveProfRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${dealId}`, {
+    method: 'PATCH',
+    headers: authHeaders,
+    body: JSON.stringify({ dealer_status: 'approved' }),
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.ok(approveProfRes.ok, `Failed to approve dealer profile: HTTP ${approveProfRes.status}`)
+
+  const confirmDealRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${dealId}`, {
+    method: 'PUT',
+    headers: authHeaders,
+    body: JSON.stringify({ email_confirm: true }),
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.ok(confirmDealRes.ok, `Failed to confirm dealer email: HTTP ${confirmDealRes.status}`)
+  log('SignInValidation', 'Dealer approved and email confirmed', 'PASS')
+
+  // 5. Authenticate approved dealer
+  log('SignInValidation', 'Signing in approved dealer...')
+  const dealLoginRes = await fetch(`${TARGET_URL}/api/auth/signin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ email: dealerPayload.email, password: dealerPayload.password }),
+    signal: AbortSignal.timeout(15000),
+  })
+  assert.equal(dealLoginRes.status, 200, `Dealer signin failed: HTTP ${dealLoginRes.status}`)
+  const dealLoginData = await dealLoginRes.json()
+  assert.ok(typeof dealLoginData.accessToken === 'string' && dealLoginData.accessToken.length > 20, 'Missing dealer accessToken')
+  assert.equal(dealLoginData.user?.account_type, 'dealer', `Expected account_type 'dealer', got '${dealLoginData.user?.account_type}'`)
+  assert.equal(dealLoginData.user?.dealer_status, 'approved', `Expected dealer_status 'approved', got '${dealLoginData.user?.dealer_status}'`)
+  log('SignInValidation', 'Approved dealer signed in successfully with elevated dealer status', 'PASS')
+
+  return { customerLogin: true, dealerLogin: true }
+}
+
+// ── STEP 7: Zero-Pollution Teardown Routine ────────────────────────────────────
+async function stepTeardown() {
+  log('Teardown', 'Initiating zero-pollution cleanup of synthetic test accounts...')
+  const authHeaders = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
   }
 
+  // Fallback: If createdUsers map was empty (e.g. failure before step 4), query GoTrue for our test emails
+  if (createdUsers.size === 0) {
+    const listRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, { headers: authHeaders })
+    if (listRes.ok) {
+      const data = await listRes.json()
+      for (const user of data.users || []) {
+        if (user.email === customerPayload.email || user.email === dealerPayload.email) {
+          createdUsers.set(user.email, { id: user.id })
+        }
+      }
+    }
+  }
+
+  const uids = Array.from(createdUsers.values()).map(u => u.id)
+  log('Teardown', `Purging ${uids.length} test user(s) with ON DELETE RESTRICT cascade ordering...`)
+
+  let cleanedUsersCount = 0
+  for (const uid of uids) {
+    // 1. Delete child records in dealer_applications (enforcing ON DELETE RESTRICT)
+    const delAppRes = await fetch(`${SUPABASE_URL}/rest/v1/dealer_applications?user_id=eq.${uid}`, {
+      method: 'DELETE',
+      headers: authHeaders,
+    })
+    assert.ok(delAppRes.ok, `Failed to delete child rows in dealer_applications for user ${uid}`)
+
+    // 2. Delete child records in quote_requests
+    const delQuoteRes = await fetch(`${SUPABASE_URL}/rest/v1/quote_requests?user_id=eq.${uid}`, {
+      method: 'DELETE',
+      headers: authHeaders,
+    })
+    assert.ok(delQuoteRes.ok, `Failed to delete child rows in quote_requests for user ${uid}`)
+
+    // 3. Delete parent auth user (Postgres cascades to public.profiles)
+    const delUserRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${uid}`, {
+      method: 'DELETE',
+      headers: authHeaders,
+    })
+    assert.ok(delUserRes.ok, `Failed to delete auth user ${uid}: HTTP ${delUserRes.status}`)
+    cleanedUsersCount++
+    log('Teardown', `Successfully purged user ${uid} and associated records`, 'PASS')
+  }
+
+  // 4. Strict Verification of Zero Residual Records
+  log('Teardown', 'Verifying zero residual test records in database...')
+  if (uids.length > 0) {
+    const uidList = uids.join(',')
+
+    // Check profiles
+    const profCheck = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=in.(${uidList})&select=id`, { headers: authHeaders })
+    const profRows = profCheck.ok ? await profCheck.json() : []
+    assert.equal(profRows.length, 0, `Lingering records in public.profiles: ${JSON.stringify(profRows)}`)
+
+    // Check dealer_applications
+    const appCheck = await fetch(`${SUPABASE_URL}/rest/v1/dealer_applications?user_id=in.(${uidList})&select=id`, { headers: authHeaders })
+    const appRows = appCheck.ok ? await appCheck.json() : []
+    assert.equal(appRows.length, 0, `Lingering records in public.dealer_applications: ${JSON.stringify(appRows)}`)
+
+    // Check auth.users
+    const userCheck = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, { headers: authHeaders })
+    const userData = userCheck.ok ? await userCheck.json() : { users: [] }
+    const lingeringAuth = (userData.users || []).filter(u => uids.includes(u.id))
+    assert.equal(lingeringAuth.length, 0, `Lingering records in auth.users: ${JSON.stringify(lingeringAuth)}`)
+  }
+
+  log('Teardown', `Zero-pollution teardown verified. All ${cleanedUsersCount} synthetic test account(s) purged cleanly.`, 'PASS')
+  return { cleanedCount: cleanedUsersCount, residualRecords: 0 }
+}
+
+// ── Main Orchestration ────────────────────────────────────────────────────────
+async function main() {
   console.log('=================================================================')
-  console.log(' HEYMAN DIAMOND LLC — AUTHENTICATION VALIDATION PROTOCOL')
+  console.log(' HEYMAN DIAMOND LLC — LIVE AUTHENTICATION VALIDATION PROTOCOL')
   console.log('=================================================================')
   console.log(`Target URL:     ${TARGET_URL}`)
   console.log(`Supabase URL:   ${SUPABASE_URL}`)
-  console.log(`Initial Mode:   ${activeDispatcherMode.toUpperCase()}`)
+  console.log(`Service Key:    ${SUPABASE_SERVICE_ROLE_KEY ? '[CONFIGURED ✅]' : '[MISSING ❌]'}`)
   console.log(`Run Timestamp:  ${new Date().toISOString()}`)
   console.log(`Run ID:         ${runId}`)
   console.log('=================================================================\n')
@@ -480,27 +455,40 @@ async function main() {
     dealerSignup: false,
     roleVerification: false,
     rateLimitTest: false,
+    signInValidation: false,
     teardown: false,
   }
+
+  let roleContext = {}
 
   try {
     const s1 = await runStep('1. Live API Health Check', stepHealthCheck)
     summary.healthCheck = s1.ok
+    if (!s1.ok) throw s1.error
 
-    const s2 = await runStep('2. Synthetic Customer Registration', stepCustomerSignup)
+    const s2 = await runStep('2. Synthetic Customer Registration Flow', stepCustomerSignup)
     summary.customerSignup = s2.ok
+    if (!s2.ok) throw s2.error
 
-    const s3 = await runStep('3. Synthetic Dealer Registration', stepDealerSignup)
+    const s3 = await runStep('3. Synthetic Dealer Registration Flow', stepDealerSignup)
     summary.dealerSignup = s3.ok
+    if (!s3.ok) throw s3.error
 
-    const s4 = await runStep('4. Role & Permission Verification', stepRoleVerification)
+    const s4 = await runStep('4. PostgREST Role & Application Verification', stepRoleVerification)
     summary.roleVerification = s4.ok
+    if (!s4.ok) throw s4.error
+    roleContext = s4.result
 
-    const s5 = await runStep('5. Rate-Limit Resilience Test', stepRateLimitTest)
+    const s5 = await runStep('5. Mailjet Rate-Limit Resistance Test', stepRateLimitTest)
     summary.rateLimitTest = s5.ok
+    if (!s5.ok) throw s5.error
+
+    const s6 = await runStep('6. Live Sign-In & Authentication Validation', () => stepSignInValidation(roleContext))
+    summary.signInValidation = s6.ok
+    if (!s6.ok) throw s6.error
   } finally {
-    const s6 = await runStep('6. Zero-Pollution Teardown', stepTeardown)
-    summary.teardown = s6.ok
+    const s7 = await runStep('7. Zero-Pollution Teardown Routine', stepTeardown)
+    summary.teardown = s7.ok
   }
 
   console.log('\n=================================================================')
@@ -509,9 +497,10 @@ async function main() {
   console.log(`1. API Health Check:               ${summary.healthCheck ? 'PASSED ✅' : 'FAILED ❌'}`)
   console.log(`2. Customer Registration Flow:     ${summary.customerSignup ? 'PASSED ✅' : 'FAILED ❌'}`)
   console.log(`3. Dealer Registration Flow:       ${summary.dealerSignup ? 'PASSED ✅' : 'FAILED ❌'}`)
-  console.log(`4. Role & Permission Verification: ${summary.roleVerification ? 'PASSED ✅' : 'FAILED ❌'}`)
+  console.log(`4. Role & Schema Verification:     ${summary.roleVerification ? 'PASSED ✅' : 'FAILED ❌'}`)
   console.log(`5. Rate-Limit Resistance Test:     ${summary.rateLimitTest ? 'PASSED ✅' : 'FAILED ❌'}`)
-  console.log(`6. Zero-Pollution Teardown:        ${summary.teardown ? 'PASSED ✅' : 'FAILED ❌'}`)
+  console.log(`6. Live Sign-In Validation:        ${summary.signInValidation ? 'PASSED ✅' : 'FAILED ❌'}`)
+  console.log(`7. Zero-Pollution Teardown:        ${summary.teardown ? 'PASSED ✅' : 'FAILED ❌'}`)
   console.log('=================================================================\n')
 
   const allPassed = Object.values(summary).every(Boolean)
@@ -521,6 +510,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('Fatal execution error in validation suite:', err)
+  console.error('\nFatal execution error in validation suite:', err)
   process.exit(1)
 })

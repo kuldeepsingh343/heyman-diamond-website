@@ -86,3 +86,4 @@ test('Inventory Service — Downloadable CSV Template', () => {
   assert.equal(template.includes('Round'), true)
   assert.equal(template.includes('LG624918231'), true)
 })
+

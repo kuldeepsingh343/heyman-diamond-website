@@ -1,19 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { isOriginAllowed, getCorsHeaders, getAuthRedirectUrl } from '../server/index.mjs'
-
-// Extract exact resolveAuthRoute implementation directly from src/App.tsx source code
-const appTsxContent = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf-8')
-const funcMatch = appTsxContent.match(/function resolveAuthRoute\([\s\S]*?\n\}/)
-if (!funcMatch) {
-  throw new Error('Could not extract resolveAuthRoute from src/App.tsx')
-}
-// Strip TypeScript type annotations to evaluate cleanly in Node
-const jsFuncCode = funcMatch[0]
-  .replace('hash?: string', 'hash')
-  .replace(': string', '')
+import { resolveAuthRoute, normalizeHashFragment } from '../src/routeUtils.ts'
 
 // Create mock browser window environment for testing
 function createMockWindow(initialHash = '', pathname = '/') {
@@ -44,15 +32,17 @@ function createMockWindow(initialHash = '', pathname = '/') {
   }
 }
 
-// Instantiate resolveAuthRoute in a controlled context
+// Instantiate resolveAuthRoute and test window hash normalization
 function executeResolveAuthRoute(hash, mockWin = null) {
   const win = mockWin || createMockWindow(hash || '')
-  const fn = new Function('window', `
-    ${jsFuncCode}
-    return resolveAuthRoute(arguments[1]);
-  `)
+  if (hash && (hash.includes('#signin#') || (hash.includes('#') && hash.indexOf('access_token=') > 1))) {
+    const normalized = normalizeHashFragment(hash)
+    if (normalized.startsWith('#access_token=')) {
+      win.history.replaceState(null, '', win.location.pathname + normalized)
+    }
+  }
   return {
-    result: fn(win, hash),
+    result: resolveAuthRoute(hash),
     window: win,
   }
 }

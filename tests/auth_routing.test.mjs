@@ -1,35 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { isOriginAllowed, getCorsHeaders, getAuthRedirectUrl } from '../server/index.mjs'
-
-// Pure reference mirror of client hash resolver in src/App.tsx
-function resolveAuthRoute(hash) {
-  const currentHash = hash || ''
-  if (!currentHash) return ''
-
-  const standardMatch = currentHash.match(/^#(signup-customer|signup-dealer|signin)$/)
-  if (standardMatch) return standardMatch[1]
-
-  if (currentHash.includes('access_token=') || currentHash.includes('error=')) {
-    return 'signin'
-  }
-
-  if (/^#signin[#&?]/.test(currentHash)) {
-    return 'signin'
-  }
-
-  return ''
-}
-
-function normalizeHashFragment(hash) {
-  if (hash.includes('#signin#') || (hash.includes('#') && hash.indexOf('access_token=') > 1)) {
-    const tokenIndex = hash.indexOf('access_token=')
-    if (tokenIndex !== -1) {
-      return '#' + hash.slice(tokenIndex)
-    }
-  }
-  return hash
-}
+import { resolveAuthRoute, normalizeHashFragment, parseAuthStatusFromHash } from '../src/routeUtils.ts'
 
 test('Frontend Hash Route Resolution', async t => {
   await t.test('resolves standard navigation routes', () => {
@@ -69,6 +41,43 @@ test('Frontend Hash Route Resolution', async t => {
     assert.equal(params.get('access_token'), 'test_token_123')
     assert.equal(params.get('refresh_token'), 'test_ref_456')
     assert.equal(params.get('type'), 'signup')
+  })
+
+  await t.test('parses expired verification error hash and decodes error description', () => {
+    const errorHash = '#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired'
+    const status = parseAuthStatusFromHash(errorHash)
+    assert.equal(status.kind, 'error')
+    assert.equal(status.text, 'Email link is invalid or has expired')
+  })
+
+  await t.test('parses double fragment error hash into error status banner', () => {
+    const doubleErrorHash = '#signin#error=access_denied&error_description=Email+link+is+invalid+or+has+expired'
+    const status = parseAuthStatusFromHash(doubleErrorHash)
+    assert.equal(status.kind, 'error')
+    assert.equal(status.text, 'Email link is invalid or has expired')
+  })
+
+  await t.test('falls back to error code when error_description is absent', () => {
+    const errorHash = '#error=access_denied'
+    const status = parseAuthStatusFromHash(errorHash)
+    assert.equal(status.kind, 'error')
+    assert.equal(status.text, 'access_denied')
+  })
+
+  await t.test('parses access token hash into success confirmation status', () => {
+    const tokenHash = '#access_token=token_abc_123&refresh_token=ref_xyz_456&type=signup'
+    const status = parseAuthStatusFromHash(tokenHash)
+    assert.equal(status.kind, 'success')
+    assert.equal(status.text, 'Your email has been confirmed successfully. You can now sign in to your account.')
+    assert.equal(status.accessToken, 'token_abc_123')
+    assert.equal(status.refreshToken, 'ref_xyz_456')
+  })
+
+  await t.test('returns empty info status for regular navigation hashes', () => {
+    assert.deepEqual(parseAuthStatusFromHash('#signin'), { text: '', kind: 'info' })
+    assert.deepEqual(parseAuthStatusFromHash('#signup-customer'), { text: '', kind: 'info' })
+    assert.deepEqual(parseAuthStatusFromHash('#home'), { text: '', kind: 'info' })
+    assert.deepEqual(parseAuthStatusFromHash(''), { text: '', kind: 'info' })
   })
 })
 

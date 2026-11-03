@@ -1,28 +1,55 @@
 import './AuthPages.css'
-import { useState } from 'react'
-import type { FormEvent } from 'react'
+import { useState, useRef } from 'react'
+import type { FormEvent, ChangeEvent } from 'react'
+import { parseAuthStatusFromHash } from './routeUtils'
 
-type Mode = 'signup-customer' | 'signup-dealer' | 'signin'
+type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account'
 
-function getInitialStatus(): { text: string; kind: 'info' | 'error' | 'success' } {
-  if (typeof window !== 'undefined' && window.location.hash.includes('access_token=')) {
-    const params = new URLSearchParams(window.location.hash.slice(1))
-    const accessToken = params.get('access_token')
-    const refreshToken = params.get('refresh_token')
-    if (accessToken && params.get('type') === 'signup') {
-      localStorage.setItem('hmd_access_token', accessToken)
-      if (refreshToken) localStorage.setItem('hmd_refresh_token', refreshToken)
-      window.history.replaceState(null, '', window.location.pathname + '#signin')
-      return { text: 'Your email has been confirmed successfully. You can now sign in to your account.', kind: 'success' }
-    }
-  }
-  return { text: '', kind: 'info' }
+export interface UserProfile {
+  email: string
+  full_name?: string
+  account_type?: 'customer' | 'dealer' | 'admin'
+  dealer_status?: string
 }
 
-export default function AuthPages({ mode }: { mode: string }) {
-  const current = (['signup-customer', 'signup-dealer', 'signin'].includes(mode) ? mode : 'signin') as Mode
+function getInitialStatus(): { text: string; kind: 'info' | 'error' | 'success' } {
+  if (typeof window === 'undefined') return { text: '', kind: 'info' }
+  const result = parseAuthStatusFromHash(window.location.hash)
+  if (result.accessToken) {
+    localStorage.setItem('hmd_access_token', result.accessToken)
+    if (result.refreshToken) localStorage.setItem('hmd_refresh_token', result.refreshToken)
+    window.history.replaceState(null, '', window.location.pathname + '#account')
+  } else if (result.kind === 'error') {
+    window.history.replaceState(null, '', window.location.pathname + '#signin')
+  }
+  return { text: result.text, kind: result.kind }
+}
+
+export default function AuthPages({
+  mode,
+  onUserChange,
+}: {
+  mode: string
+  onUserChange?: (user: UserProfile | null) => void
+}) {
+  const current = (['signup-customer', 'signup-dealer', 'signin', 'account'].includes(mode) ? mode : 'signin') as Mode
   const dealer = current === 'signup-dealer'
-  const signup = current !== 'signin'
+  const signup = current === 'signup-customer' || current === 'signup-dealer'
+
+  // ── user session state ──────────────────────────────────────────────────
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    if (typeof window === 'undefined') return null
+    const token = localStorage.getItem('hmd_access_token')
+    const saved = localStorage.getItem('hmd_user')
+    if (token && saved) {
+      try {
+        return JSON.parse(saved)
+      } catch {
+        return { email: 'Customer', full_name: 'Customer' }
+      }
+    }
+    return null
+  })
 
   // ── form state ──────────────────────────────────────────────────────────
   const [fullName, setFullName] = useState('')
@@ -39,6 +66,17 @@ export default function AuthPages({ mode }: { mode: string }) {
   const [busy, setBusy] = useState(false)
   const [resendBusy, setResendBusy] = useState(false)
   const [canResend, setCanResend] = useState(false)
+
+  // ── inventory upload state (Admin / Dealer portal) ──────────────────────
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadBusy, setUploadBusy] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const updateUserSession = (profile: UserProfile | null) => {
+    setUser(profile)
+    if (onUserChange) onUserChange(profile)
+  }
 
   // ── client-side validation ───────────────────────────────────────────────
   function validate(): string | null {
@@ -87,10 +125,14 @@ export default function AuthPages({ mode }: { mode: string }) {
       if (!signup && data.accessToken) {
         localStorage.setItem('hmd_access_token', data.accessToken)
         localStorage.setItem('hmd_refresh_token', data.refreshToken || '')
-        const msg = (data.user?.account_type === 'dealer' && data.user?.dealer_status !== 'approved')
+        const profile: UserProfile = data.user || { email: email.trim(), full_name: email.split('@')[0], account_type: 'customer' }
+        localStorage.setItem('hmd_user', JSON.stringify(profile))
+        updateUserSession(profile)
+        const msg = (profile?.account_type === 'dealer' && profile?.dealer_status !== 'approved')
           ? 'Signed in. Your dealer access is still awaiting administrator approval.'
           : 'You are signed in successfully.'
         setStatus({ text: msg, kind: 'success' })
+        window.location.hash = '#account'
       } else {
         setStatus({ text: data.message || 'Request received.', kind: 'success' })
         setCanResend(true)
@@ -125,8 +167,210 @@ export default function AuthPages({ mode }: { mode: string }) {
     }
   }
 
+  function handleSocialLogin(provider: 'Google' | 'Apple') {
+    setStatus({
+      text: `${provider} single sign-on is prepared. Once ${provider} OAuth credentials are activated in your Supabase Auth provider dashboard, you can sign in directly with 1 click.`,
+      kind: 'info',
+    })
+  }
+
+  function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files[0]) {
+      setUploadFile(e.target.files[0])
+      setUploadStatus(null)
+    }
+  }
+
+  async function handleInventoryUpload() {
+    if (!uploadFile) {
+      setUploadStatus({ text: 'Please choose a CSV or Excel spreadsheet file first.', kind: 'error' })
+      return
+    }
+
+    setUploadBusy(true)
+    setUploadStatus({ text: 'Processing spreadsheet…', kind: 'info' })
+
+    try {
+      const text = await uploadFile.text()
+      const token = localStorage.getItem('hmd_access_token') || ''
+      const res = await fetch('/api/admin/inventory/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fileContent: text,
+          mode: 'append',
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to upload diamond inventory.')
+      }
+
+      setUploadStatus({
+        text: `Success: ${data.message || `Imported ${data.importedCount} diamonds.`}`,
+        kind: 'success',
+      })
+      setUploadFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    } catch (err) {
+      setUploadStatus({
+        text: err instanceof Error ? err.message : 'Spreadsheet upload failed.',
+        kind: 'error',
+      })
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
   const statusClass = `auth-status auth-status--${status.kind}`
 
+  // ── Account Dashboard View (Rendered when signed in) ──────────────────────
+  if (user) {
+    return (
+      <main className="auth-page">
+        <header className="auth-header">
+          <a href="#home">
+            <img src="/heyman-diamond-logo.png" alt="Hey Man Diamond LLC" />
+          </a>
+          <a href="#home">← Back to website</a>
+        </header>
+
+        <section className="auth-card account-dashboard">
+          <span className="auth-eyebrow">HEY MAN DIAMOND LLC · MY ACCOUNT PORTAL</span>
+          <h1>Welcome, {user.full_name || user.email.split('@')[0]}!</h1>
+          <p className="account-subtitle">
+            Signed in as <strong>{user.email}</strong>
+          </p>
+
+          {status.text && (
+            <p className={statusClass} role="status" aria-live="polite">
+              {status.text}
+            </p>
+          )}
+
+          <div className="account-badge-container">
+            <span className={`account-badge account-badge--${user.account_type || 'customer'}`}>
+              {user.account_type === 'dealer'
+                ? 'Wholesale Dealer'
+                : user.account_type === 'admin'
+                ? 'Administrator'
+                : 'Verified Customer'}
+            </span>
+            {user.account_type === 'dealer' && (
+              <span className={`account-badge account-badge--status-${user.dealer_status || 'pending'}`}>
+                {user.dealer_status === 'approved' ? 'Approved & Active' : 'Pending Review'}
+              </span>
+            )}
+          </div>
+
+          <div className="account-cards-grid">
+            <div className="account-card-item">
+              <div>
+                <h3>💎 Diamond Inventory</h3>
+                <p>Browse our certified lab-grown diamonds, custom shapes, and matching pairs with live 4Cs search.</p>
+              </div>
+              <a href="#collection" className="button-primary">Browse Diamonds</a>
+            </div>
+
+            <div className="account-card-item">
+              <div>
+                <h3>📋 Request a Quote</h3>
+                <p>Submit custom specifications, melee parcels, or special diamond cuts directly to our sales managers.</p>
+              </div>
+              <a href="#contact" className="button-secondary">Request Quote</a>
+            </div>
+
+            <div className="account-card-item">
+              <div>
+                <h3>📞 Dedicated Concierge</h3>
+                <p>Direct assistance from our Chicago Diamond District showroom for any custom requests.</p>
+              </div>
+              <a href="mailto:sales@heymandiamond.com" className="button-secondary">Email Concierge</a>
+            </div>
+          </div>
+
+          {/* ── Inventory Management Portal (API + CSV / Excel upload) ── */}
+          <div className="account-inventory-box">
+            <div className="inventory-box-header">
+              <h3>📦 Inventory Management Options</h3>
+              <p>Two methods to maintain real-time certified diamond stock:</p>
+            </div>
+
+            <div className="inventory-options-grid">
+              <div className="inventory-option-card">
+                <span className="option-tag">Option 1 · Automated</span>
+                <h4>Supplier API Integration</h4>
+                <p>Real-time sync directly with Flomiz Diamond B2B API for live carat weights, cut grades, certificates, and pricing.</p>
+                <div className="api-status-pill">
+                  <span className="api-status-dot" /> Flomiz Gateway Ready
+                </div>
+              </div>
+
+              <div className="inventory-option-card">
+                <span className="option-tag">Option 2 · Bulk File</span>
+                <h4>Excel / CSV Upload Portal</h4>
+                <p>Upload your own diamond inventory sheet in standard Excel (.csv or .tsv) format.</p>
+                <a href="/api/inventory/template" download="heyman_diamond_template.csv" className="template-download-link">
+                  ⬇ Download Standard CSV Template
+                </a>
+
+                <div className="upload-dropzone">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.tsv,text/csv,application/vnd.ms-excel"
+                    onChange={handleFileSelected}
+                    disabled={uploadBusy}
+                    id="diamond-csv-file"
+                  />
+                  {uploadFile && <span className="selected-filename">📄 {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)</span>}
+
+                  <button
+                    type="button"
+                    className="button-primary upload-btn"
+                    onClick={handleInventoryUpload}
+                    disabled={uploadBusy || !uploadFile}
+                  >
+                    {uploadBusy ? 'Uploading & Validating…' : 'Upload Spreadsheet'}
+                  </button>
+                </div>
+
+                {uploadStatus && (
+                  <p className={`auth-status auth-status--${uploadStatus.kind}`} style={{ marginTop: '12px' }}>
+                    {uploadStatus.text}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="account-footer-actions">
+            <a href="#home" className="button-primary">Return to Shop</a>
+            <button
+              type="button"
+              className="auth-signout-btn"
+              onClick={() => {
+                localStorage.removeItem('hmd_access_token')
+                localStorage.removeItem('hmd_refresh_token')
+                localStorage.removeItem('hmd_user')
+                updateUserSession(null)
+                setStatus({ text: '', kind: 'info' })
+                window.location.hash = '#home'
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  // ── Standard Sign In / Sign Up Form View ─────────────────────────────────
   return (
     <main className="auth-page">
       <header className="auth-header">
@@ -150,6 +394,38 @@ export default function AuthPages({ mode }: { mode: string }) {
               : 'Create an account to make your diamond experience more personal.')
             : 'Sign in with the email and password you registered with.'}
         </p>
+
+        {/* ── Social Login Buttons ── */}
+        <div className="social-auth-container">
+          <button
+            type="button"
+            className="social-auth-btn social-auth-google"
+            onClick={() => handleSocialLogin('Google')}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+
+          <button
+            type="button"
+            className="social-auth-btn social-auth-apple"
+            onClick={() => handleSocialLogin('Apple')}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-1.98.6-2.62 1.35-.57.65-1.07 1.72-.94 2.74 1 .08 2.02-.49 2.64-1.24z" />
+            </svg>
+            <span>Continue with Apple</span>
+          </button>
+        </div>
+
+        <div className="auth-divider">
+          <span>or continue with email</span>
+        </div>
 
         <form onSubmit={submit} noValidate>
           {signup && (
@@ -297,3 +573,4 @@ export default function AuthPages({ mode }: { mode: string }) {
     </main>
   )
 }
+

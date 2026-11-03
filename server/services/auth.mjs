@@ -192,3 +192,4 @@ export async function handleForgotPassword(req, res) {
   if (!response.ok) return json(res, response.status, { error: 'Unable to send a password reset email right now.' })
   return json(res, 200, { sent: true, message: 'If this email has an account, a password reset link has been sent.' })
 }
+

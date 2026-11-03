@@ -36,3 +36,4 @@ export async function handleGetPromotions(req, res, admin) {
   const rows = await db('promotions?select=*&order=created_at.desc')
   return json(res, 200, { items: rows })
 }
+

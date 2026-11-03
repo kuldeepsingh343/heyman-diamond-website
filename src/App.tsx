@@ -4,7 +4,9 @@ import './App.css'
 import CustomerExperience from './CustomerExperience'
 import PolicyPages from './PolicyPages'
 import AuthPages from './AuthPages'
+import type { UserProfile } from './AuthPages'
 import InstagramReels from './InstagramReels'
+import { resolveAuthRoute, normalizeHashFragment } from './routeUtils'
 
 const categories = [
   {
@@ -64,57 +66,72 @@ const team = [
   },
 ]
 
-function resolveAuthRoute(hash?: string): string {
-  const currentHash = hash ?? (typeof window !== 'undefined' ? window.location.hash : '')
-  if (!currentHash) return ''
-
-  // Standard auth routes: #signup-customer, #signup-dealer, #signin
-  const standardMatch = currentHash.match(/^#(signup-customer|signup-dealer|signin)$/)
-  if (standardMatch) return standardMatch[1]
-
-  // Supabase verification redirect tokens (e.g. #access_token=... or #signin#access_token=...)
-  // or error fragments (e.g. #error=... or #error_description=...)
-  if (currentHash.includes('access_token=') || currentHash.includes('error=')) {
-    // If the hash contains a duplicate fragment prefix like #signin#access_token=...,
-    // normalize the hash in window.history so that URLSearchParams in AuthPages can parse access_token cleanly.
-    if (typeof window !== 'undefined' && (currentHash.includes('#signin#') || (currentHash.includes('#') && currentHash.indexOf('access_token=') > 1))) {
-      const tokenIndex = currentHash.indexOf('access_token=')
-      if (tokenIndex !== -1) {
-        const tokenFragment = currentHash.slice(tokenIndex)
-        window.history.replaceState(null, '', window.location.pathname + '#' + tokenFragment)
-      }
-    }
-    return 'signin'
-  }
-
-  // Handle #signin with query parameters or trailing fragment, e.g. #signin?... or #signin&...
-  if (/^#signin[#&?]/.test(currentHash)) {
-    return 'signin'
-  }
-
-  return ''
-}
-
 function App() {
   const [authRoute, setAuthRoute] = useState(() => resolveAuthRoute())
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    if (typeof window === 'undefined') return null
+    const token = localStorage.getItem('hmd_access_token')
+    const raw = localStorage.getItem('hmd_user')
+    if (token && raw) {
+      try {
+        return JSON.parse(raw)
+      } catch {
+        return null
+      }
+    }
+    return null
+  })
   const [policySlug, setPolicySlug] = useState(() => {
     const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
     return match?.[1] ?? ''
   })
 
   useEffect(() => {
+    const normalizeCurrentHash = () => {
+      if (typeof window === 'undefined') return
+      const currentHash = window.location.hash
+      const normalized = normalizeHashFragment(currentHash)
+      if (normalized && normalized !== currentHash) {
+        window.history.replaceState(null, '', window.location.pathname + normalized)
+      }
+    }
+
+    normalizeCurrentHash()
+
+    const checkUser = () => {
+      if (typeof window === 'undefined') return
+      const token = localStorage.getItem('hmd_access_token')
+      const raw = localStorage.getItem('hmd_user')
+      if (token && raw) {
+        try {
+          setCurrentUser(JSON.parse(raw))
+        } catch {
+          setCurrentUser(null)
+        }
+      } else {
+        setCurrentUser(null)
+      }
+    }
+
     const syncRoute = () => {
+      normalizeCurrentHash()
+      checkUser()
       const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
       setPolicySlug(match?.[1] ?? '')
       setAuthRoute(resolveAuthRoute())
       if (match) window.scrollTo({ top: 0, behavior: 'auto' })
     }
+
     window.addEventListener('hashchange', syncRoute)
-    return () => window.removeEventListener('hashchange', syncRoute)
+    window.addEventListener('storage', checkUser)
+    return () => {
+      window.removeEventListener('hashchange', syncRoute)
+      window.removeEventListener('storage', checkUser)
+    }
   }, [])
 
   if (policySlug) return <PolicyPages slug={policySlug} />
-  if (authRoute) return <AuthPages key={authRoute} mode={authRoute} />
+  if (authRoute) return <AuthPages key={authRoute} mode={authRoute} onUserChange={setCurrentUser} />
 
   return (
     <main className="website">
@@ -142,8 +159,31 @@ function App() {
         </nav>
 
         <div className="nav-actions">
-          <a className="nav-button nav-signin" href="#signin">Sign In</a>
-          <a className="nav-button nav-signup" href="#signup-customer">Sign Up</a>
+          {currentUser ? (
+            <>
+              <a className="nav-button nav-account" href="#account" title={currentUser.email}>
+                👤 {currentUser.full_name || currentUser.email.split('@')[0]}
+              </a>
+              <button
+                type="button"
+                className="nav-button nav-signout"
+                onClick={() => {
+                  localStorage.removeItem('hmd_access_token')
+                  localStorage.removeItem('hmd_refresh_token')
+                  localStorage.removeItem('hmd_user')
+                  setCurrentUser(null)
+                  window.location.hash = '#home'
+                }}
+              >
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <>
+              <a className="nav-button nav-signin" href="#signin">Sign In</a>
+              <a className="nav-button nav-signup" href="#signup-customer">Sign Up</a>
+            </>
+          )}
           <a className="nav-button nav-contact" href="#contact">Talk to Our Team</a>
         </div>
       </header>

@@ -7,6 +7,13 @@
 
 ---
 
+> ### 🔒 MANDATORY OPERATIONAL NOTICE — FUTURE USE ONLY
+> **The live production domain `heymandiamond.com` is actively serving the legacy business website and MUST NOT be modified, queried disruptively, or repointed at this time.**  
+> All ongoing development, automated testing, and synthetic user verification must strictly target the Render test environment (`https://hey-man-diamond-test.onrender.com`) or local development (`http://localhost:3000`).  
+> This migration guide is an operational runbook reserved strictly for execution during the scheduled production maintenance window **after** the client reviews and explicitly approves the new website.
+
+---
+
 ## 1. Executive Summary & Critical Email Protection Notice
 
 ### ⚠️ The Apex / MX Coupling Trap (Preventing Catastrophic Email Outage)
@@ -39,7 +46,7 @@ Apply the following records in your authoritative DNS zone editor:
 | **MX** | `@` *(root)* | `mail.heymandiamond.com.` | `0` | 300 | **Update Target** | Routes inbound email to decoupled InMotion mail server |
 | **CNAME** | `www` | `hey-man-diamond-test.onrender.com` | — | 300 | **Update Target** | Routes `www` web traffic to Render |
 | **CNAME** *(Cloudflare)*<br>OR **A** *(InMotion)* | `@` *(root)* | `hey-man-diamond-test.onrender.com` *(Cloudflare CNAME flattening)*<br>OR `216.24.57.1` *(InMotion A record)* | — | 300 | **Update Target** | Routes root apex web traffic to Render |
-| **TXT** | `mailjet._domainkey` | `k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApP50J+7Xlki0/urQPmZacqQhMRIitETn9aXzHyuIDZuM8EyZTzRPd0Kw0J6KvXTHFAKq9hCKpEljHFwC6ZEAu0QtshdioImse0PXrW+26NTPjIgTaN2bKX2IMdHhr2NM200izgsVipREmcxuyHxyZHA8cIuo68KphUp7xlU8rAMUk5oE3+DLIeAn3AbgHKSTh/3Yw1It6g` | — | 300 | **PRESERVE UNTOUCHED** | Cryptographic DKIM public key for Mailjet |
+| **TXT** | `mailjet._domainkey` | `k=rsa; p=...` *(2048-bit RSA SPKI public key, 392 base64 characters chunked per RFC 1035 §3.3.14)* | — | 300 | **PRESERVE UNTOUCHED** | Cryptographic DKIM authentication signature for Mailjet; active Cloudflare record is already valid |
 | **TXT** | `@` *(root)* | `v=spf1 +mx +a +ip4:213.165.230.74 +ip4:23.235.219.240 +include:relay.mailchannels.net include:spf.mailjet.com ~all` | — | 300 | **Update (Merge Mailjet)** | Authorizes InMotion webmail, relays, and Mailjet |
 | **A** | `cpanel` | `213.165.230.74` | — | 300 | **Preserve** | Direct access to InMotion cPanel control panel |
 | **A** | `webmail` | `213.165.230.74` | — | 300 | **Preserve** | Direct access to InMotion Webmail |
@@ -48,12 +55,27 @@ Apply the following records in your authoritative DNS zone editor:
 
 ## 3. Preserving Mailjet DKIM and Merging SPF
 
-### 3.1 Preserving DKIM
-The DKIM TXT record at host `mailjet._domainkey.heymandiamond.com` is already published with the 2048-bit RSA public key:
-```text
-k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApP50J+7Xlki0/urQPmZacqQhMRIitETn9aXzHyuIDZuM8EyZTzRPd0Kw0J6KvXTHFAKq9hCKpEljHFwC6ZEAu0QtshdioImse0PXrW+26NTPjIgTaN2bKX2IMdHhr2NM200izgsVipREmcxuyHxyZHA8cIuo68KphUp7xlU8rAMUk5oE3+DLIeAn3AbgHKSTh/3Yw1It6g
-```
-**Rule**: Do NOT modify or delete this record. It is actively required by Mailjet to cryptographically sign transactional emails from Supabase Auth so they pass DMARC and inbox validation.
+### 3.1 Preserving DKIM & RFC 1035 §3.3.14 Multi-String Chunking
+
+#### Understanding 2048-Bit RSA Key Chunking
+- A standard 2048-bit RSA public key encoded in ASN.1 SubjectPublicKeyInfo (SPKI) DER requires **294 raw bytes**, which encodes to **392 base64 characters**.
+- Preceded by the standard DKIM tag `k=rsa; p=`, the full TXT record payload is approximately **401 characters**.
+- **RFC 1035 §3.3.14** limits an individual `<character-string>` within a DNS TXT record to 255 octets. Any DNS record payload exceeding 255 bytes must be segmented into multiple concatenated quoted strings within the same TXT resource record.
+- In Cloudflare DNS (and standard zone files), the 401-character DKIM string is divided across two contiguous chunks:
+  - **Chunk 1** (first 255 characters): `"k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApP50J+7Xlki0/urQPmZacqQhMRIitETn9aXzHyuIDZuM8EyZTzRPd0Kw0J6KvXTHFAKq9hCKpEljHFwC6ZEAu0QtshdioImse0PXrW+26NTPjIgTaN2bKX2IMdHhr2NM200izgsVipREmcxuyHxyZHA8cIuo68KphUp7xlU8rAMUk5oE3+DLIeAn3AbgHKSTh/3Yw1It6g"`
+  - **Chunk 2** (remaining 146 characters containing the modulus completion and exponent): `"<CHUNK_2_REMAINDER>"`
+- Standard-compliant DNS resolvers automatically reassemble all string chunks in sequence during DNS lookups to reconstruct the complete 392-character public key.
+
+#### Critical Operational Instructions:
+1. **Existing Cloudflare Record (Active Production)**:  
+   The existing `mailjet._domainkey.heymandiamond.com` record on Cloudflare already contains both chunks and cryptographically validates live Mailjet emails. **LEAVE THIS RECORD COMPLETELY UNTOUCHED.**
+2. **If Migrating to InMotion cPanel or Configuring a New Domain (`heymandiamondllc.com`)**:  
+   - **Never copy a single truncated string**: Basic command line queries like `dig +short` or naive web exports often truncate at the first 255-character chunk boundary. Documenting or copying only Chunk 1 results in an incomplete 184-byte ASN.1 key missing 110 bytes (and lacking the public exponent), which causes cryptographic parsing failure (`Failed to read asymmetric key`) and causes MTAs (Google, Microsoft, Yahoo) to reject transactional emails.
+   - **Retrieve Full Key**: Always retrieve the complete, untruncated 392-character SPKI public key directly from the **Mailjet Dashboard** (`Account Settings` → `Senders & Domains` → `Domain Validation`) or export the complete multi-part zone record from Cloudflare.
+   - When entering into InMotion cPanel Zone Editor or standard BIND DNS zone files, enter both quoted chunks together:
+     ```text
+     "k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApP50J+7Xlki0/urQPmZacqQhMRIitETn9aXzHyuIDZuM8EyZTzRPd0Kw0J6KvXTHFAKq9hCKpEljHFwC6ZEAu0QtshdioImse0PXrW+26NTPjIgTaN2bKX2IMdHhr2NM200izgsVipREmcxuyHxyZHA8cIuo68KphUp7xlU8rAMUk5oE3+DLIeAn3AbgHKSTh/3Yw1It6g" "<CHUNK_2_REMAINDER>"
+     ```
 
 ### 3.2 Single Merged SPF Record (RFC 7208 Compliance)
 RFC 7208 §3.2 states that a domain name MUST NOT have more than one SPF record published; multiple SPF records cause an automatic SPF `PermError` and failure of mail delivery.
@@ -119,12 +141,13 @@ RFC 7208 §3.2 states that a domain name MUST NOT have more than one SPF record 
      - Type: `CNAME`
      - Name: `@`
      - Target: `hey-man-diamond-test.onrender.com`
-     - Proxy status: **DNS only** (or Proxied if SSL mode is set to Full Strict).
+     - Proxy status: **DNS only (Grey Cloud)**.  
+       *⚠️ MANDATORY: Proxy status MUST be set to "DNS only (Grey Cloud)" during initial Render domain verification and Let's Encrypt SSL/TLS certificate generation. If Cloudflare Orange Cloud (proxied) is enabled before certificate provisioning completes, Render's automated ACME HTTP-01 challenge cannot verify domain ownership and certificate issuance will fail. Once Render shows a green "Verified" checkmark and active SSL certificate, Cloudflare proxying (Orange Cloud) may optionally be re-enabled, provided Cloudflare SSL/TLS encryption mode is set to "Full (strict)".*
    - Locate the `www` record:
      - Type: `CNAME`
      - Name: `www`
      - Target: `hey-man-diamond-test.onrender.com`
-     - Proxy status: **DNS only** (or Proxied).
+     - Proxy status: **DNS only (Grey Cloud)** *(keep Grey Cloud until Render verification completes)*.
    - Ensure any existing `AAAA` records for `@` or `www` are removed.
 
 ---
@@ -171,9 +194,9 @@ dig heymandiamond.com MX +short
 dig heymandiamond.com TXT +short | grep "include:spf.mailjet.com"
 # Expected output contains: v=spf1 ... include:spf.mailjet.com ... ~all
 
-# 4. Verify Mailjet DKIM record remains intact
-dig mailjet._domainkey.heymandiamond.com TXT +short
-# Expected output: "k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApP50J..."
+# 4. Verify Mailjet DKIM record remains intact (inspect all chunks)
+dig mailjet._domainkey.heymandiamond.com TXT
+# Expected output contains both concatenated chunks forming the 392-char base64 SPKI key
 
 # 5. Verify www points to Render
 dig www.heymandiamond.com CNAME +short
