@@ -297,4 +297,40 @@ export async function handleUpdateProfile(req, res) {
   })
 }
 
+export async function handleOAuth(req, res, url) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return json(res, 503, { error: 'Auth service is not configured yet.' })
+  }
+  const provider = (url.searchParams.get('provider') || '').toLowerCase()
+  if (!['google', 'apple'].includes(provider)) {
+    return json(res, 400, { error: 'Invalid provider. Supported providers: google, apple' })
+  }
+  const redirectUrl = getAuthRedirectUrl(req)
+
+  try {
+    const probe = await fetch(`${SUPABASE_URL}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectUrl)}`, {
+      method: 'GET',
+      redirect: 'manual',
+    })
+
+    if (probe.status === 400) {
+      return json(res, 200, {
+        enabled: false,
+        provider,
+        message: `${provider === 'google' ? 'Google' : 'Apple'} Sign-In is prepared, but not yet enabled in your Supabase Auth dashboard. To activate 1-click ${provider === 'google' ? 'Google' : 'Apple'} sign-in, enable it under Authentication > Providers in the Supabase dashboard.`,
+      })
+    }
+
+    const location = probe.headers.get('location')
+    const targetUrl = location || `${SUPABASE_URL}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectUrl)}`
+    return json(res, 200, {
+      enabled: true,
+      provider,
+      url: targetUrl,
+    })
+  } catch (err) {
+    return json(res, 500, { error: 'Failed to initialize OAuth.' })
+  }
+}
+
 

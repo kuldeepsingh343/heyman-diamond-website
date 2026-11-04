@@ -90,12 +90,15 @@ export function parseAuthStatusFromHash(hash?: string): AuthStatusResult {
     return { text: decodedText, kind: 'error' }
   }
 
-  // 2. Check for successful email verification access tokens
+  // 2. Check for successful email verification access tokens or OAuth redirect tokens
   const accessToken = params.get('access_token')
   const refreshToken = params.get('refresh_token')
-  if (accessToken && params.get('type') === 'signup') {
+  if (accessToken) {
+    const isSignupConfirm = params.get('type') === 'signup'
     return {
-      text: 'Your email has been confirmed successfully. You can now sign in to your account.',
+      text: isSignupConfirm
+        ? 'Your email has been confirmed successfully. You can now sign in to your account.'
+        : 'You are signed in successfully.',
       kind: 'success',
       accessToken,
       refreshToken: refreshToken ?? undefined,

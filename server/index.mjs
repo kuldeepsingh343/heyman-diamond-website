@@ -22,6 +22,7 @@ import {
   handleForgotPassword,
   handleGetProfile,
   handleUpdateProfile,
+  handleOAuth,
   requireAdmin,
   authenticatedUser,
 } from './services/auth.mjs'
@@ -100,6 +101,9 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/auth/forgot-password') {
       return await handleForgotPassword(req, res)
+    }
+    if (req.method === 'GET' && url.pathname === '/api/auth/oauth') {
+      return await handleOAuth(req, res, url)
     }
 
     // ── User Profile & Account Services ──────────────────────────────────────

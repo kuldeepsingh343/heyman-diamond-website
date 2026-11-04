@@ -1,5 +1,5 @@
 import './AuthPages.css'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
 import { parseAuthStatusFromHash } from './routeUtils'
 
@@ -147,7 +147,7 @@ export default function AuthPages({
   const [uploadStatus, setUploadStatus] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const updateUserSession = (profile: UserProfile | null) => {
+  const updateUserSession = useCallback((profile: UserProfile | null) => {
     setUser(profile)
     if (profile) {
       setEditName(profile.full_name || '')
@@ -156,7 +156,7 @@ export default function AuthPages({
       setEditGender(profile.gender || 'prefer_not_to_say')
     }
     if (onUserChange) onUserChange(profile)
-  }
+  }, [onUserChange])
 
   // Save cart to localStorage
   const updateCart = (newCart: CartItem[]) => {
@@ -224,6 +224,33 @@ export default function AuthPages({
       loadOrders()
     }
   }
+
+  // Load profile if token is present but user state is empty (e.g. after OAuth redirect)
+  useEffect(() => {
+    const token = localStorage.getItem('hmd_access_token')
+    if (token && !user) {
+      fetch('/api/user/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data?.email) {
+            const profile: UserProfile = {
+              email: data.email,
+              full_name: data.full_name || data.email.split('@')[0],
+              phone: data.phone || '',
+              address: data.address || '',
+              gender: data.gender || 'prefer_not_to_say',
+              account_type: data.account_type || 'customer',
+              dealer_status: data.dealer_status || 'not_applied',
+            }
+            localStorage.setItem('hmd_user', JSON.stringify(profile))
+            updateUserSession(profile)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [user, updateUserSession])
 
   // Load profile from server when entering profile tab
   useEffect(() => {
@@ -420,11 +447,28 @@ export default function AuthPages({
     }
   }
 
-  function handleSocialLogin(provider: 'Google' | 'Apple') {
-    setStatus({
-      text: `${provider} single sign-on is prepared. Once ${provider} OAuth credentials are activated in your Supabase Auth provider dashboard, you can sign in directly with 1 click.`,
-      kind: 'info',
-    })
+  async function handleSocialLogin(provider: 'Google' | 'Apple') {
+    setBusy(true)
+    setStatus({ text: `Connecting to ${provider}…`, kind: 'info' })
+    try {
+      const res = await fetch(`/api/auth/oauth?provider=${provider.toLowerCase()}`)
+      const data = await res.json()
+      if (data.enabled && data.url) {
+        window.location.href = data.url
+      } else {
+        setStatus({
+          text: data.message || `${provider} single sign-on is prepared. Once ${provider} credentials are enabled in Supabase Auth, you can sign in with 1 click.`,
+          kind: 'info',
+        })
+      }
+    } catch {
+      setStatus({
+        text: `Unable to initialize ${provider} sign-in right now. Please sign in with your email and password below.`,
+        kind: 'error',
+      })
+    } finally {
+      setBusy(false)
+    }
   }
 
   function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
