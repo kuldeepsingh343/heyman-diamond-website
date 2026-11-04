@@ -30,6 +30,8 @@ import {
   handleGetCatalog,
   handleUploadInventory,
   handleDownloadTemplate,
+  handleFlomizStatus,
+  isFlomizConfigured,
 } from './services/inventory.mjs'
 
 import {
@@ -80,7 +82,7 @@ const server = createServer(async (req, res) => {
       return json(res, 200, {
         status: 'ok',
         databaseConfigured: supabaseReady(),
-        flomizConfigured: Boolean(process.env.FLOMIZ_CUSTOMER_ID),
+        flomizConfigured: isFlomizConfigured(),
         instagramConfigured: Boolean(process.env.INSTAGRAM_ACCOUNT_ID && process.env.INSTAGRAM_ACCESS_TOKEN),
         note: 'Configuration presence only; provider credentials and connectivity are not verified by this endpoint.',
       })
@@ -115,6 +117,9 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && (url.pathname === '/api/catalog' || url.pathname === '/api/inventory')) {
       const user = await authenticatedUser(req).catch(() => null)
       return await handleGetCatalog(req, res, url, user)
+    }
+    if (req.method === 'GET' && (url.pathname === '/api/flomiz/status' || url.pathname === '/api/inventory/flomiz/status')) {
+      return handleFlomizStatus(req, res)
     }
     if (req.method === 'GET' && url.pathname === '/api/inventory/template') {
       return handleDownloadTemplate(req, res)

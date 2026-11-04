@@ -5,6 +5,9 @@ import {
   parseDiamondSpreadsheet,
   generateInventoryTemplate,
   filterInventory,
+  normalizeFlomizProduct,
+  isFlomizConfigured,
+  getFlomizApiKey,
 } from '../server/services/inventory.mjs'
 
 test('Inventory Service — CSV and TSV Parsing', () => {
@@ -86,4 +89,76 @@ test('Inventory Service — Downloadable CSV Template', () => {
   assert.equal(template.includes('Round'), true)
   assert.equal(template.includes('LG624918231'), true)
 })
+
+test('Inventory Service — Flomiz Product Normalization', () => {
+  const rawSample = {
+    SerialNo: 106,
+    ProductName: 'DBS138-734',
+    SKU: '843855',
+    CategoryName: 'Loose Diamond',
+    Branch: 'HARI DIAMOND',
+    Lab: 'IGI',
+    ProductStatus: 'Available',
+    Stock: 2.05,
+    CommittedStock: 0,
+    AvailableForSale: 2.05,
+    RapPrice: 0,
+    RapBack: '',
+    RapBackValue: 0,
+    PricePerCarat: 120,
+    TotalPrice: 246,
+    OPStock: 0,
+    QuantityIN: 2.05,
+    QuantityOUT: 0,
+    SOStock: 0,
+    POStock: 0,
+    lstImages: [{ eProductImageType: 1, SerialNo: 1, base64FileByte: '' }],
+    Color: 'D',
+    Clarity: 'VVS2',
+    Shape: 'Round',
+    Cut: 'EX',
+    CertificateNo: '7451501803',
+    Measurement: '8.12 x 8.16 x 5.01 mm',
+    Polish: 'EX',
+    Symmetry: 'EX',
+    Fluorescence: 'NONE',
+  }
+
+  const normalized = normalizeFlomizProduct(rawSample)
+  assert.equal(normalized.sku, '843855')
+  assert.equal(normalized.shape, 'Round')
+  assert.equal(normalized.carat, 2.05)
+  assert.equal(normalized.color, 'D')
+  assert.equal(normalized.clarity, 'VVS2')
+  assert.equal(normalized.cut, 'EX')
+  assert.equal(normalized.lab, 'IGI')
+  assert.equal(normalized.certificateNumber, '7451501803')
+  assert.equal(normalized.wholesalePrice, 246)
+  assert.equal(normalized.price, Math.round(246 * 1.30))
+  assert.equal(normalized.measurements, '8.12 x 8.16 x 5.01 mm')
+  assert.equal(normalized.source, 'flomiz_api')
+  assert.equal(normalized.status, 'available')
+
+  // Test omitted fields fallback
+  const minimal = normalizeFlomizProduct({ SKU: 'MIN-001', Stock: 1.5 })
+  assert.equal(minimal.sku, 'MIN-001')
+  assert.equal(minimal.carat, 1.5)
+  assert.equal(minimal.shape, 'Round')
+  assert.equal(minimal.color, 'G')
+  assert.equal(minimal.clarity, 'VS1')
+  assert.equal(minimal.certificateNumber, 'N/A')
+
+  // Test invalid input
+  assert.equal(normalizeFlomizProduct(null), null)
+  assert.equal(normalizeFlomizProduct({}), null)
+
+  // Test API key configuration helper
+  assert.equal(typeof getFlomizApiKey(), 'string')
+  process.env.FLOMIZ_API_KEY = 'test_key_123'
+  assert.equal(isFlomizConfigured(), true)
+  assert.equal(getFlomizApiKey(), 'test_key_123')
+  delete process.env.FLOMIZ_API_KEY
+  assert.equal(isFlomizConfigured(), false)
+})
+
 

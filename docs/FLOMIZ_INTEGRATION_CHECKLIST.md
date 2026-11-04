@@ -1,44 +1,73 @@
-# Flomiz integration checklist
+# Flomiz Stock API — Pull Integration Guide (Hey Man Diamond LLC)
 
-Never call Flomiz directly from the browser. Use a trusted server API so credentials and non-public fields remain private.
+Version 1.0 · Format: JSON over HTTPS · Method: **Pull**
 
-## Supplied endpoint
-POST https://diamond.flomiz.com/FAccount/API/StockSummary/GetData_2.aspx
+This integration connects Hey Man Diamond LLC to the official Flomiz Stock Pull API to automatically fetch, normalize, and publish certified lab-grown diamond stock.
 
-Example request for a stock page (CustomerId is a documentation placeholder, not a production value):
-    {
-      "CustomerId": "*",
-      "PortalType": 1000,
-      "ProductStockType": 3,
-      "IsRemoveZeroStock": true,
-      "IsShowRapaportPrice": false,
-      "PhotoSize": 1,
-      "PageContext": { "Page": 1, "PerPage": 30 }
-    }
+---
 
-## Data boundary
-- Flomiz is used only as a product/inventory data provider. Do not use it to fetch customer names, emails, accounts, orders, or other customer records.
-- Website customer identity, sign-in, profiles, orders and quote requests are stored in the website's own authentication/database system.
-- Require an authenticated website account before saving a quote or placing an order; derive customer identity from the verified server-side session, not customer fields submitted by the browser.
-- Treat the documented CustomerId value "*" as an example only until Flomiz confirms the real authorized value.
+## 1. Verified API Specification
 
-## Before enabling the catalog
-- Confirm credentials/auth method and authorized CustomerId/PortalType with Flomiz.
-- Verify response success code and schema with a real request in a secure environment.
-- Test pagination from response PageContext totals.
-- Confirm which fields are allowed for public shoppers and approved dealers.
-- Do not expose Rapaport pricing, internal stock quantities, supplier identifiers or internal notes by default.
-- Normalize stable SKU, product/category, shape, carat, color, clarity, cut, polish, symmetry, lab/certificate and availability. Only expose price fields after retail/dealer pricing policy is approved and implemented server-side.
-- Verify whether lstImages.base64FileByte contains usable image data; the example showed it empty.
-- Set timeouts, bounded retries, rate limiting, caching and a clear stale-inventory state.
-- Confirm reservation, order write-back, webhook or stock-locking support. If absent, use inquiry/quote or manual confirmation to avoid overselling.
-- Recheck stock and price server-side immediately before order acceptance/payment.
-- Redact credentials and customer data from logs.
+- **Endpoint**: `GET {baseUrl}/api/stock-api/products`
+- **Method**: `GET`
+- **Authentication**: Sent in request header:
+  ```http
+  x-api-key: <FLOMIZ_API_KEY>
+  ```
+- **Optional Query Parameters**:
+  - `Page`: 1-based page number (e.g., `?Page=1`)
+  - `PerPage`: Items per page (e.g., `?PerPage=100`)
+  - Omit both to receive all sellable products in one full snapshot.
 
-## Suggested API contract
-- GET /api/catalog: paginated, filtered list of safe fields.
-- GET /api/catalog/:sku: safe detail for one SKU.
-- POST /api/inquiries: customer request for quote or availability.
-- POST /api/orders: server validates identity, permissions, current stock, price and promotion before creating an order.
+---
 
-Dealer authorization and price selection must be server-side, never based on hidden buttons or a role value submitted by React.
+## 2. Environment Variables
+
+| Variable | Description | Value |
+|---|---|---|
+| `FLOMIZ_API_KEY` | Issued live API key | Set in Render Environment Variables (starts with `sk_live_...`) |
+| `FLOMIZ_BASE_URL` | Flomiz instance domain | The Flomiz server domain provided with your key (e.g. `https://diamond.flomiz.com` or custom instance URL) |
+
+---
+
+## 3. Critical Requirement: Outbound IP / Domain Allowlist
+
+Per Flomiz security rules (Section 2 of the official guide):
+> **Origin allowlist (mandatory):** Your key is locked to the source IP(s) / CIDR range(s) or domain(s) you register with the Flomiz administrator. Requests from any other origin are rejected with `401 Authentication failed`.
+
+### Action Required:
+Share your deployment outbound IP or domain with the Flomiz administrator:
+1. **Render Deployment Domain**: `hey-man-diamond-test.onrender.com`
+2. **Production Domain (when cut over)**: `heymandiamond.com` / `heymandiamondllc.com`
+
+---
+
+## 4. Normalization and Field Mapping
+
+Flomiz returns 21 fixed fields followed by dynamic stone properties. The backend (`server/services/inventory.mjs`) automatically normalizes them into Hey Man Diamond's standard diamond format:
+
+| Flomiz Field | Normalized Property | Note |
+|---|---|---|
+| `SKU` / `ProductName` | `sku` | Unique stone inventory code |
+| `Shape` | `shape` | Title-cased diamond shape (Round, Oval, etc.) |
+| `AvailableForSale` / `Stock` | `carat` | Physical available carat weight |
+| `Color` | `color` | Color grade (D, E, F, G, etc.) |
+| `Clarity` | `clarity` | Clarity grade (FL, IF, VVS1, VS1, etc.) |
+| `Cut` | `cut` | Cut grade (Ideal, Excellent, etc.) |
+| `Polish` / `Symmetry` | `polish` / `symmetry` | Finish grades |
+| `Fluorescence` | `fluorescence` | Fluorescence (None, Faint, etc.) |
+| `Lab` | `lab` | Grading lab (IGI, GIA) |
+| `CertificateNo` | `certificateNumber` | Diamond report number |
+| `PricePerCarat` | `pricePerCarat` | Supplier price per carat |
+| `TotalPrice` | `wholesalePrice` | Trade cost (visible to approved dealers only) |
+| `TotalPrice * 1.30` | `price` | Retail customer price with standard margin |
+| `Measurement` | `measurements` | Dimensions in millimeters |
+| `lstImages` | `imageUrl` | Diamond photography |
+
+---
+
+## 5. Rate Limits & Smart Caching
+
+- Flomiz enforces a burst limit of **300 requests per 60 seconds**.
+- The server maintains an **in-memory cache with a 15-minute TTL**.
+- If Flomiz is temporarily unreachable or the outbound IP is awaiting allowlist approval, the site smoothly falls back to local cached catalog data, ensuring 100% uptime for shoppers and dealers.

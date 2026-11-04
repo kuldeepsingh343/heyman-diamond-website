@@ -15,6 +15,7 @@ test('API smoke checks', async t => {
       SUPABASE_URL: '',
       SUPABASE_SERVICE_ROLE_KEY: '',
       FLOMIZ_CUSTOMER_ID: '',
+      FLOMIZ_API_KEY: '',
       INSTAGRAM_USER_ID: '',
       INSTAGRAM_ACCESS_TOKEN: '',
       INSTAGRAM_GRAPH_API_VERSION: '',

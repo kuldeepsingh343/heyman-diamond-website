@@ -1,10 +1,13 @@
 import { json, bodyJson, db, supabaseReady } from './shared.mjs'
 
-const FLOMIZ_URL = process.env.FLOMIZ_STOCK_SUMMARY_URL || 'https://diamond.flomiz.com/FAccount/API/StockSummary/GetData_2.aspx'
-const FLOMIZ_CUSTOMER_ID = process.env.FLOMIZ_CUSTOMER_ID
-const FLOMIZ_PORTAL_TYPE = Number(process.env.FLOMIZ_PORTAL_TYPE || 1000)
-const FLOMIZ_API_USERNAME = process.env.FLOMIZ_API_USERNAME
-const FLOMIZ_API_PASSWORD = process.env.FLOMIZ_API_PASSWORD
+// ── Flomiz Stock Pull API Configuration ─────────────────────────────────────
+export const getFlomizApiKey = () => (process.env.FLOMIZ_API_KEY || '').trim()
+export const getFlomizBaseUrl = () => (process.env.FLOMIZ_BASE_URL || process.env.FLOMIZ_STOCK_URL || 'https://diamond.flomiz.com').replace(/\/$/, '')
+
+export function isFlomizConfigured() {
+  const key = getFlomizApiKey()
+  return Boolean(key && key.length > 0)
+}
 
 // In-memory inventory store for instant uploads and fallback caching
 let memoryInventory = [
@@ -308,28 +311,173 @@ export function generateInventoryTemplate() {
 }
 
 /**
- * Synchronizes inventory from external Flomiz API if configured.
+ * Normalizes a Flomiz Stock API product into Hey Man Diamond catalog schema.
+ * 
+ * Flomiz product schema (21 fixed fields + dynamic custom fields):
+ * SerialNo, ProductName, SKU, CategoryName, Branch, Lab, ProductStatus,
+ * Stock, CommittedStock, AvailableForSale, RapPrice, RapBack, RapBackValue,
+ * PricePerCarat, TotalPrice, OPStock, QuantityIN, QuantityOUT, SOStock, POStock, lstImages,
+ * Color, Clarity, Shape, Cut, CertificateNo, Measurement, Polish, Symmetry, Fluorescence...
  */
-export async function syncFlomizCatalog(page = 1, perPage = 50) {
-  if (!FLOMIZ_CUSTOMER_ID) return null
-  const auth = FLOMIZ_API_USERNAME && FLOMIZ_API_PASSWORD
-    ? { Authorization: `Basic ${Buffer.from(`${FLOMIZ_API_USERNAME}:${FLOMIZ_API_PASSWORD}`).toString('base64')}` }
-    : {}
+export function normalizeFlomizProduct(raw) {
+  if (!raw || typeof raw !== 'object') return null
 
-  const response = await fetch(FLOMIZ_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...auth },
-    body: JSON.stringify({
-      CustomerID: FLOMIZ_CUSTOMER_ID,
-      PortalType: FLOMIZ_PORTAL_TYPE,
-      PageNo: page,
-      PageSize: perPage,
-    }),
-  })
+  const sku = String(raw.SKU || raw.ProductName || raw.SerialNo || '').trim()
+  if (!sku) return null
 
-  if (!response.ok) throw new Error(`Supplier API responded with ${response.status}`)
-  const data = await response.json()
-  return data
+  const shapeRaw = String(raw.Shape || 'Round').trim()
+  const shape = shapeRaw.charAt(0).toUpperCase() + shapeRaw.slice(1).toLowerCase()
+
+  const carat = parseFloat(raw.AvailableForSale ?? raw.Stock ?? 0)
+  const wholesaleTotal = parseFloat(raw.TotalPrice) || (parseFloat(raw.PricePerCarat) * (carat || 1)) || 0
+  const retailPrice = Math.round(wholesaleTotal * 1.30) // Standard 30% retail markup over wholesale partner cost
+
+  // Extract primary image if available
+  let imageUrl = null
+  if (Array.isArray(raw.lstImages) && raw.lstImages.length > 0) {
+    const firstImg = raw.lstImages[0]
+    if (firstImg?.base64FileByte && firstImg.base64FileByte.length > 10) {
+      imageUrl = `data:image/jpeg;base64,${firstImg.base64FileByte}`
+    } else if (firstImg?.url || firstImg?.imageUrl) {
+      imageUrl = firstImg.url || firstImg.imageUrl
+    }
+  }
+
+  return {
+    sku,
+    shape,
+    carat: isNaN(carat) ? 0 : carat,
+    color: String(raw.Color || 'G').trim().toUpperCase(),
+    clarity: String(raw.Clarity || 'VS1').trim().toUpperCase(),
+    cut: String(raw.Cut || 'Excellent').trim(),
+    polish: String(raw.Polish || 'Excellent').trim(),
+    symmetry: String(raw.Symmetry || 'Very Good').trim(),
+    fluorescence: String(raw.Fluorescence || 'None').trim(),
+    lab: String(raw.Lab || 'IGI').trim().toUpperCase(),
+    certificateNumber: String(raw.CertificateNo || raw.certificateNumber || 'N/A').trim(),
+    price: retailPrice,
+    wholesalePrice: Math.round(wholesaleTotal),
+    pricePerCarat: parseFloat(raw.PricePerCarat) || 0,
+    measurements: String(raw.Measurement || raw.Measurements || 'N/A').trim(),
+    imageUrl,
+    videoUrl: raw.videoUrl || null,
+    status: String(raw.ProductStatus || 'Available').toLowerCase(),
+    source: 'flomiz_api',
+    branch: raw.Branch || '',
+    categoryName: raw.CategoryName || '',
+    serialNo: raw.SerialNo || null,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+// In-memory cache for live Flomiz catalog to respect 300 req / 60s limit
+let flomizCache = {
+  items: [],
+  timestamp: 0,
+  pageContext: null,
+  ttlMs: 15 * 60 * 1000, // 15 minute cache TTL
+}
+
+export function getFlomizCache() {
+  return flomizCache
+}
+
+export function clearFlomizCache() {
+  flomizCache = { items: [], timestamp: 0, pageContext: null, ttlMs: 15 * 60 * 1000 }
+}
+
+/**
+ * Synchronizes inventory from Flomiz Stock API (Pull Method).
+ * Endpoint: GET {baseUrl}/api/stock-api/products
+ * Header: x-api-key: {apiKey}
+ */
+export async function syncFlomizCatalog(page = 1, perPage = 100, forceRefresh = false) {
+  const apiKey = getFlomizApiKey()
+  const baseUrl = getFlomizBaseUrl()
+
+  if (!apiKey) return null
+
+  const now = Date.now()
+  if (!forceRefresh && flomizCache.items.length > 0 && (now - flomizCache.timestamp) < flomizCache.ttlMs) {
+    return {
+      items: flomizCache.items,
+      cached: true,
+      pageContext: flomizCache.pageContext,
+      totalRecord: flomizCache.items.length,
+    }
+  }
+
+  const queryParams = new URLSearchParams()
+  if (page) queryParams.set('Page', String(page))
+  if (perPage) queryParams.set('PerPage', String(perPage))
+
+  const endpoint = `${baseUrl}/api/stock-api/products?${queryParams.toString()}`
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+      },
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (response.status === 401) {
+      console.warn('Flomiz API: 401 Authentication failed. Verify that server outbound IP is allowlisted with Flomiz administrator and API key is valid.')
+      return null
+    }
+
+    if (response.status === 429) {
+      console.warn('Flomiz API: 429 Rate limit or quota exceeded.')
+      return flomizCache.items.length > 0 ? { items: flomizCache.items, cached: true } : null
+    }
+
+    if (!response.ok) {
+      console.warn(`Flomiz API responded with status ${response.status}`)
+      return null
+    }
+
+    const payload = await response.json()
+    if (payload && payload.Code === 1 && Array.isArray(payload.lstProduct)) {
+      const normalized = payload.lstProduct
+        .map(normalizeFlomizProduct)
+        .filter(Boolean)
+
+      flomizCache = {
+        items: normalized,
+        timestamp: now,
+        pageContext: payload.PageContext || null,
+        ttlMs: 15 * 60 * 1000,
+      }
+
+      // Merge into local memory inventory so local search & upload operations retain external stock
+      const skuMap = new Map(memoryInventory.map(item => [item.sku, item]))
+      for (const item of normalized) {
+        skuMap.set(item.sku, item)
+      }
+      memoryInventory = Array.from(skuMap.values())
+
+      return {
+        items: normalized,
+        cached: false,
+        pageContext: payload.PageContext,
+        totalRecord: payload.PageContext?.TotalRecord || normalized.length,
+      }
+    } else {
+      console.warn('Flomiz API response code was not 1:', payload?.Message)
+      return null
+    }
+  } catch (err) {
+    clearTimeout(timeoutId)
+    console.warn('Flomiz API sync error:', err.message)
+    return null
+  }
 }
 
 /**
@@ -390,33 +538,35 @@ export function filterInventory(items, query = {}) {
 
 export async function handleGetCatalog(req, res, url, user = null) {
   try {
-    if (url.pathname === '/api/catalog' && !FLOMIZ_CUSTOMER_ID) {
+    const isConfigured = isFlomizConfigured()
+    if (url.pathname === '/api/catalog' && !isConfigured) {
       return json(res, 503, { error: 'Diamond inventory is not connected yet.' })
     }
+
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10))
     const perPage = Math.min(100, Math.max(1, parseInt(url.searchParams.get('perPage') || '24', 10)))
 
     // Check if external supplier API is active
-    if (FLOMIZ_CUSTOMER_ID) {
+    let activeItems = memoryInventory
+    let source = 'inventory_catalog'
+    let isCached = false
+
+    if (isConfigured) {
       try {
         const flomizData = await syncFlomizCatalog(page, perPage)
-        if (flomizData?.Data) {
-          return json(res, 200, {
-            items: flomizData.Data,
-            source: 'flomiz_api',
-            page,
-            perPage,
-            totalRecords: flomizData.PageContext?.TotalRecord ?? flomizData.Data.length,
-          })
+        if (flomizData?.items && flomizData.items.length > 0) {
+          activeItems = flomizData.items
+          source = 'flomiz_api'
+          isCached = Boolean(flomizData.cached)
         }
       } catch (err) {
-        console.warn('Flomiz API sync failed, falling back to local catalog:', err.message)
+        console.warn('Flomiz API sync failed, falling back to local inventory:', err.message)
       }
     }
 
-    // Filter in-memory / database inventory
+    // Filter inventory according to 4Cs and query params
     const queryParams = Object.fromEntries(url.searchParams.entries())
-    const filtered = filterInventory(memoryInventory, queryParams)
+    const filtered = filterInventory(activeItems, queryParams)
 
     // Check if user is an approved dealer to surface wholesale pricing
     const isApprovedDealer = user?.account_type === 'dealer' && user?.dealer_status === 'approved'
@@ -433,7 +583,8 @@ export async function handleGetCatalog(req, res, url, user = null) {
 
     return json(res, 200, {
       items: paginated,
-      source: 'inventory_catalog',
+      source,
+      cached: isCached,
       page,
       perPage,
       totalRecords: filtered.length,
@@ -444,6 +595,22 @@ export async function handleGetCatalog(req, res, url, user = null) {
     console.error('Catalog fetch error:', error)
     return json(res, 500, { error: 'Unable to load diamond catalog.' })
   }
+}
+
+export function handleFlomizStatus(req, res) {
+  const apiKey = getFlomizApiKey()
+  const baseUrl = getFlomizBaseUrl()
+  const isConfigured = isFlomizConfigured()
+
+  return json(res, 200, {
+    configured: isConfigured,
+    baseUrl,
+    keyConfigured: Boolean(apiKey),
+    keyPrefix: apiKey ? `${apiKey.slice(0, 10)}...` : null,
+    cachedItems: flomizCache.items.length,
+    lastSync: flomizCache.timestamp ? new Date(flomizCache.timestamp).toISOString() : null,
+    status: isConfigured ? 'Ready to sync' : 'API key missing',
+  })
 }
 
 export async function handleUploadInventory(req, res, admin) {
