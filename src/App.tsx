@@ -4,6 +4,7 @@ import './App.css'
 import CustomerExperience from './CustomerExperience'
 import PolicyPages from './PolicyPages'
 import AuthPages from './AuthPages'
+import AboutPage from './AboutPage'
 import type { UserProfile } from './AuthPages'
 import InstagramReels from './InstagramReels'
 import { resolveAuthRoute, normalizeHashFragment } from './routeUtils'
@@ -94,6 +95,10 @@ function App() {
     const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
     return match?.[1] ?? ''
   })
+  const [isAbout, setIsAbout] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.location.hash === '#about'
+  })
 
   useEffect(() => {
     const normalizeCurrentHash = () => {
@@ -134,8 +139,9 @@ function App() {
       checkUserAndCart()
       const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
       setPolicySlug(match?.[1] ?? '')
+      setIsAbout(window.location.hash === '#about')
       setAuthRoute(resolveAuthRoute())
-      if (match) window.scrollTo({ top: 0, behavior: 'auto' })
+      if (match || window.location.hash === '#about') window.scrollTo({ top: 0, behavior: 'auto' })
     }
 
     window.addEventListener('hashchange', syncRoute)
@@ -146,6 +152,7 @@ function App() {
     }
   }, [])
 
+  if (isAbout) return <AboutPage />
   if (policySlug) return <PolicyPages slug={policySlug} />
   if (authRoute) return <AuthPages key={authRoute} mode={authRoute} onUserChange={setCurrentUser} />
 
@@ -278,35 +285,6 @@ function App() {
         </div>
       </section>
 
-      <section className="about-section" id="about">
-        <div className="about-copy">
-          <h2>WHO WE ARE</h2>
-          <p>
-            One of the leading suppliers of grown diamonds, located in the
-            Diamond District of India. Trusted by thousands of retailers,
-            jewelry manufacturers, and repair shops across North America.
-          </p>
-          <p>
-            At HeyMan Diamond LLC, we strive to understand customer’s
-            requirements and give our best to provide impeccable customer
-            service to all our clients. All our team members have in-depth
-            knowledge of the product, as customer satisfaction is our
-            top-most priority.
-          </p>
-          <p>
-            We are a one stop shop for all your lab grown diamond requirements.
-          </p>
-          <p>
-            Our inventory includes Melees, Pointers, Certified Inventory, Fancy
-            shape Layout and Colored lab grown diamonds (Pink, Yellow, Blue,
-            Green).
-          </p>
-          <p>
-            Along with wholesale we provide service orders and bagging service.
-          </p>
-        </div>
-      </section>
-
       <section className="collection" id="collection">
         <div className="section-heading">
           <div>
@@ -377,7 +355,7 @@ function App() {
         </div>
       </section>
 
-      <section className="team-section" id="team">
+      <section className="team-section" id="contact">
         <div className="section-heading">
           <div>
             <div className="eyebrow">
@@ -436,26 +414,6 @@ function App() {
       </section>
 
       <CustomerExperience />
-
-      <section className="contact-banner" id="contact">
-        <div>
-          <div className="eyebrow">
-            <span className="eyebrow-line" />
-            LET'S TALK DIAMONDS
-          </div>
-          <h2>
-            Have something <em>in mind?</em>
-          </h2>
-          <p>
-            Tell us what you are looking for. Our sales team will help
-            you with available options and the next steps.
-          </p>
-        </div>
-        <a className="button-primary" href="mailto:sales@heymandiamond.com">
-          Contact Sales
-        </a>
-      </section>
-
 
       <footer className="footer">
         <a className="brand footer-brand" href="#home">
@@ -524,6 +482,7 @@ function App() {
         </div>
 
         <nav className="footer-policy-links" aria-label="Policies and customer help">
+          <a href="#about">About Us</a>
           <a href="#policy-shipping">Shipping &amp; Delivery</a>
           <a href="#policy-returns">Returns &amp; Refunds</a>
           <a href="#policy-privacy">Privacy Policy</a>
