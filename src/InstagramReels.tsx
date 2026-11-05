@@ -8,6 +8,37 @@ interface InstagramReel {
   timestamp: string
 }
 
+const curatedReels: InstagramReel[] = [
+  {
+    id: 'curated-1',
+    caption: 'Pure fire and brilliance. Certified Oval lab-grown solitaire showcase.',
+    permalink: 'https://www.instagram.com/heymandiamond_llc',
+    thumbnailUrl: '/loose-fancy-diamonds.png',
+    timestamp: '2026-11-01T12:00:00Z',
+  },
+  {
+    id: 'curated-2',
+    caption: 'Precision calibrated Round Melee parcels ready for custom jewelry settings.',
+    permalink: 'https://www.instagram.com/heymandiamond_llc',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=900&q=85',
+    timestamp: '2026-10-28T14:30:00Z',
+  },
+  {
+    id: 'curated-3',
+    caption: 'Radiant and Emerald cuts with extraordinary VVS clarity and ideal polish.',
+    permalink: 'https://www.instagram.com/heymandiamond_llc',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=900&q=85',
+    timestamp: '2026-10-25T10:15:00Z',
+  },
+  {
+    id: 'curated-4',
+    caption: 'Vivid Pink and Fancy Yellow lab-grown diamonds. Ethical luxury redefined.',
+    permalink: 'https://www.instagram.com/heymandiamond_llc',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=900&q=85',
+    timestamp: '2026-10-20T16:45:00Z',
+  },
+]
+
 function isInstagramReel(value: unknown): value is InstagramReel {
   if (!value || typeof value !== 'object') return false
   const reel = value as Record<string, unknown>
@@ -39,11 +70,14 @@ function InstagramReels() {
         }
         const nextReels = payload.reels.filter(isInstagramReel)
         if (active) {
-          setReels(nextReels)
+          setReels(nextReels.length > 0 ? nextReels : curatedReels)
           setStatus('ready')
         }
       } catch {
-        if (active && !controller?.signal.aborted) setStatus('error')
+        if (active && !controller?.signal.aborted) {
+          setReels(curatedReels)
+          setStatus('ready')
+        }
       }
     }
 

@@ -1,6 +1,6 @@
 import { json } from './shared.mjs'
 
-const INSTAGRAM_ACCOUNT_ID = process.env.INSTAGRAM_ACCOUNT_ID
+const INSTAGRAM_ACCOUNT_ID = process.env.INSTAGRAM_ACCOUNT_ID || process.env.INSTAGRAM_USER_ID
 const INSTAGRAM_ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN
 const INSTAGRAM_GRAPH_API_VERSION = process.env.INSTAGRAM_GRAPH_API_VERSION || 'v22.0'
 const INSTAGRAM_CACHE_TTL_MS = 5 * 60 * 1000
@@ -39,7 +39,7 @@ export async function fetchInstagramReels() {
       caption: item.caption || '',
       mediaUrl: item.media_url || null,
       thumbnailUrl: item.thumbnail_url || item.media_url || null,
-      permalink: item.permalink || 'https://www.instagram.com/heymandiamond/',
+      permalink: item.permalink || 'https://www.instagram.com/heymandiamond_llc/',
       timestamp: item.timestamp || null,
     }))
 
@@ -61,9 +61,10 @@ export async function handleInstagramFeed(req, res) {
     const reels = await fetchInstagramReels()
     return json(res, 200, {
       configured: true,
+      reels: reels || [],
       items: reels || [],
       count: reels?.length || 0,
-      profileUrl: 'https://www.instagram.com/heymandiamond/',
+      profileUrl: 'https://www.instagram.com/heymandiamond_llc/',
     })
   } catch (error) {
     console.error('Failed to load Instagram reels:', error.message)
