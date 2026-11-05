@@ -33,15 +33,23 @@ const ADMIN_EMAILS = [
   'heymandiamondllc@gmail.com',
   'heymandiamonllc@gmail.com',
   'info@heymandiamond.com',
+  'sales@heymandiamond.com',
+  'amy@heymandiamond.com',
+  'nikky@heymandiamond.com',
   'kuldeepsingh343@gmail.com',
   'chauhanenterprises09@gmail.com',
-  'heymandiamond.test.customer@gmail.com',
 ]
+
+function isStaffEmail(email) {
+  if (!email) return false
+  const em = String(email).toLowerCase().trim()
+  return em.endsWith('@heymandiamond.com') || ADMIN_EMAILS.includes(em)
+}
 
 export async function requireAdmin(req) {
   const user = await authenticatedUser(req)
   if (!user?.id) return null
-  if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+  if (user.email && isStaffEmail(user.email)) {
     return {
       user,
       permissions: {
@@ -194,7 +202,7 @@ export async function handleSignin(req, res) {
   if (!response.ok) return json(res, response.status, { error: data.msg || data.message || 'Email or password is incorrect.' })
   const profiles = await db(`profiles?id=eq.${data.user.id}&select=account_type,dealer_status,full_name`)
   const adminRows = await db(`admin_users?user_id=eq.${data.user.id}`).catch(() => [])
-  const isAdmin = (Array.isArray(adminRows) && adminRows.length > 0) || ADMIN_EMAILS.includes(email.toLowerCase())
+  const isAdmin = (Array.isArray(adminRows) && adminRows.length > 0) || isStaffEmail(email)
   const accountType = isAdmin ? 'admin' : (profiles?.[0]?.account_type || 'customer')
   return json(res, 200, {
     accessToken: data.access_token,
@@ -231,7 +239,7 @@ export async function handleGetProfile(req, res) {
         profileData = rows[0]
       }
       const adminRows = await db(`admin_users?user_id=eq.${user.id}`)
-      if ((adminRows && adminRows.length > 0) || ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) {
+      if ((adminRows && adminRows.length > 0) || isStaffEmail(user.email)) {
         isAdmin = true
       }
     } catch (err) {
@@ -239,7 +247,7 @@ export async function handleGetProfile(req, res) {
     }
   }
 
-  if (ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) {
+  if (isStaffEmail(user.email)) {
     isAdmin = true
   }
 

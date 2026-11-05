@@ -224,10 +224,13 @@ export default function AuthPages({
 
   const isUserAdmin = Boolean(
     user?.account_type === 'admin' ||
-    user?.email.toLowerCase().includes('heyman') ||
-    user?.email.toLowerCase().includes('patel') ||
-    user?.email.toLowerCase().includes('kuldeep') ||
-    user?.email.toLowerCase().includes('chauhan')
+    (user?.email && (
+      user.email.toLowerCase().endsWith('@heymandiamond.com') ||
+      user.email.toLowerCase() === 'heymandiamondllc@gmail.com' ||
+      user.email.toLowerCase() === 'heymandiamonllc@gmail.com' ||
+      user.email.toLowerCase() === 'kuldeepsingh343@gmail.com' ||
+      user.email.toLowerCase() === 'chauhanenterprises09@gmail.com'
+    ))
   )
 
   const fetchPromotions = useCallback(async () => {
@@ -654,6 +657,13 @@ export default function AuthPages({
     }
   }, [user, mode, isUserAdmin])
 
+  // Redirect non-staff users away from admin mode
+  useEffect(() => {
+    if (user && mode === 'admin' && !isUserAdmin) {
+      window.location.hash = '#account'
+    }
+  }, [user, mode, isUserAdmin])
+
   // Load profile from server when entering profile tab
   useEffect(() => {
     if (user && activeTab === 'profile') {
@@ -1021,7 +1031,7 @@ export default function AuthPages({
             >
               📋 Orders & Transactions
             </button>
-            {(isUserAdmin || user.account_type === 'dealer' || user.account_type === 'admin') && (
+            {isUserAdmin && (
               <button
                 type="button"
                 className={`account-tab-btn ${activeTab === 'tools' ? 'account-tab-btn--active' : ''}`}
@@ -1039,7 +1049,7 @@ export default function AuthPages({
                 🏢 Dealer Approvals {dealerApps.filter(a => a.status === 'pending_review').length > 0 ? `(${dealerApps.filter(a => a.status === 'pending_review').length})` : ''}
               </button>
             )}
-            {(isUserAdmin || user.account_type === 'dealer') && (
+            {isUserAdmin && (
               <button
                 type="button"
                 className={`account-tab-btn ${activeTab === 'offers' ? 'account-tab-btn--active' : ''}`}
@@ -1084,7 +1094,7 @@ export default function AuthPages({
                   </div>
                 )}
 
-                {(isUserAdmin || user.account_type === 'dealer') && (
+                {isUserAdmin && (
                   <div className="account-card-item">
                     <div>
                       <h3>✨ Front Page Offers &amp; Schemes</h3>
@@ -1409,8 +1419,8 @@ export default function AuthPages({
             </div>
           )}
 
-          {/* ── TAB 6: INVENTORY TOOLS (DEALER / ADMIN) ── */}
-          {activeTab === 'tools' && (user.account_type === 'dealer' || user.account_type === 'admin') && (
+          {/* ── TAB 6: INVENTORY TOOLS (STAFF / ADMIN ONLY) ── */}
+          {activeTab === 'tools' && isUserAdmin && (
             <div className="tab-content tab-content--tools">
               <div className="account-inventory-box" style={{ margin: 0 }}>
                 <div className="inventory-box-header">
@@ -1754,8 +1764,8 @@ export default function AuthPages({
             </div>
           )}
 
-          {/* ── TAB 7: OFFERS & SCHEMES BANNER (ADMIN / OWNER) ── */}
-          {activeTab === 'offers' && (isUserAdmin || user.account_type === 'dealer') && (
+          {/* ── TAB 7: OFFERS & SCHEMES BANNER (STAFF / ADMIN ONLY) ── */}
+          {activeTab === 'offers' && isUserAdmin && (
             <div className="tab-content tab-content--offers">
               <div className="offers-manager-box">
                 <div className="offers-manager-header">
@@ -2105,19 +2115,19 @@ export default function AuthPages({
       <section className="auth-card">
         <span className="auth-eyebrow">
           {isAdminLogin
-            ? 'HEY MAN DIAMOND LLC · SECURE ADMINISTRATOR ACCESS'
+            ? 'HEY MAN DIAMOND LLC · STAFF & ADMINISTRATOR ACCESS'
             : 'HEY MAN DIAMOND LLC · SECURE ACCOUNT'}
         </span>
         <h1>
           {isAdminLogin
-            ? 'Administrator Sign In'
+            ? 'Staff & Administrator Sign In'
             : signup
             ? (dealer ? 'Dealer account request' : 'Create your account')
             : 'Welcome back'}
         </h1>
         <p>
           {isAdminLogin
-            ? 'Enter your authorized administrator email (e.g. kuldeepsingh343@gmail.com, info@heymandiamond.com) to access diamond inventory, pricing controls, and dealer approvals.'
+            ? 'Sign in with your authorized company credentials to access diamond inventory and administrative controls.'
             : signup
             ? (dealer
               ? 'Create your dealer account with basic business details. Access will be activated after admin approval.'

@@ -10,6 +10,24 @@ export interface AuthStatusResult {
   refreshToken?: string
 }
 
+export interface UserLike {
+  email?: string
+  account_type?: string
+}
+
+export function isStaffOrAdmin(user?: UserLike | null): boolean {
+  if (!user || !user.email) return false
+  if (user.account_type === 'admin') return true
+  const em = user.email.toLowerCase().trim()
+  return (
+    em.endsWith('@heymandiamond.com') ||
+    em === 'heymandiamondllc@gmail.com' ||
+    em === 'heymandiamonllc@gmail.com' ||
+    em === 'kuldeepsingh343@gmail.com' ||
+    em === 'chauhanenterprises09@gmail.com'
+  )
+}
+
 /**
  * Normalizes double-fragment URLs (e.g. Supabase auth redirects like #signin#access_token=...
  * or #signin#error=...) into a single clean hash fragment (e.g. #access_token=... or #error=...).

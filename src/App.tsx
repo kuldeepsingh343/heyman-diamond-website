@@ -10,7 +10,7 @@ import DiamondCollection from './DiamondCollection'
 import type { UserProfile } from './AuthPages'
 import InstagramReels from './InstagramReels'
 import OffersHero from './OffersHero'
-import { resolveAuthRoute, normalizeHashFragment } from './routeUtils'
+import { resolveAuthRoute, normalizeHashFragment, isStaffOrAdmin } from './routeUtils'
 
 
 
@@ -44,14 +44,7 @@ function App() {
     if (token && raw) {
       try {
         const parsed = JSON.parse(raw)
-        const em = String(parsed?.email || '').toLowerCase()
-        if (
-          parsed.account_type === 'admin' ||
-          em.includes('heyman') ||
-          em.includes('patel') ||
-          em.includes('kuldeep') ||
-          em.includes('chauhan')
-        ) {
+        if (isStaffOrAdmin(parsed)) {
           parsed.account_type = 'admin'
         }
         return parsed
@@ -188,13 +181,7 @@ function App() {
           </a>
           {currentUser ? (
             <>
-              {Boolean(
-                currentUser.account_type === 'admin' ||
-                currentUser.email.toLowerCase().includes('heyman') ||
-                currentUser.email.toLowerCase().includes('patel') ||
-                currentUser.email.toLowerCase().includes('kuldeep') ||
-                currentUser.email.toLowerCase().includes('chauhan')
-              ) && (
+              {isStaffOrAdmin(currentUser) && (
                 <a className="nav-button nav-admin" href="#admin" style={{ background: '#a58a50', color: '#ffffff', fontWeight: 600 }}>
                   🛡️ Admin Panel
                 </a>
@@ -397,7 +384,9 @@ function App() {
           <a href="#policy-privacy">Privacy Policy</a>
           <a href="#policy-terms">Terms of Service</a>
           <a href="#policy-faq">FAQ</a>
-          <a href="#admin" style={{ color: '#a58a50', fontWeight: 600 }}>Admin Portal</a>
+          {isStaffOrAdmin(currentUser) && (
+            <a href="#admin" style={{ color: '#a58a50', fontWeight: 600 }}>Admin Portal</a>
+          )}
         </nav>
 
         <div className="footer-bottom">
