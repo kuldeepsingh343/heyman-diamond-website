@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import './PolicyPages.css'
 
-type PolicySlug = 'shipping' | 'returns' | 'privacy' | 'terms' | 'faq' | 'sizing'
+type PolicySlug = 'shipping' | 'returns' | 'privacy' | 'terms' | 'faq'
 
 const pageTitles: Record<PolicySlug, string> = {
   shipping: 'Shipping & Delivery Policy',
@@ -9,7 +9,6 @@ const pageTitles: Record<PolicySlug, string> = {
   privacy: 'Privacy Policy',
   terms: 'Terms of Service',
   faq: 'Frequently Asked Questions',
-  sizing: 'Ring Sizing Guide',
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -158,13 +157,6 @@ function PolicyPages({ slug }: { slug: string }) {
           <Section title="How are shipping charges shown?"><p>Applicable delivery costs paid by the customer are disclosed before checkout and shown on the invoice as “Shipping Charges.” Diamond deliveries require a signature.</p></Section>
           <Section title="How do returns work?"><p>The intended return policy is a 14-day money-back window, subject to the final published terms, return authorization, and eligibility requirements. Keep the original tags, packaging, and supplied grading certificate.</p></Section>
           <Section title="How can I contact the team?"><p>Email <a href="mailto:sales@heymandiamond.com">sales@heymandiamond.com</a> or call +1 312 646 0070. Do not send full bank or payment-card details in ordinary email.</p></Section>
-        </>}
-
-        {page === 'sizing' && <>
-          <Section title="Measure an existing ring"><ol><li>Choose a ring that fits the intended finger comfortably.</li><li>Place it on a ruler and measure the inside diameter straight across the center, from inner edge to inner edge.</li><li>Measure in millimeters and compare the result with a verified sizing chart from a jeweler.</li></ol></Section>
-          <Section title="Measure your finger"><ol><li>For a reliable result, ask a jeweler to measure the finger with a ring sizer.</li><li>Your fingers may change size with temperature and time of day. Measure when your hands are at a comfortable temperature.</li><li>The ring should pass over the knuckle with gentle resistance and sit comfortably without feeling tight.</li></ol></Section>
-          <Section title="Sizing tips"><ul><li>Ring sizes can vary by country and by ring design; confirm the sizing system used by the seller.</li><li>Wider bands may feel tighter than narrow bands.</li><li>For valuable, custom, or engagement-ring orders, confirm the size with a professional before ordering.</li><li>Do not rely on a screen image or an unverified printout to determine size.</li></ul></Section>
-          <Section title="Printable chart"><p>A downloadable chart should be added only after all measurements and international-size conversions have been checked against a reliable sizing reference. If you use a verified chart, print at “Actual size” or 100% scale, disable “Fit to page,” and check its calibration marker with a ruler. This page does not currently include a calibrated printable chart, so professional measurement is recommended.</p></Section>
         </>}
 
         <nav className="policy-related" aria-label="Other policy pages">

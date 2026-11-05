@@ -92,7 +92,7 @@ function App() {
     }
   })
   const [policySlug, setPolicySlug] = useState(() => {
-    const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
+    const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq)$/)
     return match?.[1] ?? ''
   })
   const [isAbout, setIsAbout] = useState(() => {
@@ -137,7 +137,7 @@ function App() {
     const syncRoute = () => {
       normalizeCurrentHash()
       checkUserAndCart()
-      const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq|sizing)$/)
+      const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq)$/)
       setPolicySlug(match?.[1] ?? '')
       setIsAbout(window.location.hash === '#about')
       setAuthRoute(resolveAuthRoute())
@@ -468,7 +468,6 @@ function App() {
           <a href="#policy-privacy">Privacy Policy</a>
           <a href="#policy-terms">Terms of Service</a>
           <a href="#policy-faq">FAQ</a>
-          <a href="#policy-sizing">Ring Sizing Guide</a>
         </nav>
 
         <div className="footer-bottom">
