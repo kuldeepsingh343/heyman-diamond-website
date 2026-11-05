@@ -5,7 +5,7 @@ import CustomerExperience from './CustomerExperience'
 import PolicyPages from './PolicyPages'
 import AuthPages from './AuthPages'
 import AboutPage from './AboutPage'
-import ReviewsPage from './ReviewsPage'
+import ReviewsSection from './ReviewsSection'
 import type { UserProfile } from './AuthPages'
 import InstagramReels from './InstagramReels'
 import OffersHero from './OffersHero'
@@ -100,10 +100,6 @@ function App() {
     if (typeof window === 'undefined') return false
     return window.location.hash === '#about'
   })
-  const [isReviews, setIsReviews] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.location.hash === '#reviews'
-  })
 
   useEffect(() => {
     const normalizeCurrentHash = () => {
@@ -116,6 +112,12 @@ function App() {
     }
 
     normalizeCurrentHash()
+
+    if (window.location.hash === '#reviews') {
+      setTimeout(() => {
+        document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    }
 
     const checkUserAndCart = () => {
       if (typeof window === 'undefined') return
@@ -145,10 +147,13 @@ function App() {
       const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq)$/)
       setPolicySlug(match?.[1] ?? '')
       setIsAbout(window.location.hash === '#about')
-      setIsReviews(window.location.hash === '#reviews')
       setAuthRoute(resolveAuthRoute())
-      if (match || window.location.hash === '#about' || window.location.hash === '#reviews') {
+      if (match || window.location.hash === '#about') {
         window.scrollTo({ top: 0, behavior: 'auto' })
+      } else if (window.location.hash === '#reviews') {
+        setTimeout(() => {
+          document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth' })
+        }, 50)
       }
     }
 
@@ -160,7 +165,6 @@ function App() {
     }
   }, [])
 
-  if (isReviews) return <ReviewsPage />
   if (isAbout) return <AboutPage />
   if (policySlug) return <PolicyPages slug={policySlug} />
   if (authRoute) return <AuthPages key={authRoute} mode={authRoute} onUserChange={setCurrentUser} />
@@ -354,6 +358,8 @@ function App() {
       </section>
 
       <CustomerExperience />
+
+      <ReviewsSection />
 
       <section className="instagram-section" id="instagram">
         <InstagramReels />

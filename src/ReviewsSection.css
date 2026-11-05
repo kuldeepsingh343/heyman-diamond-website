@@ -1,47 +1,16 @@
-/* ─── Dedicated Reviews Page Styling ─────────────────────────────────────── */
+/* ─── Reviews Section Styling (Embedded on Home Page) ─────────────────────── */
 
-.reviews-page {
-  min-height: 100vh;
-  background: #fcfbf9;
-  color: #292820;
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+.reviews-section {
+  width: 100%;
   text-align: left;
-}
-
-/* Header */
-.reviews-page-header {
-  padding: 18px clamp(20px, 5vw, 68px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  background: #ffffff;
-  border-bottom: 1px solid #eae5db;
-}
-
-.reviews-page-brand {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-}
-
-.reviews-page-back {
-  color: #8b7445;
-  font-size: 13px;
-  font-weight: 500;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.reviews-page-back:hover {
-  color: #5c4b26;
-  text-decoration: underline;
+  scroll-margin-top: 80px;
 }
 
 /* ── Section 1: Exactly matching screenshot (Your Experience Matters / Leave a review) ── */
-.reviews-page-top {
-  padding: clamp(48px, 6vw, 84px) clamp(20px, 5vw, 68px);
+.reviews-section-top {
+  padding: clamp(56px, 6vw, 90px) clamp(22px, 4.5vw, 68px);
   background: #f5f0e6;
+  border-top: 1px solid #e5ded0;
   border-bottom: 1px solid #e5ded0;
 }
 
@@ -76,14 +45,14 @@
   background: #a58a50;
 }
 
-.reviews-top-intro h1 {
+.reviews-top-intro h2 {
   margin: 0 0 20px;
-  font: 500 clamp(36px, 4.5vw, 54px)/1.12 'Playfair Display', Georgia, serif;
+  font: 500 clamp(34px, 4.2vw, 50px)/1.15 'Playfair Display', Georgia, serif;
   letter-spacing: -0.5px;
   color: #1a1a12;
 }
 
-.reviews-top-intro h1 em {
+.reviews-top-intro h2 em {
   font-style: italic;
   color: #a58a50;
 }
@@ -158,87 +127,92 @@
 }
 
 .reviews-field {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .reviews-field label {
   display: block;
-  margin-bottom: 8px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.8px;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  color: #3d3b33;
+  color: #555248;
+  margin-bottom: 8px;
 }
 
-.reviews-field textarea,
-.reviews-field input {
+.reviews-field input,
+.reviews-field textarea {
   width: 100%;
   padding: 12px 14px;
-  border: 1px solid #dcd5c4;
-  border-radius: 2px;
   background: #ffffff;
-  color: #1a1a12;
+  border: 1px solid #d8d1c2;
+  border-radius: 3px;
   font-size: 13px;
+  color: #1a1a14;
   font-family: inherit;
   box-sizing: border-box;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.reviews-field textarea:focus,
-.reviews-field input:focus {
+.reviews-field input:focus,
+.reviews-field textarea:focus {
   outline: none;
   border-color: #a58a50;
-  box-shadow: 0 0 0 2px rgba(165, 138, 80, 0.15);
+  box-shadow: 0 0 0 3px rgba(165, 138, 80, 0.15);
 }
 
+.reviews-field textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+/* Star Rating Picker */
 .reviews-star-picker {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .reviews-star-picker button {
   background: none;
   border: none;
   font-size: 26px;
-  color: #d8d3c5;
+  color: #d8d2c4;
   cursor: pointer;
-  padding: 0;
+  padding: 2px 4px;
   line-height: 1;
   transition: color 0.15s ease, transform 0.15s ease;
 }
 
-.reviews-star-picker button.active {
-  color: #bfa15f;
-}
-
+.reviews-star-picker button.active,
 .reviews-star-picker button:hover {
+  color: #bfa15f;
   transform: scale(1.15);
-  color: #d1b46a;
 }
 
+/* Submit Button */
 .reviews-submit-btn {
   width: 100%;
   padding: 14px 24px;
-  background: #25261e;
+  background: #23221c;
   color: #ffffff;
-  border: none;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  border: 1px solid #23221c;
+  border-radius: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
   cursor: pointer;
-  border-radius: 2px;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  margin-top: 6px;
 }
 
 .reviews-submit-btn:hover:not(:disabled) {
-  background: #8e7746;
+  background: #a58a50;
+  border-color: #a58a50;
   transform: translateY(-1px);
 }
 
 .reviews-submit-btn:disabled {
-  opacity: 0.65;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -250,10 +224,15 @@
 }
 
 /* ── Section 2: CLIENT EXPERIENCES (Below the screenshot) ── */
-.reviews-page-bottom {
+.reviews-section-bottom {
+  padding: clamp(56px, 7vw, 92px) clamp(22px, 4.5vw, 68px);
+  background: #fcfbf9;
+  border-bottom: 1px solid #e5ded0;
+}
+
+.reviews-bottom-inner {
   max-width: 1180px;
   margin: 0 auto;
-  padding: clamp(56px, 7vw, 92px) clamp(20px, 5vw, 40px);
 }
 
 .reviews-showcase-header {
@@ -358,25 +337,19 @@
 }
 
 .review-card-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: #2e6930;
-  background: #edf7ed;
-  padding: 3px 8px;
-  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #3f6844;
+  background: #edf5ee;
+  padding: 3px 9px;
+  border-radius: 12px;
 }
 
 .review-card-quote {
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 1.75;
-  color: #3b3a32;
-  margin: 0 0 22px;
-  flex: 1;
+  color: #3a3830;
+  margin: 0 0 20px;
   font-style: italic;
 }
 
@@ -456,16 +429,6 @@
   font-size: 15px;
 }
 
-/* Footer Return Navigation */
-.reviews-page-footer-actions {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-top: 56px;
-  padding-top: 36px;
-  border-top: 1px solid #eae5db;
-}
-
 @media (max-width: 980px) {
   .reviews-top-layout {
     grid-template-columns: 1fr;
@@ -480,8 +443,4 @@
   .reviews-cards-grid {
     grid-template-columns: 1fr;
   }
-  .reviews-page-footer-actions {
-    flex-direction: column;
-  }
 }
-

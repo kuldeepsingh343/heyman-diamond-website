@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
-import './ReviewsPage.css'
+import './ReviewsSection.css'
 
 export interface ReviewItem {
   id: string
@@ -63,7 +63,7 @@ const fallbackReviews: ReviewItem[] = [
   },
 ]
 
-export default function ReviewsPage() {
+export default function ReviewsSection() {
   const [reviews, setReviews] = useState<ReviewItem[]>(fallbackReviews)
   const [showAllReviews, setShowAllReviews] = useState(false)
   const [rating, setRating] = useState(0)
@@ -73,12 +73,7 @@ export default function ReviewsPage() {
   const [status, setStatus] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  // Scroll to top on page load
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'auto' })
-  }, [])
-
-  // Fetch live reviews from backend API if configured
+  // Fetch verified reviews from backend API on mount
   useEffect(() => {
     let active = true
     fetch('/api/reviews')
@@ -132,21 +127,9 @@ export default function ReviewsPage() {
   }
 
   return (
-    <main className="reviews-page">
-      {/* ── Page Header ── */}
-      <header className="reviews-page-header">
-        <a className="reviews-page-brand" href="#home" aria-label="Return to Hey Man Diamond home">
-          <img
-            src="/heyman-diamond-logo.png"
-            alt="Hey Man Diamond LLC"
-            style={{ height: '48px', width: 'auto', objectFit: 'contain' }}
-          />
-        </a>
-        <a className="reviews-page-back" href="#home">← Back to website</a>
-      </header>
-
-      {/* ── Section 1: Exactly the screenshot layout (YOUR EXPERIENCE MATTERS + Leave a review) ── */}
-      <section className="reviews-page-top">
+    <section className="reviews-section" id="reviews" aria-label="Customer Reviews & Client Feedback">
+      {/* ── Section 1: Exactly matching screenshot (YOUR EXPERIENCE MATTERS + Leave a review) ── */}
+      <div className="reviews-section-top">
         <div className="reviews-top-layout">
           {/* Left Column */}
           <div className="reviews-top-intro">
@@ -155,11 +138,11 @@ export default function ReviewsPage() {
               YOUR EXPERIENCE MATTERS
             </div>
 
-            <h1>
+            <h2>
               Your feedback helps us
               <br />
               <em>shine brighter.</em>
-            </h1>
+            </h2>
 
             <p>
               We value honest feedback. Tell us about your experience with Hey Man Diamond LLC, and help us continue improving our service.
@@ -274,88 +257,84 @@ export default function ReviewsPage() {
             </p>
           </form>
         </div>
-      </section>
+      </div>
 
       {/* ── Section 2: CLIENT EXPERIENCES (Below the screenshot, as requested) ── */}
-      <section className="reviews-page-bottom">
-        <div className="reviews-showcase-header">
-          <div>
-            <div className="eyebrow">
-              <span className="eyebrow-line" />
-              CLIENT EXPERIENCES
+      <div className="reviews-section-bottom">
+        <div className="reviews-bottom-inner">
+          <div className="reviews-showcase-header">
+            <div>
+              <div className="eyebrow">
+                <span className="eyebrow-line" />
+                CLIENT EXPERIENCES
+              </div>
+              <h2>
+                Trusted by retailers, manufacturers &amp; <em>collectors.</em>
+              </h2>
             </div>
-            <h2>
-              Trusted by retailers, manufacturers &amp; <em>collectors.</em>
-            </h2>
+
+            <div className="reviews-rating-pill" aria-label="5.0 out of 5 stars based on verified client feedback">
+              <span className="rating-stars">★★★★★</span>
+              <span className="rating-score">5.0 / 5.0</span>
+              <span className="rating-count">Verified Feedback</span>
+            </div>
           </div>
 
-          <div className="reviews-rating-pill" aria-label="5.0 out of 5 stars based on verified client feedback">
-            <span className="rating-stars">★★★★★</span>
-            <span className="rating-score">5.0 / 5.0</span>
-            <span className="rating-count">Verified Feedback</span>
+          <div className="reviews-cards-grid">
+            {displayedReviews.map((item) => (
+              <article key={item.id} className="client-review-card">
+                <div className="review-card-top">
+                  <div className="review-card-stars" aria-label={`${item.rating} out of 5 stars`}>
+                    {'★'.repeat(item.rating || 5)}
+                  </div>
+                  <span className="review-card-badge">✓ Verified Client</span>
+                </div>
+
+                <p className="review-card-quote">“{item.remarks}”</p>
+
+                {item.reply && (
+                  <div className="review-card-reply">
+                    <span className="review-card-reply-author">Hey Man Diamond LLC:</span>
+                    {item.reply}
+                  </div>
+                )}
+
+                <div className="review-card-meta">
+                  <span className="review-card-author">{item.customer_name}</span>
+                  <span className="review-card-date">
+                    {item.submitted_at
+                      ? new Date(item.submitted_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                      : 'Verified'}
+                  </span>
+                </div>
+              </article>
+            ))}
           </div>
-        </div>
 
-        <div className="reviews-cards-grid">
-          {displayedReviews.map((item) => (
-            <article key={item.id} className="client-review-card">
-              <div className="review-card-top">
-                <div className="review-card-stars" aria-label={`${item.rating} out of 5 stars`}>
-                  {'★'.repeat(item.rating || 5)}
-                </div>
-                <span className="review-card-badge">✓ Verified Client</span>
-              </div>
-
-              <p className="review-card-quote">“{item.remarks}”</p>
-
-              {item.reply && (
-                <div className="review-card-reply">
-                  <span className="review-card-reply-author">Hey Man Diamond LLC:</span>
-                  {item.reply}
-                </div>
-              )}
-
-              <div className="review-card-meta">
-                <span className="review-card-author">{item.customer_name}</span>
-                <span className="review-card-date">
-                  {item.submitted_at
-                    ? new Date(item.submitted_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })
-                    : 'Verified'}
+          {/* Read More Reviews Toggle Button */}
+          {reviews.length > initialCount && (
+            <div className="reviews-read-more-wrap">
+              <button
+                type="button"
+                className="reviews-read-more-btn"
+                onClick={() => setShowAllReviews(!showAllReviews)}
+                aria-expanded={showAllReviews}
+              >
+                <span>
+                  {showAllReviews ? 'Show Fewer Reviews' : `Read More Reviews (${reviews.length - initialCount} more)`}
                 </span>
-              </div>
-            </article>
-          ))}
+                <span className="read-more-arrow" aria-hidden="true">
+                  {showAllReviews ? '↑' : '↓'}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
-
-        {/* Read More Reviews Button */}
-        {reviews.length > initialCount && (
-          <div className="reviews-read-more-wrap">
-            <button
-              type="button"
-              className="reviews-read-more-btn"
-              onClick={() => setShowAllReviews(!showAllReviews)}
-              aria-expanded={showAllReviews}
-            >
-              <span>
-                {showAllReviews ? 'Show Fewer Reviews' : `Read More Reviews (${reviews.length - initialCount} more)`}
-              </span>
-              <span className="read-more-arrow" aria-hidden="true">
-                {showAllReviews ? '↑' : '↓'}
-              </span>
-            </button>
-          </div>
-        )}
-
-        <div className="reviews-page-footer-actions">
-          <a href="#home" className="button-primary">Return to Shop</a>
-          <a href="#contact" className="button-secondary">Talk to Our Team</a>
-        </div>
-      </section>
-    </main>
+      </div>
+    </section>
   )
 }
-
