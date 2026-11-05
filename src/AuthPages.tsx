@@ -2,9 +2,10 @@ import './AuthPages.css'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
 import { parseAuthStatusFromHash } from './routeUtils'
+import type { PromotionOffer } from './OffersHero'
 
 type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account'
-type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools'
+type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools' | 'offers'
 
 export interface UserProfile {
   email: string
@@ -147,6 +148,177 @@ export default function AuthPages({
   const [uploadStatus, setUploadStatus] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+  // ── Offers & Schemes state (Admin / Owner portal) ───────────────────────
+  const [promotions, setPromotions] = useState<PromotionOffer[]>([])
+  const [loadingPromotions, setLoadingPromotions] = useState(false)
+  const [editingPromoId, setEditingPromoId] = useState<string | null>(null)
+  const [promoName, setPromoName] = useState('')
+  const [promoDesc, setPromoDesc] = useState('')
+  const [promoMediaType, setPromoMediaType] = useState<'image' | 'video'>('image')
+  const [promoMediaUrl, setPromoMediaUrl] = useState('')
+  const [promoCtaText, setPromoCtaText] = useState('Explore Offer')
+  const [promoCtaLink, setPromoCtaLink] = useState('#collection')
+  const [promoActive, setPromoActive] = useState(true)
+  const [promoSaving, setPromoSaving] = useState(false)
+  const [promoMsg, setPromoMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+
+  const isUserAdmin = Boolean(
+    user?.account_type === 'admin' ||
+    user?.email.toLowerCase().includes('heyman') ||
+    user?.email.toLowerCase().includes('patel') ||
+    user?.email.toLowerCase().includes('kuldeep') ||
+    user?.email.toLowerCase().includes('chauhan')
+  )
+
+  const fetchPromotions = useCallback(async () => {
+    setLoadingPromotions(true)
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch('/api/admin/promotions', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data && Array.isArray(data.promotions)) {
+          setPromotions(data.promotions)
+          return
+        }
+      }
+      const pubRes = await fetch('/api/promotions')
+      if (pubRes.ok) {
+        const pubData = await pubRes.json()
+        if (pubData && Array.isArray(pubData.promotions)) {
+          setPromotions(pubData.promotions)
+        }
+      }
+    } catch {
+      // Fallback safe
+    } finally {
+      setLoadingPromotions(false)
+    }
+  }, [])
+
+  const handleEditPromo = (item: PromotionOffer) => {
+    setEditingPromoId(item.id)
+    setPromoName(item.name || '')
+    setPromoDesc(item.description || '')
+    setPromoMediaType(item.media_type === 'video' ? 'video' : 'image')
+    setPromoMediaUrl(item.media_url || '')
+    setPromoCtaText(item.cta_text || 'Explore Offer')
+    setPromoCtaLink(item.cta_link || '#collection')
+    setPromoActive(item.active !== false)
+    setPromoMsg(null)
+  }
+
+  const handleResetPromoForm = () => {
+    setEditingPromoId(null)
+    setPromoName('')
+    setPromoDesc('')
+    setPromoMediaType('image')
+    setPromoMediaUrl('')
+    setPromoCtaText('Explore Offer')
+    setPromoCtaLink('#collection')
+    setPromoActive(true)
+    setPromoMsg(null)
+  }
+
+  const handleSavePromotion = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!promoName.trim()) {
+      setPromoMsg({ text: 'Please enter a name or title for this offer.', kind: 'error' })
+      return
+    }
+
+    setPromoSaving(true)
+    setPromoMsg(null)
+    const token = localStorage.getItem('hmd_access_token')
+    const payload = {
+      name: promoName.trim(),
+      description: promoDesc.trim(),
+      media_type: promoMediaType,
+      media_url: promoMediaUrl.trim(),
+      cta_text: promoCtaText.trim() || 'Explore Offer',
+      cta_link: promoCtaLink.trim() || '#collection',
+      active: promoActive,
+    }
+
+    try {
+      const url = editingPromoId
+        ? `/api/admin/promotions/${editingPromoId}`
+        : '/api/admin/promotions'
+      const method = editingPromoId ? 'PATCH' : 'POST'
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPromoMsg({ text: data.error || 'Failed to save offer banner.', kind: 'error' })
+        return
+      }
+
+      setPromoMsg({
+        text: editingPromoId ? 'Offer banner updated successfully!' : 'New offer banner published successfully!',
+        kind: 'success',
+      })
+      handleResetPromoForm()
+      await fetchPromotions()
+    } catch {
+      setPromoMsg({ text: 'Network connection failed. Please retry.', kind: 'error' })
+    } finally {
+      setPromoSaving(false)
+    }
+  }
+
+  const handleDeletePromotion = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to remove the offer "${name}"?`)) return
+
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch(`/api/admin/promotions/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.ok) {
+        setPromotions(prev => prev.filter(p => p.id !== id))
+        if (editingPromoId === id) handleResetPromoForm()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to delete offer.')
+      }
+    } catch {
+      alert('Network request failed.')
+    }
+  }
+
+  const handleTogglePromoActive = async (item: PromotionOffer) => {
+    const nextActive = !item.active
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch(`/api/admin/promotions/${item.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ active: nextActive }),
+      })
+      if (res.ok) {
+        setPromotions(prev =>
+          prev.map(p => (p.id === item.id ? { ...p, active: nextActive } : p))
+        )
+      }
+    } catch {
+      // Safe ignore
+    }
+  }
+
   const updateUserSession = useCallback((profile: UserProfile | null) => {
     setUser(profile)
     if (profile) {
@@ -222,6 +394,9 @@ export default function AuthPages({
     }
     if (tab === 'orders') {
       loadOrders()
+    }
+    if (tab === 'offers') {
+      fetchPromotions()
     }
   }
 
@@ -610,6 +785,15 @@ export default function AuthPages({
                 ⚙️ Inventory Upload & API
               </button>
             )}
+            {(isUserAdmin || user.account_type === 'dealer') && (
+              <button
+                type="button"
+                className={`account-tab-btn ${activeTab === 'offers' ? 'account-tab-btn--active' : ''}`}
+                onClick={() => switchTab('offers')}
+              >
+                ✨ Offers & Schemes Banner
+              </button>
+            )}
           </nav>
 
           {/* ── TAB 1: OVERVIEW ── */}
@@ -622,6 +806,18 @@ export default function AuthPages({
               )}
 
               <div className="account-cards-grid">
+                {(isUserAdmin || user.account_type === 'dealer') && (
+                  <div className="account-card-item">
+                    <div>
+                      <h3>✨ Front Page Offers & Schemes</h3>
+                      <p>Manage liquid glass banners, promotional images, video schemes, and 3-4s slider presentation on your home page.</p>
+                    </div>
+                    <button type="button" className="button-primary" onClick={() => switchTab('offers')}>
+                      Manage Offers & Schemes
+                    </button>
+                  </div>
+                )}
+
                 <div className="account-card-item">
                   <div>
                     <h3>💎 Certified Diamonds</h3>
@@ -989,6 +1185,228 @@ export default function AuthPages({
                       </p>
                     )}
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB 7: OFFERS & SCHEMES BANNER (ADMIN / OWNER) ── */}
+          {activeTab === 'offers' && (isUserAdmin || user.account_type === 'dealer') && (
+            <div className="tab-content tab-content--offers">
+              <div className="offers-manager-box">
+                <div className="offers-manager-header">
+                  <h3>✨ Liquid Glass Offers & Schemes Manager</h3>
+                  <p>
+                    Configure promotional image banners, videos, headlines, and call-to-actions shown on your website's front page in the luxury liquid glass hero.
+                    If you configure <strong>1 offer</strong>, it is displayed full screen. If you configure <strong>2 or more offers</strong>, the website automatically displays them using an auto-slider (advancing every 3.5 seconds) with narrow frosted glass side arrows.
+                  </p>
+                </div>
+
+                {/* Offer Editor Form */}
+                <form className="offers-form-card" onSubmit={handleSavePromotion}>
+                  <h4>{editingPromoId ? '✏️ Edit Offer or Scheme' : '➕ Add New Offer or Scheme Banner'}</h4>
+
+                  <div className="offers-form-grid">
+                    <div className="full-span">
+                      <label className="offers-field-label" htmlFor="promo-name">Offer / Scheme Name *</label>
+                      <input
+                        id="promo-name"
+                        type="text"
+                        className="offers-input"
+                        placeholder="e.g. Holiday Diamond Celebration, Trade Volume Privilege Scheme"
+                        value={promoName}
+                        onChange={(e) => setPromoName(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="full-span">
+                      <label className="offers-field-label" htmlFor="promo-desc">Offer Description / Subtext</label>
+                      <textarea
+                        id="promo-desc"
+                        rows={2}
+                        className="offers-textarea"
+                        placeholder="e.g. Exclusive wholesale incentive on certified lab-grown solitaires above 2.0 carats. Direct from Surat & New York vaults."
+                        value={promoDesc}
+                        onChange={(e) => setPromoDesc(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="offers-field-label">Media Type</label>
+                      <div className="offers-type-toggle">
+                        <button
+                          type="button"
+                          className={`offers-type-btn ${promoMediaType === 'image' ? 'offers-type-btn--active' : ''}`}
+                          onClick={() => setPromoMediaType('image')}
+                        >
+                          📷 Image Banner
+                        </button>
+                        <button
+                          type="button"
+                          className={`offers-type-btn ${promoMediaType === 'video' ? 'offers-type-btn--active' : ''}`}
+                          onClick={() => setPromoMediaType('video')}
+                        >
+                          🎬 Video Banner (.mp4, .webm)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="offers-field-label" htmlFor="promo-url">
+                        {promoMediaType === 'video' ? 'Video File URL (.mp4 / .webm)' : 'Banner Image URL'}
+                      </label>
+                      <input
+                        id="promo-url"
+                        type="url"
+                        className="offers-input"
+                        placeholder={promoMediaType === 'video' ? 'https://example.com/diamonds-reel.mp4' : 'https://images.unsplash.com/...'}
+                        value={promoMediaUrl}
+                        onChange={(e) => setPromoMediaUrl(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="offers-field-label" htmlFor="promo-cta-text">Button Text</label>
+                      <input
+                        id="promo-cta-text"
+                        type="text"
+                        className="offers-input"
+                        placeholder="e.g. Explore Certified Stones"
+                        value={promoCtaText}
+                        onChange={(e) => setPromoCtaText(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="offers-field-label" htmlFor="promo-cta-link">Button Link (Anchor or URL)</label>
+                      <input
+                        id="promo-cta-link"
+                        type="text"
+                        className="offers-input"
+                        placeholder="#collection, #signup-dealer, #contact, etc."
+                        value={promoCtaLink}
+                        onChange={(e) => setPromoCtaLink(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="full-span">
+                      <label className="offers-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={promoActive}
+                          onChange={(e) => setPromoActive(e.target.checked)}
+                        />
+                        <span>Active · Show this offer on website front page</span>
+                      </label>
+                    </div>
+
+                    {/* Preview box if URL provided */}
+                    {promoMediaUrl && (
+                      <div className="full-span">
+                        <label className="offers-field-label">Banner Preview</label>
+                        <div className="offers-preview-banner">
+                          {promoMediaType === 'video' ? (
+                            <video src={promoMediaUrl} autoPlay loop muted playsInline />
+                          ) : (
+                            <img src={promoMediaUrl} alt="Preview" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {promoMsg && (
+                    <p className={`auth-status auth-status--${promoMsg.kind}`} style={{ marginTop: '16px' }}>
+                      {promoMsg.text}
+                    </p>
+                  )}
+
+                  <div className="offers-form-actions">
+                    <button
+                      type="submit"
+                      className="button-primary"
+                      disabled={promoSaving}
+                    >
+                      {promoSaving ? 'Saving…' : (editingPromoId ? 'Update Offer / Scheme' : 'Publish Offer / Scheme')}
+                    </button>
+                    {editingPromoId && (
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        onClick={handleResetPromoForm}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </form>
+
+                {/* List of Existing Offers */}
+                <div className="offers-list-container">
+                  <div className="offers-list-header">
+                    <h4>Current Offers & Schemes ({promotions.length})</h4>
+                    {loadingPromotions && <small style={{ color: '#888' }}>Refreshing…</small>}
+                  </div>
+
+                  {promotions.length === 0 ? (
+                    <p style={{ color: '#777', fontSize: '13px' }}>No promotional offers created yet. Use the form above to add your first offer or scheme.</p>
+                  ) : (
+                    <div className="offers-items-grid">
+                      {promotions.map((item) => (
+                        <div key={item.id} className="offer-item-card">
+                          <div className="offer-card-media">
+                            {item.media_type === 'video' && item.media_url ? (
+                              <video src={item.media_url} muted />
+                            ) : (
+                              <img
+                                src={item.media_url || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=600&q=80'}
+                                alt={item.name}
+                              />
+                            )}
+                            <span className="offer-card-type-badge">
+                              {item.media_type === 'video' ? '🎬 Video' : '📷 Image'}
+                            </span>
+                            <span className={`offer-card-status-badge ${item.active ? 'offer-card-status-badge--active' : 'offer-card-status-badge--inactive'}`}>
+                              {item.active ? '● Live on Front' : '○ Inactive'}
+                            </span>
+                          </div>
+
+                          <div className="offer-card-body">
+                            <h5 className="offer-card-title">{item.name}</h5>
+                            {item.description && <p className="offer-card-desc">{item.description}</p>}
+                            <div className="offer-card-cta-preview">
+                              Button: <strong>{item.cta_text || 'Explore Offer'}</strong> → {item.cta_link || '#collection'}
+                            </div>
+
+                            <div className="offer-card-actions">
+                              <button
+                                type="button"
+                                className="offer-btn-sm"
+                                onClick={() => handleTogglePromoActive(item)}
+                              >
+                                {item.active ? 'Hide from Front' : 'Publish Live'}
+                              </button>
+                              <button
+                                type="button"
+                                className="offer-btn-sm"
+                                onClick={() => handleEditPromo(item)}
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="offer-btn-sm offer-btn-sm--danger"
+                                onClick={() => handleDeletePromotion(item.id, item.name)}
+                              >
+                                🗑️ Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

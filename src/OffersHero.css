@@ -1,0 +1,286 @@
+/* ── Liquid Glass Offers & Schemes Hero Showcase ────────────────────────── */
+
+.offers-hero-section {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 76px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #151610;
+}
+
+/* Background Media & Cinematic Overlay */
+.offers-hero-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.offers-media-element {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 1.2s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.8s ease;
+}
+
+.offers-media-video {
+  pointer-events: none;
+}
+
+.offers-media-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(20, 22, 16, 0.35) 0%, rgba(14, 15, 10, 0.75) 100%),
+              linear-gradient(180deg, rgba(20, 22, 16, 0.2) 0%, rgba(15, 16, 12, 0.6) 100%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* Container & Liquid Glass Card */
+.offers-hero-content-wrapper {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 920px;
+  padding: clamp(24px, 5vw, 48px);
+  margin: 0 auto;
+}
+
+.liquid-glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: clamp(36px, 5.5vw, 64px);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 
+    0 30px 60px -15px rgba(0, 0, 0, 0.5),
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.25);
+  color: #ffffff;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+}
+
+.liquid-glass-card:hover {
+  box-shadow: 
+    0 35px 70px -15px rgba(0, 0, 0, 0.6),
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* Diagonal Specular Sheen across Liquid Glass */
+.liquid-glass-specular {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 55%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.38) 0%,
+    rgba(255, 255, 255, 0.08) 35%,
+    rgba(224, 205, 157, 0.18) 65%,
+    transparent 100%
+  );
+  border-radius: 20px 20px 0 0;
+  pointer-events: none;
+}
+
+/* Glass Tag / Badge */
+.liquid-glass-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 40px;
+  background: rgba(180, 154, 96, 0.25);
+  border: 1px solid rgba(224, 205, 157, 0.5);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  color: #f6e8c7;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 2;
+}
+
+.glass-tag-sparkle {
+  color: #e0cd9d;
+  font-size: 13px;
+}
+
+/* Title & Description */
+.liquid-glass-title {
+  position: relative;
+  z-index: 2;
+  margin: 0 0 16px;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(34px, 4.8vw, 58px);
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+}
+
+.liquid-glass-desc {
+  position: relative;
+  z-index: 2;
+  margin: 0 auto 32px;
+  max-width: 680px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: clamp(14px, 1.8vw, 17px);
+  line-height: 1.75;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* CTA Action Buttons */
+.liquid-glass-actions {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.liquid-glass-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  background: rgba(180, 154, 96, 0.9);
+  color: #1a1a12;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.liquid-glass-btn-primary:hover {
+  background: #deb86d;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+
+.liquid-glass-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  padding: 14px 26px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  text-decoration: none;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.liquid-glass-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.7);
+  transform: translateY(-2px);
+}
+
+/* ── Very Slight & Narrow Navigation Arrow Buttons ─────────────────────── */
+.liquid-nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.25s ease, width 0.2s ease, color 0.2s ease;
+  user-select: none;
+}
+
+.liquid-nav-arrow:hover {
+  background: rgba(255, 255, 255, 0.35);
+  color: #e0cd9d;
+  width: 30px;
+}
+
+.liquid-nav-arrow--left {
+  left: 0;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+
+.liquid-nav-arrow--right {
+  right: 0;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+}
+
+/* Liquid Glass Dots Indicator */
+.liquid-glass-dots {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 10;
+}
+
+.liquid-dot {
+  width: 28px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: background 0.3s ease, width 0.3s ease, border-color 0.3s ease;
+  padding: 0;
+}
+
+.liquid-dot--active {
+  background: #e0cd9d;
+  border-color: #ffffff;
+  width: 44px;
+}
+
+@media (max-width: 768px) {
+  .offers-hero-section {
+    min-height: 480px;
+  }
+  .liquid-glass-card {
+    padding: 32px 20px;
+  }
+  .liquid-nav-arrow {
+    width: 22px;
+    height: 72px;
+    font-size: 24px;
+  }
+}

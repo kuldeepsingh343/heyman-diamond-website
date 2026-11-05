@@ -44,6 +44,14 @@ import {
 } from './services/quotes.mjs'
 
 import {
+  handleGetPromotions,
+  handleGetAdminPromotions,
+  handleCreatePromotion,
+  handleUpdatePromotion,
+  handleDeletePromotion,
+} from './services/promotions.mjs'
+
+import {
   handleGetReviews,
   handleCreateReview,
   handleGetAdminReviews,
@@ -59,7 +67,6 @@ import {
   handleGetDealerApplications,
   handleUpdateDealerApplication,
   handleGetOrders,
-  handleGetPromotions,
 } from './services/admin.mjs'
 
 const server = createServer(async (req, res) => {
@@ -154,6 +161,11 @@ const server = createServer(async (req, res) => {
       return await handleInstagramFeed(req, res)
     }
 
+    // ── Promotions / Offers & Schemes Service ─────────────────────────────────
+    if (req.method === 'GET' && url.pathname === '/api/promotions') {
+      return await handleGetPromotions(req, res)
+    }
+
     // ── Admin Gateway & Protected Sub-Services ───────────────────────────────
     if (url.pathname.startsWith('/api/admin/')) {
       const admin = await requireAdmin(req)
@@ -200,45 +212,20 @@ const server = createServer(async (req, res) => {
         return await handleGetOrders(req, res, admin)
       }
 
-      // Admin Promotions
+      // Admin Promotions / Offers & Schemes
       if (req.method === 'GET' && url.pathname === '/api/admin/promotions') {
-        return await handleGetPromotions(req, res, admin)
+        return await handleGetAdminPromotions(req, res, admin)
       }
       if (req.method === 'POST' && url.pathname === '/api/admin/promotions') {
-        if (!p.can_manage_promotions) return json(res, 403, { error: 'Promotion-management permission required.' })
-        const input = await bodyJson(req)
-        const name = String(input.name || '').trim()
-        const kind = String(input.discountKind || '')
-        const value = Number(input.discountValue)
-        if (!name || name.length > 120 || !['percentage', 'fixed_amount'].includes(kind) || !Number.isFinite(value) || value <= 0 || (kind === 'percentage' && value > 100)) {
-          return json(res, 400, { error: 'Check the promotion name and discount value.' })
-        }
-        const rows = await db('promotions', {
-          method: 'POST',
-          headers: { Prefer: 'return=representation' },
-          body: JSON.stringify({
-            name,
-            public_code: input.publicCode ? String(input.publicCode).trim().toUpperCase().slice(0, 50) : null,
-            description: String(input.description || '').slice(0, 1000),
-            discount_kind: kind,
-            discount_value: value,
-            eligibility: input.eligibility && typeof input.eligibility === 'object' ? input.eligibility : {},
-            starts_at: input.startsAt || null,
-            ends_at: input.endsAt || null,
-            max_redemptions: input.maxRedemptions ? Number(input.maxRedemptions) : null,
-            combinable: input.combinable === true,
-            banner_enabled: input.bannerEnabled === true,
-            banner_text: String(input.bannerText || '').slice(0, 250),
-            active: input.active === true,
-            created_by: admin.user.id,
-          }),
-        })
-        await db('audit_log', {
-          method: 'POST',
-          headers: { Prefer: 'return=minimal' },
-          body: JSON.stringify({ actor_user_id: admin.user.id, action: 'promotion_created', entity_type: 'promotion', entity_id: rows?.[0]?.id || null }),
-        })
-        return json(res, 201, { promotion: rows?.[0] || null })
+        return await handleCreatePromotion(req, res, admin)
+      }
+      if ((req.method === 'PUT' || req.method === 'PATCH') && /^\/api\/admin\/promotions\/[^/]+$/i.test(url.pathname)) {
+        const id = url.pathname.split('/').pop()
+        return await handleUpdatePromotion(req, res, id, admin)
+      }
+      if (req.method === 'DELETE' && /^\/api\/admin\/promotions\/[^/]+$/i.test(url.pathname)) {
+        const id = url.pathname.split('/').pop()
+        return await handleDeletePromotion(req, res, id, admin)
       }
 
       return json(res, 404, { error: 'Admin endpoint not found.' })

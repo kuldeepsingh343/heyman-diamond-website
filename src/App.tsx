@@ -7,6 +7,7 @@ import AuthPages from './AuthPages'
 import AboutPage from './AboutPage'
 import type { UserProfile } from './AuthPages'
 import InstagramReels from './InstagramReels'
+import OffersHero from './OffersHero'
 import { resolveAuthRoute, normalizeHashFragment } from './routeUtils'
 
 const categories = [
@@ -214,52 +215,7 @@ function App() {
         </div>
       </header>
 
-      <section className="hero" id="home">
-        <div className="hero-content">
-          <div className="eyebrow">
-            <span className="eyebrow-line" />
-            EXCEPTIONAL DIAMONDS. PERSONAL SERVICE.
-          </div>
-
-          <h1>
-            A brilliance
-            <br />
-            all your <em>own.</em>
-          </h1>
-
-          <p className="hero-description">
-            Discover lab-grown diamonds selected with care. From
-            individual purchases to wholesale partnerships, our team
-            is here to help you find the right stone.
-          </p>
-
-          <div className="hero-actions">
-            <a className="button-primary" href="#collection">
-              Explore Our Diamonds
-            </a>
-            <a className="button-secondary" href="#contact">
-              Meet Our Team
-            </a>
-          </div>
-
-          <div className="hero-note">
-            <span className="status-dot" />
-            Serving retail customers and diamond professionals
-          </div>
-        </div>
-
-        <div className="hero-art">
-          <img
-            className="hero-photo"
-            src="https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=1400&q=90"
-            alt="Close-up of a diamond jewelry piece"
-          />
-          <div className="hero-photo-caption">
-            <span>THE ART OF BRILLIANCE</span>
-            <span>LAB-GROWN DIAMONDS</span>
-          </div>
-        </div>
-      </section>
+      <OffersHero />
 
       <section className="trust-strip">
         <div>

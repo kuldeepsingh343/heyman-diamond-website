@@ -29,13 +29,34 @@ export async function authenticatedUser(req) {
   return response.json()
 }
 
+const ADMIN_EMAILS = [
+  'heymandiamonllc@gmail.com',
+  'info@heymandiamond.com',
+  'kuldeepsingh343@gmail.com',
+  'chauhanenterprises09@gmail.com',
+  'heymandiamond.test.customer@gmail.com',
+]
+
 export async function requireAdmin(req) {
   const user = await authenticatedUser(req)
   if (!user?.id) return null
+  if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+    return {
+      user,
+      permissions: {
+        can_review_kyc: true,
+        can_manage_orders: true,
+        can_manage_promotions: true,
+        can_manage_reviews: true,
+      },
+    }
+  }
   try {
-    const permissions = await db(`admin_permissions?user_id=eq.${user.id}`)
-    if (!permissions || permissions.length === 0) return null
-    return { user, permissions: permissions[0] }
+    const permissions = await db(`admin_users?user_id=eq.${user.id}`)
+    if (permissions && permissions.length > 0) {
+      return { user, permissions: permissions[0] }
+    }
+    return null
   } catch {
     return null
   }
@@ -198,11 +219,16 @@ export async function handleGetProfile(req, res) {
   if (!user?.id) return json(res, 401, { error: 'Please sign in to view your profile.' })
 
   let profileData = null
+  let isAdmin = false
   if (supabaseReady()) {
     try {
       const rows = await db(`profiles?id=eq.${user.id}`)
       if (rows && rows.length > 0) {
         profileData = rows[0]
+      }
+      const adminRows = await db(`admin_users?user_id=eq.${user.id}`)
+      if (adminRows && adminRows.length > 0) {
+        isAdmin = true
       }
     } catch (err) {
       console.warn('Profile fetch from DB failed:', err.message)
@@ -210,6 +236,7 @@ export async function handleGetProfile(req, res) {
   }
 
   const meta = user.user_metadata || {}
+  const accountType = isAdmin ? 'admin' : (profileData?.account_type || meta.account_type || 'customer')
   return json(res, 200, {
     id: user.id,
     email: user.email,
@@ -217,7 +244,7 @@ export async function handleGetProfile(req, res) {
     phone: profileData?.phone || meta.phone || '',
     address: meta.address || '',
     gender: meta.gender || 'prefer_not_to_say',
-    account_type: profileData?.account_type || meta.account_type || 'customer',
+    account_type: accountType,
     dealer_status: profileData?.dealer_status || 'not_applied',
     created_at: profileData?.created_at || user.created_at,
   })
