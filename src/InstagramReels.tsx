@@ -1,41 +1,51 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 interface InstagramReel {
   id: string
-  caption: string
   permalink: string
   thumbnailUrl: string
-  timestamp: string
 }
 
 const curatedReels: InstagramReel[] = [
   {
     id: 'curated-1',
-    caption: 'Pure fire and brilliance. Certified Oval lab-grown solitaire showcase.',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
     thumbnailUrl: '/loose-fancy-diamonds.png',
-    timestamp: '2026-11-01T12:00:00Z',
   },
   {
     id: 'curated-2',
-    caption: 'Precision calibrated Round Melee parcels ready for custom jewelry settings.',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=900&q=85',
-    timestamp: '2026-10-28T14:30:00Z',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=800&q=85',
   },
   {
     id: 'curated-3',
-    caption: 'Radiant and Emerald cuts with extraordinary VVS clarity and ideal polish.',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=900&q=85',
-    timestamp: '2026-10-25T10:15:00Z',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=800&q=85',
   },
   {
     id: 'curated-4',
-    caption: 'Vivid Pink and Fancy Yellow lab-grown diamonds. Ethical luxury redefined.',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=900&q=85',
-    timestamp: '2026-10-20T16:45:00Z',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=85',
+  },
+  {
+    id: 'curated-5',
+    permalink: 'https://www.instagram.com/heymandiamond_llc',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=800&q=85',
+  },
+  {
+    id: 'curated-6',
+    permalink: 'https://www.instagram.com/heymandiamond_llc',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?auto=format&fit=crop&w=800&q=85',
+  },
+  {
+    id: 'curated-7',
+    permalink: 'https://www.instagram.com/heymandiamond_llc',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=85',
+  },
+  {
+    id: 'curated-8',
+    permalink: 'https://www.instagram.com/heymandiamond_llc',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1573408301185-9146fe634ad0?auto=format&fit=crop&w=800&q=85',
   },
 ]
 
@@ -43,86 +53,148 @@ function isInstagramReel(value: unknown): value is InstagramReel {
   if (!value || typeof value !== 'object') return false
   const reel = value as Record<string, unknown>
   return typeof reel.id === 'string'
-    && typeof reel.caption === 'string'
     && typeof reel.permalink === 'string'
     && reel.permalink.startsWith('https://www.instagram.com/')
     && typeof reel.thumbnailUrl === 'string'
     && reel.thumbnailUrl.startsWith('https://')
-    && typeof reel.timestamp === 'string'
 }
 
-function InstagramReels() {
-  const [reels, setReels] = useState<InstagramReel[]>([])
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+export default function InstagramReels() {
+  const [reels, setReels] = useState<InstagramReel[]>(curatedReels)
+  const carouselRef = useRef<HTMLDivElement | null>(null)
+  const [isPaused, setIsPaused] = useState(false)
 
+  // Fetch live reels from backend API if configured
   useEffect(() => {
     let active = true
-    let controller: AbortController | undefined
+    const controller = new AbortController()
 
-    const loadReels = async () => {
-      controller = new AbortController()
-      try {
-        const response = await fetch('/api/instagram/reels', { signal: controller.signal })
-        if (!response.ok) throw new Error('Instagram feed request failed')
-        const payload: unknown = await response.json()
-        if (!payload || typeof payload !== 'object' || !('reels' in payload) || !Array.isArray(payload.reels)) {
-          throw new Error('Instagram feed response is invalid')
+    fetch('/api/instagram/reels', { signal: controller.signal })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!active) return
+        if (data && Array.isArray(data.reels) && data.reels.length > 0) {
+          const valid = data.reels.filter(isInstagramReel)
+          if (valid.length > 0) setReels(valid)
         }
-        const nextReels = payload.reels.filter(isInstagramReel)
-        if (active) {
-          setReels(nextReels.length > 0 ? nextReels : curatedReels)
-          setStatus('ready')
-        }
-      } catch {
-        if (active && !controller?.signal.aborted) {
-          setReels(curatedReels)
-          setStatus('ready')
-        }
-      }
-    }
+      })
+      .catch(() => {})
 
-    void loadReels()
-    const refresh = window.setInterval(() => void loadReels(), 5 * 60 * 1000)
     return () => {
       active = false
-      controller?.abort()
-      window.clearInterval(refresh)
+      controller.abort()
     }
   }, [])
 
-  if (status === 'loading') {
-    return <p className="instagram-feed-status" aria-live="polite">Loading our latest Instagram reels…</p>
+  // Auto-slide every 3.5 seconds from right to left
+  useEffect(() => {
+    if (isPaused) return
+
+    const timer = setInterval(() => {
+      const el = carouselRef.current
+      if (!el) return
+
+      const card = el.firstElementChild as HTMLElement | null
+      const step = card ? card.offsetWidth + 2 : 240
+      const maxScroll = el.scrollWidth - el.clientWidth
+
+      if (el.scrollLeft >= maxScroll - 15) {
+        // Seamlessly return to start
+        el.scrollTo({ left: 0, behavior: 'smooth' })
+      } else {
+        el.scrollBy({ left: step, behavior: 'smooth' })
+      }
+    }, 3500)
+
+    return () => clearInterval(timer)
+  }, [isPaused, reels])
+
+  const scrollPrev = () => {
+    const el = carouselRef.current
+    if (!el) return
+    const card = el.firstElementChild as HTMLElement | null
+    const step = card ? card.offsetWidth + 2 : 240
+    el.scrollBy({ left: -step, behavior: 'smooth' })
   }
 
-  if (status === 'error') {
-    return <p className="instagram-feed-status" aria-live="polite">Our Instagram reels are unavailable right now. Visit our Instagram page to see the latest posts.</p>
-  }
-
-  if (reels.length === 0) {
-    return <p className="instagram-feed-status" aria-live="polite">No recent reels to show yet. Follow us on Instagram to catch our latest posts.</p>
+  const scrollNext = () => {
+    const el = carouselRef.current
+    if (!el) return
+    const card = el.firstElementChild as HTMLElement | null
+    const step = card ? card.offsetWidth + 2 : 240
+    const maxScroll = el.scrollWidth - el.clientWidth
+    if (el.scrollLeft >= maxScroll - 15) {
+      el.scrollTo({ left: 0, behavior: 'smooth' })
+    } else {
+      el.scrollBy({ left: step, behavior: 'smooth' })
+    }
   }
 
   return (
-    <div className="instagram-reel-carousel" aria-label="Recent Instagram reels" tabIndex={0}>
-      {reels.map((reel) => (
+    <div
+      className="instagram-strip-container"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
+      <div className="instagram-strip-header">
         <a
-          className="instagram-reel-card"
-          href={reel.permalink}
+          href="https://www.instagram.com/heymandiamond_llc"
           target="_blank"
           rel="noreferrer"
-          key={reel.id}
-          aria-label={`Watch Instagram reel${reel.caption ? `: ${reel.caption}` : ''}`}
+          className="instagram-strip-title"
+          title="Visit @heymandiamond_llc on Instagram"
         >
-          <div className="instagram-reel-image">
-            <img src={reel.thumbnailUrl} alt="" loading="lazy" />
-            <span className="instagram-reel-badge">REEL</span>
-          </div>
-          {reel.caption && <p>{reel.caption}</p>}
-          {reel.timestamp && <time dateTime={reel.timestamp}>{new Date(reel.timestamp).toLocaleDateString()}</time>}
+          VIEW OUR INSTAGRAM
         </a>
-      ))}
+        <div className="instagram-strip-line" />
+      </div>
+
+      <div className="instagram-slider-wrapper">
+        <button
+          type="button"
+          className="instagram-slider-arrow instagram-slider-arrow--left"
+          onClick={scrollPrev}
+          aria-label="Previous reels"
+        >
+          ‹
+        </button>
+
+        <div
+          className="instagram-slider-track"
+          ref={carouselRef}
+          aria-label="Instagram reels showcase"
+          tabIndex={0}
+        >
+          {reels.map((reel) => (
+            <a
+              key={reel.id}
+              className="instagram-slide-card"
+              href={reel.permalink}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Watch reel on Instagram"
+            >
+              <img src={reel.thumbnailUrl} alt="Hey Man Diamond Reel" loading="lazy" />
+              <div className="instagram-play-overlay">
+                <span className="instagram-play-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+              </div>
+            </a>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          className="instagram-slider-arrow instagram-slider-arrow--right"
+          onClick={scrollNext}
+          aria-label="Next reels"
+        >
+          ›
+        </button>
+      </div>
     </div>
   )
 }
-
-export default InstagramReels

@@ -389,31 +389,11 @@ function App() {
         </div>
       </section>
 
-      <section className="social-section">
-        <div className="section-heading">
-          <div>
-            <div className="eyebrow">
-              <span className="eyebrow-line" />
-              FOLLOW OUR JOURNEY
-            </div>
-            <h2>
-              A little more <em>brilliance.</em>
-            </h2>
-          </div>
-          <a
-            className="text-link"
-            href="https://www.instagram.com/heymandiamond_llc"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Follow us on Instagram
-          </a>
-        </div>
+      <CustomerExperience />
 
+      <section className="instagram-section" id="instagram">
         <InstagramReels />
       </section>
-
-      <CustomerExperience />
 
       <footer className="footer">
         <a className="brand footer-brand" href="#home">
