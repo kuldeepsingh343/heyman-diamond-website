@@ -158,70 +158,69 @@ export default function CustomerExperience() {
       </section>
 
       <section className="review-section" id="reviews" aria-labelledby="reviews-title">
-        {/* ── Client Testimonials Showcase (Top 3 with "Read More") ── */}
-        <div className="reviews-showcase">
-          <div className="reviews-showcase-header">
-            <div>
-              <div className="eyebrow"><span className="eyebrow-line" />CLIENT EXPERIENCES</div>
-              <h2 id="reviews-title">Trusted by retailers, manufacturers &amp; <em>collectors.</em></h2>
-            </div>
-            <div className="reviews-rating-pill" aria-label="5.0 out of 5 stars based on verified client feedback">
-              <span className="rating-stars">★★★★★</span>
-              <span className="rating-score">5.0 / 5.0</span>
-              <span className="rating-count">Verified Feedback</span>
-            </div>
+        {/* ── CLIENT EXPERIENCES Section Header ── */}
+        <div className="reviews-showcase-header">
+          <div>
+            <div className="eyebrow"><span className="eyebrow-line" />CLIENT EXPERIENCES</div>
+            <h2 id="reviews-title">Trusted by retailers, manufacturers &amp; <em>collectors.</em></h2>
           </div>
-
-          <div className="reviews-cards-grid">
-            {displayedReviews.map((item) => (
-              <article key={item.id} className="client-review-card">
-                <div className="review-card-top">
-                  <div className="review-card-stars" aria-label={`${item.rating} out of 5 stars`}>
-                    {'★'.repeat(item.rating || 5)}
-                  </div>
-                  <span className="review-card-badge">✓ Verified Client</span>
-                </div>
-
-                <p className="review-card-quote">“{item.remarks}”</p>
-
-                {item.reply && (
-                  <div className="review-card-reply">
-                    <span className="review-card-reply-author">Hey Man Diamond LLC:</span>
-                    {item.reply}
-                  </div>
-                )}
-
-                <div className="review-card-meta">
-                  <span className="review-card-author">{item.customer_name}</span>
-                  <span className="review-card-date">
-                    {item.submitted_at ? new Date(item.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Verified'}
-                  </span>
-                </div>
-              </article>
-            ))}
+          <div className="reviews-rating-pill" aria-label="5.0 out of 5 stars based on verified client feedback">
+            <span className="rating-stars">★★★★★</span>
+            <span className="rating-score">5.0 / 5.0</span>
+            <span className="rating-count">Verified Feedback</span>
           </div>
-
-          {reviews.length > initialCount && (
-            <div className="reviews-read-more-wrap">
-              <button
-                type="button"
-                className="reviews-read-more-btn"
-                onClick={() => setShowAllReviews(!showAllReviews)}
-                aria-expanded={showAllReviews}
-              >
-                <span>{showAllReviews ? 'Show Fewer Reviews' : `Read More Reviews (${reviews.length - initialCount} more)`}</span>
-                <span className="read-more-arrow" aria-hidden="true">{showAllReviews ? '↑' : '↓'}</span>
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* ── Leave a Review & Google Review Links ── */}
+        {/* ── Top 3 Reviews Grid ── */}
+        <div className="reviews-cards-grid">
+          {displayedReviews.map((item) => (
+            <article key={item.id} className="client-review-card">
+              <div className="review-card-top">
+                <div className="review-card-stars" aria-label={`${item.rating} out of 5 stars`}>
+                  {'★'.repeat(item.rating || 5)}
+                </div>
+                <span className="review-card-badge">✓ Verified Client</span>
+              </div>
+
+              <p className="review-card-quote">“{item.remarks}”</p>
+
+              {item.reply && (
+                <div className="review-card-reply">
+                  <span className="review-card-reply-author">Hey Man Diamond LLC:</span>
+                  {item.reply}
+                </div>
+              )}
+
+              <div className="review-card-meta">
+                <span className="review-card-author">{item.customer_name}</span>
+                <span className="review-card-date">
+                  {item.submitted_at ? new Date(item.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Verified'}
+                </span>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {/* ── Read More Reviews Toggle Button ── */}
+        {reviews.length > initialCount && (
+          <div className="reviews-read-more-wrap">
+            <button
+              type="button"
+              className="reviews-read-more-btn"
+              onClick={() => setShowAllReviews(!showAllReviews)}
+              aria-expanded={showAllReviews}
+            >
+              <span>{showAllReviews ? 'Show Fewer Reviews' : `Read More Reviews (${reviews.length - initialCount} more)`}</span>
+              <span className="read-more-arrow" aria-hidden="true">{showAllReviews ? '↑' : '↓'}</span>
+            </button>
+          </div>
+        )}
+
+        {/* ── Integrated Google Reviews & Leave a Review Form ── */}
         <div className="review-layout">
           <div className="review-intro">
-            <div className="eyebrow"><span className="eyebrow-line" />YOUR EXPERIENCE MATTERS</div>
-            <h3>Your feedback helps us <em>shine brighter.</em></h3>
-            <p>We value honest feedback. Tell us about your experience with Hey Man Diamond LLC, and help us continue improving our service.</p>
+            <h3>Share your experience with us.</h3>
+            <p>Your feedback helps us continue providing exceptional lab-grown diamonds and personal service across North America. Tell us about your experience or review our offices on Google:</p>
             <div className="google-review-links">
               <a className="google-review-link" href={googleReviews[0].url} target="_blank" rel="noreferrer">
                 <span><strong>Give us a Google review</strong><br /><small>Chicago Office</small></span>
@@ -232,7 +231,7 @@ export default function CustomerExperience() {
             </div>
           </div>
           <form className="review-form" onSubmit={submitReview}>
-            <h3>Leave a review</h3>
+            <h4>Leave a review</h4>
             <p className="form-intro">Share your thoughts with our team. Your email address will not be displayed publicly.</p>
             <div className="review-field">
               <label htmlFor="review-remarks">YOUR FEEDBACK *</label>

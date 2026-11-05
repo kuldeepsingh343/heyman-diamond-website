@@ -1252,12 +1252,6 @@ button:focus-visible {
 }
 
 /* ── Client Reviews Showcase (Top 3 + Read More) ── */
-.reviews-showcase {
-  margin-bottom: 72px;
-  padding-bottom: 60px;
-  border-bottom: 1px solid #dfd8ca;
-}
-
 .reviews-showcase-header {
   display: flex;
   justify-content: space-between;
@@ -1461,19 +1455,21 @@ button:focus-visible {
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: clamp(30px, 6vw, 84px);
   align-items: start;
+  margin-top: 56px;
+  padding-top: 52px;
+  border-top: 1px solid #dfd8ca;
 }
-.review-intro h2,
 .review-intro h3 {
-  margin: 20px 0 16px;
-  font: 500 clamp(32px, 3.8vw, 46px)/1.15 'Playfair Display', Georgia, serif;
-  letter-spacing: -1px;
+  margin: 0 0 16px;
+  font: 500 clamp(24px, 2.6vw, 34px)/1.22 'Playfair Display', Georgia, serif;
+  letter-spacing: -0.5px;
+  color: #1a1a12;
 }
-.review-intro h2 em,
 .review-intro h3 em { color: var(--gold); }
 .review-intro > p {
   color: var(--muted);
   font-size: 13px;
-  line-height: 1.9;
+  line-height: 1.85;
 }
 .google-review-links {
   display: grid;
@@ -1498,9 +1494,11 @@ button:focus-visible {
   border: 1px solid #e4ddcf;
   box-shadow: 0 18px 48px rgb(45 38 24 / 5%);
 }
-.review-form h3 {
+.review-form h3,
+.review-form h4 {
   margin: 0 0 6px;
   font: 500 27px/1.25 'Playfair Display', Georgia, serif;
+  color: #1a1a12;
 }
 .review-form .form-intro {
   margin: 0 0 24px;
