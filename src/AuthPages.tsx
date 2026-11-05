@@ -717,8 +717,14 @@ export default function AuthPages({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Something went wrong. Please try again.')
+      const isJson = response.headers.get('content-type')?.includes('application/json')
+      const data = isJson ? await response.json().catch(() => ({})) : {}
+      if (!response.ok) {
+        if (!isJson) {
+          throw new Error('The server is currently deploying or restarting. Please try again in a few moments.')
+        }
+        throw new Error(data.error || 'Something went wrong. Please try again.')
+      }
 
       if (!signup && data.accessToken) {
         localStorage.setItem('hmd_access_token', data.accessToken)
@@ -765,7 +771,8 @@ export default function AuthPages({
         }),
       })
 
-      const data = await res.json()
+      const isJson = res.headers.get('content-type')?.includes('application/json')
+      const data = isJson ? await res.json().catch(() => ({})) : {}
       if (!res.ok) throw new Error(data.error || 'Failed to update profile.')
 
       const updated: UserProfile = {
@@ -813,7 +820,8 @@ export default function AuthPages({
         }),
       })
 
-      const data = await res.json()
+      const isJson = res.headers.get('content-type')?.includes('application/json')
+      const data = isJson ? await res.json().catch(() => ({})) : {}
       if (!res.ok) throw new Error(data.error || 'Failed to submit quote request.')
 
       updateCart([])
@@ -841,7 +849,8 @@ export default function AuthPages({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
       })
-      const data = await response.json()
+      const isJson = response.headers.get('content-type')?.includes('application/json')
+      const data = isJson ? await response.json().catch(() => ({})) : {}
       if (!response.ok) throw new Error(data.error || 'Unable to request a new confirmation email.')
       setStatus({ text: data.message || 'If confirmation is still required, a new email has been requested.', kind: 'success' })
     } catch (error) {
@@ -907,7 +916,8 @@ export default function AuthPages({
         }),
       })
 
-      const data = await res.json()
+      const isJson = res.headers.get('content-type')?.includes('application/json')
+      const data = isJson ? await res.json().catch(() => ({})) : {}
       if (!res.ok) {
         throw new Error(data.error || 'Failed to upload diamond inventory.')
       }
