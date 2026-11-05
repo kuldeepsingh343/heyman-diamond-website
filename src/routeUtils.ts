@@ -45,8 +45,8 @@ export function resolveAuthRoute(hash?: string): string {
   const currentHash = hash ?? (typeof window !== 'undefined' ? window.location.hash : '')
   if (!currentHash) return ''
 
-  // Standard auth routes: #signup-customer, #signup-dealer, #signin, #account
-  const standardMatch = currentHash.match(/^#(signup-customer|signup-dealer|signin|account)$/)
+  // Standard auth routes: #signup-customer, #signup-dealer, #signin, #account, #admin
+  const standardMatch = currentHash.match(/^#(signup-customer|signup-dealer|signin|account|admin)$/)
   if (standardMatch) return standardMatch[1]
 
   // Supabase verification redirect tokens (e.g. #access_token=... or #signin#access_token=...)

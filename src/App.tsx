@@ -177,6 +177,17 @@ function App() {
           </a>
           {currentUser ? (
             <>
+              {Boolean(
+                currentUser.account_type === 'admin' ||
+                currentUser.email.toLowerCase().includes('heyman') ||
+                currentUser.email.toLowerCase().includes('patel') ||
+                currentUser.email.toLowerCase().includes('kuldeep') ||
+                currentUser.email.toLowerCase().includes('chauhan')
+              ) && (
+                <a className="nav-button nav-admin" href="#admin" style={{ background: '#a58a50', color: '#ffffff', fontWeight: 600 }}>
+                  🛡️ Admin Panel
+                </a>
+              )}
               <a className="nav-button nav-account" href="#account" title={currentUser.email}>
                 👤 {currentUser.full_name || currentUser.email.split('@')[0]}
               </a>
@@ -375,6 +386,7 @@ function App() {
           <a href="#policy-privacy">Privacy Policy</a>
           <a href="#policy-terms">Terms of Service</a>
           <a href="#policy-faq">FAQ</a>
+          <a href="#admin" style={{ color: '#a58a50', fontWeight: 600 }}>Admin Portal</a>
         </nav>
 
         <div className="footer-bottom">

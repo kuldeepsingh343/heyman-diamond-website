@@ -1628,3 +1628,133 @@
   color: #2b2820;
 }
 
+/* ── Wholesale Dealer Applications Manager ── */
+.dealers-manager-box {
+  background: #ffffff;
+  border: 1px solid #e5ded0;
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.dealers-manager-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0ebe0;
+}
+
+.dealers-manager-header h3 {
+  margin: 0 0 4px;
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  color: #1a1a12;
+}
+
+.dealers-manager-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #77746b;
+}
+
+.dealers-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5ded0;
+  border-radius: 6px;
+}
+
+.dealers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dealers-table th {
+  background: #fbf9f4;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #555248;
+  border-bottom: 1px solid #e5ded0;
+}
+
+.dealers-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0ebe0;
+  color: #2b2820;
+}
+
+.dealer-app-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.dealer-app-badge--approved {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.dealer-app-badge--pending_review,
+.dealer-app-badge--pending {
+  background: #fef7e0;
+  color: #b06000;
+}
+
+.dealer-app-badge--rejected {
+  background: #fce8e6;
+  color: #c5221f;
+}
+
+.dealer-action-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.approve-dealer-btn {
+  background: #137333;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.approve-dealer-btn:hover {
+  background: #0d5c27;
+}
+
+.reject-dealer-btn {
+  background: transparent;
+  color: #c5221f;
+  border: 1px solid #f28b82;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reject-dealer-btn:hover {
+  background: #fce8e6;
+}
+
+.account-card-item--admin-highlight {
+  border-left: 4px solid #a58a50;
+  background: #fdfcf9;
+}
+
+

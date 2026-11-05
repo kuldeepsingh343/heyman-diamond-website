@@ -4,8 +4,19 @@ import type { FormEvent, ChangeEvent } from 'react'
 import { parseAuthStatusFromHash } from './routeUtils'
 import type { PromotionOffer } from './OffersHero'
 
-type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account'
-type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools' | 'offers'
+type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account' | 'admin'
+type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools' | 'dealers' | 'offers'
+
+export interface DealerApplication {
+  id: string
+  user_id: string
+  status: string
+  registered_business_name: string
+  primary_contact: string
+  primary_email: string
+  business_phone?: string
+  submitted_at: string
+}
 
 export interface UserProfile {
   email: string
@@ -116,7 +127,7 @@ export default function AuthPages({
     return null
   })
 
-  const [activeTab, setActiveTab] = useState<AccountTab>('overview')
+  const [activeTab, setActiveTab] = useState<AccountTab>(mode === 'admin' ? 'tools' : 'overview')
 
   // ── signup / signin form state ──────────────────────────────────────────
   const [fullName, setFullName] = useState('')
@@ -194,6 +205,11 @@ export default function AuthPages({
   const [promoActive, setPromoActive] = useState(true)
   const [promoSaving, setPromoSaving] = useState(false)
   const [promoMsg, setPromoMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+
+  // ── Wholesale Dealer Applications state (Admin) ──────────────────────────
+  const [dealerApps, setDealerApps] = useState<DealerApplication[]>([])
+  const [loadingDealerApps, setLoadingDealerApps] = useState(false)
+  const [dealerAppMsg, setDealerAppMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
 
   const isUserAdmin = Boolean(
     user?.account_type === 'admin' ||
@@ -327,6 +343,47 @@ export default function AuthPages({
       }
     } catch {
       alert('Network request failed.')
+    }
+  }
+
+  const fetchDealerApplications = useCallback(async () => {
+    setLoadingDealerApps(true)
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch('/api/admin/dealer-applications', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.items)) {
+          setDealerApps(data.items)
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch dealer applications:', err)
+    } finally {
+      setLoadingDealerApps(false)
+    }
+  }, [])
+
+  const handleUpdateDealerStatus = async (appId: string, nextStatus: 'approved' | 'rejected' | 'pending_review') => {
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch(`/api/admin/dealer-applications/${appId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update dealer status.')
+      setDealerAppMsg({ text: `Dealer application status updated to: ${nextStatus}.`, kind: 'success' })
+      setDealerApps(prev => prev.map(a => a.id === appId ? { ...a, status: nextStatus } : a))
+      setTimeout(() => setDealerAppMsg(null), 3000)
+    } catch (err) {
+      setDealerAppMsg({ text: err instanceof Error ? err.message : 'Update failed', kind: 'error' })
     }
   }
 
@@ -522,6 +579,9 @@ export default function AuthPages({
     if (tab === 'tools') {
       fetchAdminDiamonds()
     }
+    if (tab === 'dealers') {
+      fetchDealerApplications()
+    }
   }
 
   // Load profile if token is present but user state is empty (e.g. after OAuth redirect)
@@ -550,6 +610,38 @@ export default function AuthPages({
         .catch(() => {})
     }
   }, [user, updateUserSession])
+
+  // Auto-fetch admin data asynchronously when administrator is logged in
+  useEffect(() => {
+    let ignore = false
+    const token = localStorage.getItem('hmd_access_token')
+    if (user && (mode === 'admin' || isUserAdmin)) {
+      fetch('/api/admin/diamonds', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!ignore && data?.items && Array.isArray(data.items)) {
+            setAdminDiamonds(data.items)
+          }
+        })
+        .catch(() => {})
+
+      fetch('/api/admin/dealer-applications', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!ignore && Array.isArray(data?.items)) {
+            setDealerApps(data.items)
+          }
+        })
+        .catch(() => {})
+    }
+    return () => {
+      ignore = true
+    }
+  }, [user, mode, isUserAdmin])
 
   // Load profile from server when entering profile tab
   useEffect(() => {
@@ -623,11 +715,13 @@ export default function AuthPages({
         const profile: UserProfile = data.user || { email: email.trim(), full_name: email.split('@')[0], account_type: 'customer' }
         localStorage.setItem('hmd_user', JSON.stringify(profile))
         updateUserSession(profile)
-        const msg = (profile?.account_type === 'dealer' && profile?.dealer_status !== 'approved')
+        const msg = (profile?.account_type === 'admin' || email.toLowerCase().includes('heyman') || email.toLowerCase().includes('kuldeep') || email.toLowerCase().includes('patel') || email.toLowerCase().includes('chauhan'))
+          ? 'Signed in as Administrator. Welcome to the Admin Control Center.'
+          : (profile?.account_type === 'dealer' && profile?.dealer_status !== 'approved')
           ? 'Signed in. Your dealer access is still awaiting administrator approval.'
           : 'You are signed in successfully.'
         setStatus({ text: msg, kind: 'success' })
-        window.location.hash = '#account'
+        window.location.hash = (mode === 'admin' || profile?.account_type === 'admin' || email.toLowerCase().includes('heyman') || email.toLowerCase().includes('kuldeep')) ? '#admin' : '#account'
       } else {
         setStatus({ text: data.message || 'Request received.', kind: 'success' })
         setCanResend(true)
@@ -902,13 +996,22 @@ export default function AuthPages({
             >
               📋 Orders & Transactions
             </button>
-            {(user.account_type === 'dealer' || user.account_type === 'admin') && (
+            {(isUserAdmin || user.account_type === 'dealer' || user.account_type === 'admin') && (
               <button
                 type="button"
                 className={`account-tab-btn ${activeTab === 'tools' ? 'account-tab-btn--active' : ''}`}
                 onClick={() => switchTab('tools')}
               >
-                ⚙️ Inventory Upload & API
+                ⚙️ Diamond Inventory & Pricing
+              </button>
+            )}
+            {isUserAdmin && (
+              <button
+                type="button"
+                className={`account-tab-btn ${activeTab === 'dealers' ? 'account-tab-btn--active' : ''}`}
+                onClick={() => switchTab('dealers')}
+              >
+                🏢 Dealer Approvals {dealerApps.filter(a => a.status === 'pending_review').length > 0 ? `(${dealerApps.filter(a => a.status === 'pending_review').length})` : ''}
               </button>
             )}
             {(isUserAdmin || user.account_type === 'dealer') && (
@@ -932,14 +1035,38 @@ export default function AuthPages({
               )}
 
               <div className="account-cards-grid">
+                {isUserAdmin && (
+                  <div className="account-card-item account-card-item--admin-highlight">
+                    <div>
+                      <h3>💎 Diamond Inventory &amp; Dual-Price Manager</h3>
+                      <p>Review staged diamonds from Flomiz API, reclassify categories, set Customer &amp; Dealer prices, or upload Excel spreadsheets.</p>
+                    </div>
+                    <button type="button" className="button-primary" onClick={() => switchTab('tools')}>
+                      Manage Diamonds &amp; Prices →
+                    </button>
+                  </div>
+                )}
+
+                {isUserAdmin && (
+                  <div className="account-card-item account-card-item--admin-highlight">
+                    <div>
+                      <h3>🏢 Dealer Account Approvals</h3>
+                      <p>Review wholesale trade applications from jewelry retailers and activate their wholesale pricing access.</p>
+                    </div>
+                    <button type="button" className="button-primary" onClick={() => switchTab('dealers')}>
+                      Review Dealer Requests →
+                    </button>
+                  </div>
+                )}
+
                 {(isUserAdmin || user.account_type === 'dealer') && (
                   <div className="account-card-item">
                     <div>
-                      <h3>✨ Front Page Offers & Schemes</h3>
+                      <h3>✨ Front Page Offers &amp; Schemes</h3>
                       <p>Manage liquid glass banners, promotional images, video schemes, and 3-4s slider presentation on your home page.</p>
                     </div>
                     <button type="button" className="button-primary" onClick={() => switchTab('offers')}>
-                      Manage Offers & Schemes
+                      Manage Offers &amp; Schemes
                     </button>
                   </div>
                 )}
@@ -1824,6 +1951,98 @@ export default function AuthPages({
             </div>
           )}
 
+          {/* ── TAB 8: DEALER APPROVALS (ADMIN) ── */}
+          {activeTab === 'dealers' && isUserAdmin && (
+            <div className="tab-content tab-content--dealers">
+              <div className="dealers-manager-box">
+                <div className="dealers-manager-header">
+                  <div>
+                    <h3>🏢 Wholesale Dealer Applications &amp; KYC Approvals</h3>
+                    <p>
+                      Review dealer accounts and activate their status to unlock wholesale trade pricing on the live website.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="sync-api-btn"
+                    onClick={fetchDealerApplications}
+                    disabled={loadingDealerApps}
+                  >
+                    {loadingDealerApps ? 'Refreshing…' : '🔄 Refresh Applications'}
+                  </button>
+                </div>
+
+                {dealerAppMsg && (
+                  <p className={`auth-status auth-status--${dealerAppMsg.kind}`} style={{ margin: '14px 0' }}>
+                    {dealerAppMsg.text}
+                  </p>
+                )}
+
+                {loadingDealerApps ? (
+                  <p style={{ padding: '30px', textAlign: 'center', color: '#77746b' }}>Loading dealer applications…</p>
+                ) : dealerApps.length === 0 ? (
+                  <div className="dealers-empty-box" style={{ padding: '30px', textAlign: 'center', color: '#77746b' }}>
+                    <p>No dealer applications received yet.</p>
+                  </div>
+                ) : (
+                  <div className="dealers-table-wrap">
+                    <table className="dealers-table">
+                      <thead>
+                        <tr>
+                          <th>Business Name</th>
+                          <th>Primary Contact</th>
+                          <th>Email Address</th>
+                          <th>Phone</th>
+                          <th>Submitted</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dealerApps.map(app => (
+                          <tr key={app.id}>
+                            <td><strong>{app.registered_business_name || 'N/A'}</strong></td>
+                            <td>{app.primary_contact || 'N/A'}</td>
+                            <td><a href={`mailto:${app.primary_email}`}>{app.primary_email}</a></td>
+                            <td>{app.business_phone || 'N/A'}</td>
+                            <td>{app.submitted_at ? new Date(app.submitted_at).toLocaleDateString() : 'Recent'}</td>
+                            <td>
+                              <span className={`dealer-app-badge dealer-app-badge--${app.status}`}>
+                                {app.status === 'approved' ? '✓ Approved' : app.status === 'rejected' ? '✕ Rejected' : '⏳ Pending'}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="dealer-action-btns">
+                                {app.status !== 'approved' && (
+                                  <button
+                                    type="button"
+                                    className="approve-dealer-btn"
+                                    onClick={() => handleUpdateDealerStatus(app.id, 'approved')}
+                                  >
+                                    ✓ Approve
+                                  </button>
+                                )}
+                                {app.status !== 'rejected' && (
+                                  <button
+                                    type="button"
+                                    className="reject-dealer-btn"
+                                    onClick={() => handleUpdateDealerStatus(app.id, 'rejected')}
+                                  >
+                                    ✕ Reject
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── Footer Actions ── */}
           <div className="account-footer-actions">
             <a href="#home" className="button-primary">Return to Shop</a>
@@ -1848,6 +2067,7 @@ export default function AuthPages({
   }
 
   // ── Standard Sign In / Sign Up Form View ─────────────────────────────────
+  const isAdminLogin = mode === 'admin'
   return (
     <main className="auth-page">
       <header className="auth-header">
@@ -1858,14 +2078,22 @@ export default function AuthPages({
       </header>
 
       <section className="auth-card">
-        <span className="auth-eyebrow">HEY MAN DIAMOND LLC · SECURE ACCOUNT</span>
+        <span className="auth-eyebrow">
+          {isAdminLogin
+            ? 'HEY MAN DIAMOND LLC · SECURE ADMINISTRATOR ACCESS'
+            : 'HEY MAN DIAMOND LLC · SECURE ACCOUNT'}
+        </span>
         <h1>
-          {signup
+          {isAdminLogin
+            ? 'Administrator Sign In'
+            : signup
             ? (dealer ? 'Dealer account request' : 'Create your account')
             : 'Welcome back'}
         </h1>
         <p>
-          {signup
+          {isAdminLogin
+            ? 'Enter your authorized administrator email (e.g. kuldeepsingh343@gmail.com, info@heymandiamond.com) to access diamond inventory, pricing controls, and dealer approvals.'
+            : signup
             ? (dealer
               ? 'Create your dealer account with basic business details. Access will be activated after admin approval.'
               : 'Create an account to make your diamond experience more personal.')

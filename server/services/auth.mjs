@@ -192,11 +192,14 @@ export async function handleSignin(req, res) {
   const data = await response.json()
   if (!response.ok) return json(res, response.status, { error: data.msg || data.message || 'Email or password is incorrect.' })
   const profiles = await db(`profiles?id=eq.${data.user.id}&select=account_type,dealer_status,full_name`)
+  const adminRows = await db(`admin_users?user_id=eq.${data.user.id}`).catch(() => [])
+  const isAdmin = (Array.isArray(adminRows) && adminRows.length > 0) || ADMIN_EMAILS.includes(email.toLowerCase())
+  const accountType = isAdmin ? 'admin' : (profiles?.[0]?.account_type || 'customer')
   return json(res, 200, {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
     expiresIn: data.expires_in,
-    user: { email: data.user.email, ...(profiles?.[0] || {}) },
+    user: { email: data.user.email, ...(profiles?.[0] || {}), account_type: accountType },
   })
 }
 
@@ -227,12 +230,16 @@ export async function handleGetProfile(req, res) {
         profileData = rows[0]
       }
       const adminRows = await db(`admin_users?user_id=eq.${user.id}`)
-      if (adminRows && adminRows.length > 0) {
+      if ((adminRows && adminRows.length > 0) || ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) {
         isAdmin = true
       }
     } catch (err) {
       console.warn('Profile fetch from DB failed:', err.message)
     }
+  }
+
+  if (ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) {
+    isAdmin = true
   }
 
   const meta = user.user_metadata || {}
