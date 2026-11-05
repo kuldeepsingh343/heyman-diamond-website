@@ -113,14 +113,22 @@ export default function ReviewsSection() {
           rating,
         }),
       })
-      if (!response.ok) throw new Error('Review service unavailable')
-      setStatus('Thank you! Your review has been submitted and will appear on our website after review by our team.')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || 'Review service unavailable')
+      }
+      const data = await response.json()
+      if (data.review) {
+        setReviews((prev) => [data.review, ...prev.filter((r) => r.id !== data.review.id)])
+      }
+      setStatus('Thank you! Your review has been posted and is now live on our website.')
       setName('')
       setEmail('')
       setRemarks('')
       setRating(0)
-    } catch {
-      setStatus('Review submission is not available yet. Please contact our team while we finish connecting the secure review service.')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Review submission is not available yet. Please contact our team.'
+      setStatus(msg)
     } finally {
       setSubmitting(false)
     }
@@ -338,3 +346,4 @@ export default function ReviewsSection() {
     </section>
   )
 }
+

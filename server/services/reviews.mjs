@@ -79,7 +79,7 @@ export async function handleCreateReview(req, res) {
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'ip'
   const now = Date.now()
   const history = (reviewRate.get(ip) || []).filter(t => now - t < 3600000)
-  if (history.length >= 3) return json(res, 429, { error: 'Too many submissions. Please try again later.' })
+  if (history.length >= 10) return json(res, 429, { error: 'Too many submissions. Please try again later.' })
   history.push(now)
   reviewRate.set(ip, history)
 
@@ -92,18 +92,41 @@ export async function handleCreateReview(req, res) {
     return json(res, 400, { error: 'Provide a valid name, email address, rating between 1 and 5, and review under 2,000 characters.' })
   }
 
-  await db('reviews', {
+  const rows = await db('reviews', {
     method: 'POST',
-    headers: { Prefer: 'return=minimal' },
+    headers: { Prefer: 'return=representation' },
     body: JSON.stringify({
       customer_name: name,
       customer_email: email,
       rating,
       remarks,
-      status: 'hidden',
+      status: 'published',
     }),
   })
-  return json(res, 201, { message: 'Thank you for your review. It will appear on our website after review by our team.' })
+
+  const created = Array.isArray(rows) && rows[0] ? rows[0] : null
+  const review = created
+    ? {
+        id: created.id,
+        customer_name: created.customer_name,
+        rating: created.rating,
+        remarks: created.remarks,
+        submitted_at: created.submitted_at || new Date().toISOString(),
+        reply: null,
+      }
+    : {
+        id: `rev-${Date.now()}`,
+        customer_name: name,
+        rating,
+        remarks,
+        submitted_at: new Date().toISOString(),
+        reply: null,
+      }
+
+  return json(res, 201, {
+    message: 'Thank you! Your review has been posted and is now live on our website.',
+    review,
+  })
 }
 
 export async function handleGetAdminReviews(req, res, admin) {
