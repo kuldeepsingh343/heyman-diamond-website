@@ -1268,3 +1268,363 @@
   background: #fdf2f2;
   border-color: #b3261e;
 }
+
+/* ─── Diamond Inventory & Dual-Price Manager ───────────────────────────────── */
+.diamonds-manager-wrap {
+  margin-top: 32px;
+  background: #ffffff;
+  border: 1px solid #e5dec9;
+  border-radius: 6px;
+  padding: 28px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+.diamonds-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #ede7db;
+  padding-bottom: 20px;
+  margin-bottom: 24px;
+}
+
+.diamonds-manager-header h3 {
+  margin: 0 0 6px;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 24px;
+  color: #1a1a12;
+}
+
+.diamonds-manager-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #6d6a60;
+  line-height: 1.5;
+}
+
+.diamonds-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sync-api-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: #2b2820;
+  color: #ffffff;
+  border: 1px solid #2b2820;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sync-api-btn:hover:not(:disabled) {
+  background: #a58a50;
+  border-color: #a58a50;
+}
+
+.sync-api-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Staging Alert Banner */
+.diamonds-staging-alert {
+  background: #fbf7ee;
+  border: 1px solid #e2ce9c;
+  border-left: 4px solid #a58a50;
+  padding: 16px 20px;
+  border-radius: 4px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.staging-alert-text strong {
+  display: block;
+  font-size: 14px;
+  color: #53421d;
+  margin-bottom: 3px;
+}
+
+.staging-alert-text p {
+  margin: 0;
+  font-size: 12px;
+  color: #7b6a43;
+}
+
+.batch-publish-btn {
+  padding: 9px 18px;
+  background: #3f6844;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.batch-publish-btn:hover {
+  background: #2d4d31;
+}
+
+/* Diamonds Filter Toolbar */
+.diamonds-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.diamonds-search-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 10px 14px;
+  background: #faf8f5;
+  border: 1px solid #dcd5c4;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #1a1a14;
+}
+
+.diamonds-filter-select {
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #dcd5c4;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #292820;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Diamonds Table */
+.diamonds-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #ede6d8;
+  border-radius: 6px;
+}
+
+.diamonds-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+  min-width: 900px;
+}
+
+.diamonds-table th {
+  background: #f7f3eb;
+  padding: 12px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #635f54;
+  border-bottom: 1px solid #e2dac9;
+}
+
+.diamonds-table td {
+  padding: 14px;
+  border-bottom: 1px solid #f0ece3;
+  color: #2b2820;
+  vertical-align: middle;
+}
+
+.diamonds-table tr:hover {
+  background: #faf8f5;
+}
+
+.diamond-sku-cell strong {
+  display: block;
+  font-size: 13px;
+  color: #1a1a12;
+}
+
+.diamond-sku-cell small {
+  font-size: 10.5px;
+  color: #8c887e;
+}
+
+.diamond-source-tag {
+  display: inline-block;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  margin-top: 4px;
+}
+
+.diamond-source-tag--api {
+  background: #eef3f9;
+  color: #2b547e;
+}
+
+.diamond-source-tag--excel {
+  background: #edf5ee;
+  color: #386b40;
+}
+
+/* Category Select */
+.diamond-cat-select {
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #cfc7b4;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #443c2c;
+  cursor: pointer;
+  min-width: 165px;
+}
+
+.diamond-cat-select:focus {
+  outline: none;
+  border-color: #a58a50;
+  box-shadow: 0 0 0 2px rgba(165, 138, 80, 0.15);
+}
+
+/* Price Inputs */
+.diamond-price-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #dcd5c4;
+  border-radius: 4px;
+  padding: 0 8px;
+  max-width: 120px;
+}
+
+.diamond-price-input-wrap span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a7a58;
+}
+
+.diamond-price-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a14;
+  text-align: right;
+}
+
+.diamond-price-input:focus {
+  outline: none;
+}
+
+/* Status Badges */
+.diamond-status-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.diamond-status-pill--published {
+  background: #eaf5eb;
+  color: #2e6935;
+}
+
+.diamond-status-pill--pending_review {
+  background: #fdf5e2;
+  color: #8a6514;
+}
+
+.diamond-status-pill--hidden {
+  background: #f0eee9;
+  color: #7b786f;
+}
+
+/* Row Actions */
+.diamond-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diamond-save-btn {
+  padding: 6px 12px;
+  background: #2b2820;
+  color: #ffffff;
+  border: 1px solid #2b2820;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diamond-save-btn:hover {
+  background: #a58a50;
+  border-color: #a58a50;
+}
+
+.diamond-save-btn--success {
+  background: #3f6844 !important;
+  border-color: #3f6844 !important;
+  color: #ffffff !important;
+}
+
+.diamond-status-btn {
+  padding: 6px 10px;
+  background: #ffffff;
+  border: 1px solid #cfc7b4;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #49453c;
+  cursor: pointer;
+}
+
+.diamond-status-btn:hover {
+  border-color: #a58a50;
+  color: #1a1a12;
+}
+
+/* Target Category Selector on Upload Box */
+.upload-category-selector {
+  margin: 14px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.upload-category-selector label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #555248;
+}
+
+.upload-category-selector select {
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #dcd5c4;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2b2820;
+}
+

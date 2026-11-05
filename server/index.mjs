@@ -33,6 +33,10 @@ import {
   handleDownloadTemplate,
   handleFlomizStatus,
   isFlomizConfigured,
+  handleGetAdminDiamonds,
+  handleUpdateAdminDiamond,
+  handleBatchPublishAdminDiamonds,
+  handleSyncFlomizToStaging,
 } from './services/inventory.mjs'
 
 import {
@@ -175,6 +179,21 @@ const server = createServer(async (req, res) => {
       // Admin Inventory Upload
       if (req.method === 'POST' && url.pathname === '/api/admin/inventory/upload') {
         return await handleUploadInventory(req, res, admin)
+      }
+
+      // Admin Diamonds Inventory & Price Management
+      if (req.method === 'GET' && url.pathname === '/api/admin/diamonds') {
+        return await handleGetAdminDiamonds(req, res, admin, url)
+      }
+      if (req.method === 'PATCH' && url.pathname === '/api/admin/diamonds/batch-publish') {
+        return await handleBatchPublishAdminDiamonds(req, res, admin)
+      }
+      if (req.method === 'PATCH' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+        const id = url.pathname.split('/').pop()
+        return await handleUpdateAdminDiamond(req, res, admin, id)
+      }
+      if (req.method === 'POST' && url.pathname === '/api/admin/diamonds/sync-flomiz') {
+        return await handleSyncFlomizToStaging(req, res, admin)
       }
 
       // Admin Quotes

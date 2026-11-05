@@ -171,6 +171,7 @@ export function parseDiamondSpreadsheet(fileContent) {
   // Mapping aliases to standard diamond fields
   const fieldAliases = {
     sku: ['sku', 'stock', 'stocknum', 'stocknumber', 'id', 'itemid', 'stoneid'],
+    category: ['category', 'categoryname', 'type', 'diamondtype', 'group'],
     shape: ['shape', 'stoneshape', 'cutshape'],
     carat: ['carat', 'carats', 'weight', 'cts', 'caratweight', 'size'],
     color: ['color', 'colour', 'col'],
@@ -181,7 +182,7 @@ export function parseDiamondSpreadsheet(fileContent) {
     fluorescence: ['fluorescence', 'fluor', 'flour', 'flr'],
     lab: ['lab', 'certlab', 'gradinglab', 'laboratory'],
     certificateNumber: ['certificatenumber', 'certnumber', 'certno', 'cert', 'reportnumber', 'reportno', 'reportnum'],
-    price: ['price', 'retailprice', 'priceusd', 'amount', 'totalprice', 'saleprice'],
+    price: ['price', 'customerprice', 'retailprice', 'priceusd', 'amount', 'totalprice', 'saleprice'],
     wholesalePrice: ['wholesaleprice', 'dealerprice', 'tradeprice', 'b2bprice', 'cost'],
     measurements: ['measurements', 'dimensions', 'measurement', 'size_mm'],
     imageUrl: ['imageurl', 'image', 'picture', 'photo', 'photourl'],
@@ -222,9 +223,12 @@ export function parseDiamondSpreadsheet(fileContent) {
     const price = parseFloat(getVal('price')) || 0
     const wholesalePrice = parseFloat(getVal('wholesalePrice')) || (price > 0 ? Math.round(price * 0.75) : 0)
     const sku = getVal('sku') || `HMD-UPL-${Date.now().toString().slice(-6)}-${rowIndex}`
+    const rawCat = getVal('category')
+    const category = rawCat ? String(rawCat).trim() : 'Loose Fancy Diamonds'
 
     validItems.push({
       sku,
+      category,
       shape: shape.charAt(0).toUpperCase() + shape.slice(1).toLowerCase(),
       carat,
       color,
@@ -240,7 +244,7 @@ export function parseDiamondSpreadsheet(fileContent) {
       measurements: getVal('measurements') || 'N/A',
       imageUrl: getVal('imageUrl') || null,
       videoUrl: getVal('videoUrl') || null,
-      status: 'available',
+      status: 'published',
       source: 'excel_upload',
       updatedAt: new Date().toISOString(),
     })
@@ -651,14 +655,37 @@ export async function handleUploadInventory(req, res, admin) {
     let dbPersisted = false
     if (supabaseReady()) {
       try {
+        const dbRows = result.items.map(item => ({
+          sku: item.sku,
+          category: item.category || input.defaultCategory || 'Loose Fancy Diamonds',
+          shape: item.shape,
+          carat: item.carat,
+          color: item.color,
+          clarity: item.clarity,
+          cut: item.cut,
+          polish: item.polish,
+          symmetry: item.symmetry,
+          fluorescence: item.fluorescence,
+          lab: item.lab,
+          certificate_number: item.certificateNumber || 'N/A',
+          customer_price: item.price || 0,
+          dealer_price: item.wholesalePrice || 0,
+          measurements: item.measurements || 'N/A',
+          image_url: item.imageUrl || null,
+          video_url: item.videoUrl || null,
+          status: 'published',
+          source: 'excel_upload',
+          updated_at: new Date().toISOString(),
+        }))
+
         await db('diamonds_inventory', {
           method: 'POST',
           headers: { Prefer: 'resolution=merge-duplicates' },
-          body: JSON.stringify(result.items),
+          body: JSON.stringify(dbRows),
         })
         dbPersisted = true
       } catch (dbErr) {
-        console.warn('Note: Diamonds table sync to Supabase skipped (table may need migration):', dbErr.message)
+        console.warn('Note: Diamonds table sync to Supabase skipped:', dbErr.message)
       }
     }
 
@@ -686,4 +713,226 @@ export function handleDownloadTemplate(req, res) {
     'Cache-Control': 'no-cache',
   })
   res.end(csv)
+}
+
+/**
+ * ── Admin Diamonds Inventory & Price Management Handlers ──────────────────
+ */
+
+export async function handleGetAdminDiamonds(req, res, admin, url) {
+  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+
+  const category = url.searchParams.get('category')
+  const status = url.searchParams.get('status')
+  const search = url.searchParams.get('search') || url.searchParams.get('q')
+
+  let items = []
+
+  if (supabaseReady()) {
+    try {
+      let query = 'diamonds_inventory?select=*&order=created_at.desc&limit=250'
+      if (status && status !== 'all') {
+        query += `&status=eq.${encodeURIComponent(status)}`
+      }
+      if (category && category !== 'all') {
+        query += `&category=eq.${encodeURIComponent(category)}`
+      }
+      const rows = await db(query)
+      if (Array.isArray(rows)) {
+        items = rows.map(r => ({
+          id: r.id,
+          sku: r.sku,
+          category: r.category || 'Certified Diamonds',
+          shape: r.shape,
+          carat: parseFloat(r.carat) || 0,
+          color: r.color,
+          clarity: r.clarity,
+          cut: r.cut,
+          polish: r.polish,
+          symmetry: r.symmetry,
+          fluorescence: r.fluorescence,
+          lab: r.lab,
+          certificateNumber: r.certificate_number,
+          customerPrice: parseFloat(r.customer_price) || 0,
+          dealerPrice: parseFloat(r.dealer_price) || 0,
+          price: parseFloat(r.customer_price) || 0,
+          wholesalePrice: parseFloat(r.dealer_price) || 0,
+          measurements: r.measurements,
+          imageUrl: r.image_url,
+          videoUrl: r.video_url,
+          status: r.status,
+          source: r.source,
+          updatedAt: r.updated_at,
+          createdAt: r.created_at,
+        }))
+      }
+    } catch (err) {
+      console.warn('Failed to load admin diamonds from DB:', err.message)
+    }
+  }
+
+  // Fallback to memoryInventory if DB has no rows
+  if (items.length === 0 && memoryInventory.length > 0) {
+    items = memoryInventory.map(item => ({
+      ...item,
+      category: item.category || 'Certified Diamonds',
+      customerPrice: item.price,
+      dealerPrice: item.wholesalePrice,
+      status: item.status || 'published',
+      source: item.source || 'excel_upload',
+    }))
+  }
+
+  // Filter in memory for search
+  if (search) {
+    const s = search.toLowerCase()
+    items = items.filter(i =>
+      i.sku?.toLowerCase().includes(s) ||
+      i.certificateNumber?.toLowerCase().includes(s) ||
+      i.shape?.toLowerCase().includes(s) ||
+      i.category?.toLowerCase().includes(s)
+    )
+  }
+
+  const counts = {
+    total: items.length,
+    pendingReview: items.filter(i => i.status === 'pending_review').length,
+    published: items.filter(i => i.status === 'published').length,
+    hidden: items.filter(i => i.status === 'hidden').length,
+  }
+
+  return json(res, 200, { items, counts })
+}
+
+export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
+  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  const input = await bodyJson(req)
+
+  const updates = {
+    updated_at: new Date().toISOString(),
+  }
+
+  if (input.category !== undefined) updates.category = String(input.category).trim()
+  if (input.customerPrice !== undefined) updates.customer_price = parseFloat(input.customerPrice) || 0
+  if (input.dealerPrice !== undefined) updates.dealer_price = parseFloat(input.dealerPrice) || 0
+  if (input.price !== undefined) updates.customer_price = parseFloat(input.price) || 0
+  if (input.wholesalePrice !== undefined) updates.dealer_price = parseFloat(input.wholesalePrice) || 0
+  if (input.status !== undefined) updates.status = input.status
+
+  if (supabaseReady()) {
+    try {
+      await db(`diamonds_inventory?id=eq.${diamondId}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(updates),
+      })
+    } catch (err) {
+      try {
+        await db(`diamonds_inventory?sku=eq.${diamondId}`, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify(updates),
+        })
+      } catch (e) {
+        console.warn('DB update diamond failed:', e.message)
+      }
+    }
+  }
+
+  // Update in memoryInventory
+  const memItem = memoryInventory.find(i => i.id === diamondId || i.sku === diamondId)
+  if (memItem) {
+    if (updates.category) memItem.category = updates.category
+    if (updates.customer_price !== undefined) memItem.price = updates.customer_price
+    if (updates.dealer_price !== undefined) memItem.wholesalePrice = updates.dealer_price
+    if (updates.status) memItem.status = updates.status
+  }
+
+  return json(res, 200, { success: true, message: 'Diamond updated successfully.' })
+}
+
+export async function handleBatchPublishAdminDiamonds(req, res, admin) {
+  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  const input = await bodyJson(req).catch(() => ({}))
+
+  if (supabaseReady()) {
+    try {
+      if (Array.isArray(input.ids) && input.ids.length > 0) {
+        for (const id of input.ids) {
+          await db(`diamonds_inventory?id=eq.${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'published', updated_at: new Date().toISOString() }),
+          })
+        }
+      } else {
+        await db('diamonds_inventory?status=eq.pending_review', {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'published', updated_at: new Date().toISOString() }),
+        })
+      }
+    } catch (err) {
+      console.warn('Batch publish DB failed:', err.message)
+    }
+  }
+
+  memoryInventory.forEach(item => {
+    if (item.status === 'pending_review') {
+      item.status = 'published'
+    }
+  })
+
+  return json(res, 200, { success: true, message: 'All pending diamonds have been published to the live website.' })
+}
+
+export async function handleSyncFlomizToStaging(req, res, admin) {
+  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  if (!isFlomizConfigured()) {
+    return json(res, 503, { error: 'Flomiz API key or domain is not configured yet.' })
+  }
+
+  const flomizData = await syncFlomizCatalog(1, 100, true)
+  if (!flomizData || !Array.isArray(flomizData.items)) {
+    return json(res, 502, { error: 'Unable to fetch diamonds from Flomiz API at this moment.' })
+  }
+
+  const dbRows = flomizData.items.map(item => ({
+    sku: item.sku,
+    category: 'Certified Diamonds',
+    shape: item.shape,
+    carat: item.carat,
+    color: item.color,
+    clarity: item.clarity,
+    cut: item.cut,
+    polish: item.polish,
+    symmetry: item.symmetry,
+    fluorescence: item.fluorescence,
+    lab: item.lab,
+    certificate_number: item.certificateNumber,
+    customer_price: item.price || 0,
+    dealer_price: item.wholesalePrice || 0,
+    measurements: item.measurements,
+    image_url: item.imageUrl,
+    video_url: item.videoUrl,
+    status: 'pending_review',
+    source: 'flomiz_api',
+    updated_at: new Date().toISOString(),
+  }))
+
+  if (supabaseReady()) {
+    try {
+      await db('diamonds_inventory', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify(dbRows),
+      })
+    } catch (err) {
+      console.warn('Flomiz staging insert to DB failed:', err.message)
+    }
+  }
+
+  return json(res, 200, {
+    success: true,
+    count: dbRows.length,
+    message: `Successfully fetched ${dbRows.length} certified diamonds from Flomiz API into Staging (Pending Review).`,
+  })
 }

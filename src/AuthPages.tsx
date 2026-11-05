@@ -55,6 +55,28 @@ interface UserOrder {
   }>
 }
 
+export interface AdminDiamond {
+  id?: string
+  sku: string
+  category: string
+  shape: string
+  carat: number
+  color: string
+  clarity: string
+  cut?: string
+  polish?: string
+  symmetry?: string
+  fluorescence?: string
+  lab?: string
+  certificateNumber?: string
+  customerPrice: number
+  dealerPrice: number
+  status: 'published' | 'pending_review' | 'hidden'
+  source?: string
+  imageUrl?: string | null
+  videoUrl?: string | null
+}
+
 function getInitialStatus(): { text: string; kind: 'info' | 'error' | 'success' } {
   if (typeof window === 'undefined') return { text: '', kind: 'info' }
   const result = parseAuthStatusFromHash(window.location.hash)
@@ -147,6 +169,17 @@ export default function AuthPages({
   const [uploadBusy, setUploadBusy] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // ── Admin Diamonds Inventory & Price Manager state ───────────────────────
+  const [adminDiamonds, setAdminDiamonds] = useState<AdminDiamond[]>([])
+  const [loadingAdminDiamonds, setLoadingAdminDiamonds] = useState(false)
+  const [diamondFilterCategory, setDiamondFilterCategory] = useState('all')
+  const [diamondFilterStatus, setDiamondFilterStatus] = useState('all')
+  const [diamondSearch, setDiamondSearch] = useState('')
+  const [uploadCategory, setUploadCategory] = useState('Round Melee Diamonds')
+  const [syncingFlomiz, setSyncingFlomiz] = useState(false)
+  const [flomizSyncMsg, setFlomizSyncMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+  const [savedDiamondId, setSavedDiamondId] = useState<string | null>(null)
 
   // ── Offers & Schemes state (Admin / Owner portal) ───────────────────────
   const [promotions, setPromotions] = useState<PromotionOffer[]>([])
@@ -297,6 +330,94 @@ export default function AuthPages({
     }
   }
 
+  const fetchAdminDiamonds = useCallback(async () => {
+    setLoadingAdminDiamonds(true)
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch('/api/admin/diamonds', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data && Array.isArray(data.items)) {
+          setAdminDiamonds(data.items)
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch admin diamonds:', err)
+    } finally {
+      setLoadingAdminDiamonds(false)
+    }
+  }, [])
+
+  const handleUpdateDiamond = async (diamondId: string, updates: Partial<AdminDiamond>) => {
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch(`/api/admin/diamonds/${diamondId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+      })
+      if (res.ok) {
+        setSavedDiamondId(diamondId)
+        setTimeout(() => setSavedDiamondId(null), 2500)
+        setAdminDiamonds(prev =>
+          prev.map(d => (d.id === diamondId || d.sku === diamondId ? { ...d, ...updates } : d))
+        )
+      }
+    } catch (err) {
+      console.warn('Failed to update diamond:', err)
+    }
+  }
+
+  const handleBatchPublish = async () => {
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch('/api/admin/diamonds/batch-publish', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      })
+      if (res.ok) {
+        fetchAdminDiamonds()
+      }
+    } catch (err) {
+      console.warn('Failed to batch publish:', err)
+    }
+  }
+
+  const handleSyncFlomizStaging = async () => {
+    setSyncingFlomiz(true)
+    setFlomizSyncMsg({ text: 'Syncing diamonds from Flomiz API to Staging…', kind: 'info' })
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch('/api/admin/diamonds/sync-flomiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setFlomizSyncMsg({ text: data.message || 'Successfully fetched diamonds to Staging.', kind: 'success' })
+        fetchAdminDiamonds()
+      } else {
+        setFlomizSyncMsg({ text: data.error || 'Flomiz sync failed.', kind: 'error' })
+      }
+    } catch (err) {
+      setFlomizSyncMsg({ text: err instanceof Error ? err.message : 'Sync request failed.', kind: 'error' })
+    } finally {
+      setSyncingFlomiz(false)
+    }
+  }
+
   const handleTogglePromoActive = async (item: PromotionOffer) => {
     const nextActive = !item.active
     const token = localStorage.getItem('hmd_access_token')
@@ -397,6 +518,9 @@ export default function AuthPages({
     }
     if (tab === 'offers') {
       fetchPromotions()
+    }
+    if (tab === 'tools') {
+      fetchAdminDiamonds()
     }
   }
 
@@ -674,6 +798,7 @@ export default function AuthPages({
         body: JSON.stringify({
           fileContent: text,
           mode: 'append',
+          defaultCategory: uploadCategory,
         }),
       })
 
@@ -688,7 +813,8 @@ export default function AuthPages({
       })
       setUploadFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
-      // Refresh catalog
+      // Refresh catalogs
+      fetchAdminDiamonds()
       setCatalogItems([])
     } catch (err) {
       setUploadStatus({
@@ -1136,27 +1262,59 @@ export default function AuthPages({
             <div className="tab-content tab-content--tools">
               <div className="account-inventory-box" style={{ margin: 0 }}>
                 <div className="inventory-box-header">
-                  <h3>📦 Wholesale & Inventory Tools</h3>
-                  <p>Two methods to maintain certified diamond stock:</p>
+                  <h3>📦 Wholesale &amp; Inventory Management</h3>
+                  <p>Certified solitaires synced via API, and melee / fancy shapes uploaded via Excel. Manage categories, customer prices, and dealer wholesale rates below.</p>
                 </div>
 
                 <div className="inventory-options-grid">
                   <div className="inventory-option-card">
-                    <span className="option-tag">Option 1 · Automated</span>
+                    <span className="option-tag">Option 1 · Automated API</span>
                     <h4>Supplier API Integration</h4>
-                    <p>Real-time sync directly with Flomiz Diamond B2B API for live carat weights, cut grades, certificates, and pricing.</p>
-                    <div className="api-status-pill">
+                    <p>Fetches certified lab diamonds directly from the Flomiz B2B API into your Staging Queue for review before publishing.</p>
+                    <div className="api-status-pill" style={{ marginBottom: '14px' }}>
                       <span className="api-status-dot" /> Flomiz Gateway Ready
                     </div>
+                    {isUserAdmin && (
+                      <div>
+                        <button
+                          type="button"
+                          className="sync-api-btn"
+                          onClick={handleSyncFlomizStaging}
+                          disabled={syncingFlomiz}
+                        >
+                          {syncingFlomiz ? 'Fetching from Flomiz API…' : '🔄 Sync from Flomiz API to Staging'}
+                        </button>
+                        {flomizSyncMsg && (
+                          <p className={`auth-status auth-status--${flomizSyncMsg.kind}`} style={{ marginTop: '10px' }}>
+                            {flomizSyncMsg.text}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="inventory-option-card">
                     <span className="option-tag">Option 2 · Bulk File</span>
                     <h4>Excel / CSV Upload Portal</h4>
-                    <p>Upload your own diamond inventory sheet in standard Excel (.csv or .tsv) format.</p>
+                    <p>Upload your own diamond inventory sheet (Round Melee, Loose Fancy, Matched Pairs, or Color Diamonds).</p>
                     <a href="/api/inventory/template" download="heyman_diamond_template.csv" className="template-download-link">
                       ⬇ Download Standard CSV Template
                     </a>
+
+                    <div className="upload-category-selector">
+                      <label htmlFor="upload-cat-select">Upload As Category:</label>
+                      <select
+                        id="upload-cat-select"
+                        value={uploadCategory}
+                        onChange={(e) => setUploadCategory(e.target.value)}
+                      >
+                        <option value="Round Melee Diamonds">Round Melee Diamonds (Melees / Sieves)</option>
+                        <option value="Loose Fancy Diamonds">Loose Fancy Diamonds (Fancy Shapes)</option>
+                        <option value="Color Non-Certified Diamonds">Color Non-Certified Diamonds (Pink, Yellow, Blue, Green)</option>
+                        <option value="Matched Pairs">Matched Pairs (Earring &amp; Layout Pairs)</option>
+                        <option value="Certified Diamonds">Certified Diamonds (Solitaires)</option>
+                      </select>
+                    </div>
 
                     <div className="upload-dropzone">
                       <input
@@ -1175,7 +1333,7 @@ export default function AuthPages({
                         onClick={handleInventoryUpload}
                         disabled={uploadBusy || !uploadFile}
                       >
-                        {uploadBusy ? 'Uploading & Validating…' : 'Upload Spreadsheet'}
+                        {uploadBusy ? 'Uploading &amp; Validating…' : 'Upload Spreadsheet'}
                       </button>
                     </div>
 
@@ -1187,6 +1345,260 @@ export default function AuthPages({
                   </div>
                 </div>
               </div>
+
+              {/* ── LIVE DIAMOND INVENTORY & DUAL-PRICE MANAGER TABLE ── */}
+              {isUserAdmin && (
+                <div className="diamonds-manager-wrap">
+                  <div className="diamonds-manager-header">
+                    <div>
+                      <h3>💎 Diamond Inventory &amp; Dual-Price Manager</h3>
+                      <p>
+                        Manage categories, set <strong>Customer (Retail)</strong> and <strong>Dealer (Wholesale)</strong> prices, and publish API or Excel diamonds.
+                      </p>
+                    </div>
+
+                    <div className="diamonds-header-actions">
+                      <button
+                        type="button"
+                        className="sync-api-btn"
+                        onClick={fetchAdminDiamonds}
+                        disabled={loadingAdminDiamonds}
+                      >
+                        {loadingAdminDiamonds ? 'Refreshing…' : '🔄 Refresh List'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Staging Alert Banner for API Diamonds */}
+                  {adminDiamonds.some((d) => d.status === 'pending_review') && (
+                    <div className="diamonds-staging-alert">
+                      <div className="staging-alert-text">
+                        <strong>
+                          ⏳ {adminDiamonds.filter((d) => d.status === 'pending_review').length} Diamonds Awaiting Review (Staged)
+                        </strong>
+                        <p>
+                          Fetched via API. Review their category, Customer Price, and Dealer Price below before publishing to the live website.
+                        </p>
+                      </div>
+                      <button type="button" className="batch-publish-btn" onClick={handleBatchPublish}>
+                        🚀 Publish All Staged Diamonds
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Filter & Search Toolbar */}
+                  <div className="diamonds-toolbar">
+                    <input
+                      type="text"
+                      className="diamonds-search-input"
+                      placeholder="🔍 Search SKU, Cert #, Shape, or Category…"
+                      value={diamondSearch}
+                      onChange={(e) => setDiamondSearch(e.target.value)}
+                    />
+
+                    <select
+                      className="diamonds-filter-select"
+                      value={diamondFilterCategory}
+                      onChange={(e) => setDiamondFilterCategory(e.target.value)}
+                      aria-label="Filter diamonds by category"
+                    >
+                      <option value="all">All Categories</option>
+                      <option value="Certified Diamonds">Certified Diamonds</option>
+                      <option value="Round Melee Diamonds">Round Melee Diamonds</option>
+                      <option value="Loose Fancy Diamonds">Loose Fancy Diamonds</option>
+                      <option value="Color Non-Certified Diamonds">Color Non-Certified Diamonds</option>
+                      <option value="Matched Pairs">Matched Pairs</option>
+                    </select>
+
+                    <select
+                      className="diamonds-filter-select"
+                      value={diamondFilterStatus}
+                      onChange={(e) => setDiamondFilterStatus(e.target.value)}
+                      aria-label="Filter diamonds by status"
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="published">Published (Live on Website)</option>
+                      <option value="pending_review">Pending Review (Staged)</option>
+                      <option value="hidden">Hidden</option>
+                    </select>
+                  </div>
+
+                  {/* Diamonds Table */}
+                  <div className="diamonds-table-wrap">
+                    <table className="diamonds-table">
+                      <thead>
+                        <tr>
+                          <th>Diamond / SKU</th>
+                          <th>Specs</th>
+                          <th>Category</th>
+                          <th>Customer Price ($)</th>
+                          <th>Dealer Price ($)</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adminDiamonds
+                          .filter((d) => {
+                            if (diamondFilterCategory !== 'all' && d.category !== diamondFilterCategory) return false
+                            if (diamondFilterStatus !== 'all' && d.status !== diamondFilterStatus) return false
+                            if (diamondSearch) {
+                              const s = diamondSearch.toLowerCase()
+                              return (
+                                d.sku?.toLowerCase().includes(s) ||
+                                d.certificateNumber?.toLowerCase().includes(s) ||
+                                d.shape?.toLowerCase().includes(s) ||
+                                d.category?.toLowerCase().includes(s)
+                              )
+                            }
+                            return true
+                          })
+                          .map((d) => {
+                            const isSaved = savedDiamondId === (d.id || d.sku)
+                            return (
+                              <tr key={d.id || d.sku}>
+                                <td className="diamond-sku-cell">
+                                  <strong>{d.sku}</strong>
+                                  <small>{d.lab ? `${d.lab} ${d.certificateNumber || ''}` : 'Non-Certified'}</small>
+                                  <span
+                                    className={`diamond-source-tag diamond-source-tag--${
+                                      d.source === 'flomiz_api' ? 'api' : 'excel'
+                                    }`}
+                                  >
+                                    {d.source === 'flomiz_api' ? 'API' : 'Excel'}
+                                  </span>
+                                </td>
+
+                                <td>
+                                  <div>
+                                    <strong>
+                                      {d.carat}ct {d.shape}
+                                    </strong>
+                                  </div>
+                                  <small style={{ color: '#6d6a60' }}>
+                                    {d.color} · {d.clarity} {d.cut ? `· ${d.cut}` : ''}
+                                  </small>
+                                </td>
+
+                                <td>
+                                  <select
+                                    className="diamond-cat-select"
+                                    value={d.category}
+                                    onChange={(e) => {
+                                      const newCat = e.target.value
+                                      setAdminDiamonds((prev) =>
+                                        prev.map((item) =>
+                                          (item.id === d.id || item.sku === d.sku)
+                                            ? { ...item, category: newCat }
+                                            : item
+                                        )
+                                      )
+                                    }}
+                                  >
+                                    <option value="Certified Diamonds">Certified Diamonds</option>
+                                    <option value="Round Melee Diamonds">Round Melee Diamonds</option>
+                                    <option value="Loose Fancy Diamonds">Loose Fancy Diamonds</option>
+                                    <option value="Color Non-Certified Diamonds">Color Non-Certified Diamonds</option>
+                                    <option value="Matched Pairs">Matched Pairs</option>
+                                  </select>
+                                </td>
+
+                                <td>
+                                  <div className="diamond-price-input-wrap">
+                                    <span>$</span>
+                                    <input
+                                      type="number"
+                                      className="diamond-price-input"
+                                      value={d.customerPrice ?? 0}
+                                      onChange={(e) => {
+                                        const newPrice = parseFloat(e.target.value) || 0
+                                        setAdminDiamonds((prev) =>
+                                          prev.map((item) =>
+                                            (item.id === d.id || item.sku === d.sku)
+                                              ? { ...item, customerPrice: newPrice, price: newPrice }
+                                              : item
+                                          )
+                                        )
+                                      }}
+                                    />
+                                  </div>
+                                </td>
+
+                                <td>
+                                  <div className="diamond-price-input-wrap">
+                                    <span>$</span>
+                                    <input
+                                      type="number"
+                                      className="diamond-price-input"
+                                      value={d.dealerPrice ?? 0}
+                                      onChange={(e) => {
+                                        const newWholesale = parseFloat(e.target.value) || 0
+                                        setAdminDiamonds((prev) =>
+                                          prev.map((item) =>
+                                            (item.id === d.id || item.sku === d.sku)
+                                              ? { ...item, dealerPrice: newWholesale, wholesalePrice: newWholesale }
+                                              : item
+                                          )
+                                        )
+                                      }}
+                                    />
+                                  </div>
+                                </td>
+
+                                <td>
+                                  <span className={`diamond-status-pill diamond-status-pill--${d.status}`}>
+                                    {d.status === 'published'
+                                      ? 'Published'
+                                      : d.status === 'pending_review'
+                                      ? 'Staged'
+                                      : 'Hidden'}
+                                  </span>
+                                </td>
+
+                                <td>
+                                  <div className="diamond-row-actions">
+                                    <button
+                                      type="button"
+                                      className={`diamond-save-btn ${isSaved ? 'diamond-save-btn--success' : ''}`}
+                                      onClick={() =>
+                                        handleUpdateDiamond(d.id || d.sku, {
+                                          category: d.category,
+                                          customerPrice: d.customerPrice,
+                                          dealerPrice: d.dealerPrice,
+                                          status: d.status,
+                                        })
+                                      }
+                                    >
+                                      {isSaved ? 'Saved ✓' : 'Save'}
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      className="diamond-status-btn"
+                                      onClick={() => {
+                                        const nextStatus =
+                                          d.status === 'published' ? 'hidden' : 'published'
+                                        handleUpdateDiamond(d.id || d.sku, {
+                                          category: d.category,
+                                          customerPrice: d.customerPrice,
+                                          dealerPrice: d.dealerPrice,
+                                          status: nextStatus,
+                                        })
+                                      }}
+                                      title={d.status === 'published' ? 'Hide from store' : 'Publish live'}
+                                    >
+                                      {d.status === 'published' ? 'Hide' : 'Publish'}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
