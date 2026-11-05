@@ -357,9 +357,12 @@
 }
 
 .account-badge--admin {
-  background: #1a2a3a;
-  color: #79b5f5;
-  border: 1px solid #4a80b8;
+  background: #1a1a12;
+  color: #d4af37;
+  border: 1px solid #d4af37;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.25);
 }
 
 .account-badge--status-approved {

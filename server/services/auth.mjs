@@ -30,6 +30,7 @@ export async function authenticatedUser(req) {
 }
 
 const ADMIN_EMAILS = [
+  'heymandiamondllc@gmail.com',
   'heymandiamonllc@gmail.com',
   'info@heymandiamond.com',
   'kuldeepsingh343@gmail.com',

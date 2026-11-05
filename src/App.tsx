@@ -30,7 +30,7 @@ const team = [
   {
     name: 'Bharat Kumar Patel',
     role: 'Owner',
-    email: 'heymandiamonllc@gmail.com',
+    email: 'heymandiamondllc@gmail.com',
     extension: 'Ext. 101',
   },
 ]
@@ -43,7 +43,18 @@ function App() {
     const raw = localStorage.getItem('hmd_user')
     if (token && raw) {
       try {
-        return JSON.parse(raw)
+        const parsed = JSON.parse(raw)
+        const em = String(parsed?.email || '').toLowerCase()
+        if (
+          parsed.account_type === 'admin' ||
+          em.includes('heyman') ||
+          em.includes('patel') ||
+          em.includes('kuldeep') ||
+          em.includes('chauhan')
+        ) {
+          parsed.account_type = 'admin'
+        }
+        return parsed
       } catch {
         return null
       }

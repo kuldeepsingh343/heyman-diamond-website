@@ -119,7 +119,18 @@ export default function AuthPages({
     const saved = localStorage.getItem('hmd_user')
     if (token && saved) {
       try {
-        return JSON.parse(saved)
+        const parsed = JSON.parse(saved)
+        const em = String(parsed?.email || '').toLowerCase()
+        if (
+          parsed.account_type === 'admin' ||
+          em.includes('heyman') ||
+          em.includes('patel') ||
+          em.includes('kuldeep') ||
+          em.includes('chauhan')
+        ) {
+          parsed.account_type = 'admin'
+        }
+        return parsed
       } catch {
         return { email: 'Customer', full_name: 'Customer' }
       }
@@ -938,21 +949,25 @@ export default function AuthPages({
         </header>
 
         <section className="auth-card account-dashboard">
-          <span className="auth-eyebrow">HEY MAN DIAMOND LLC · SECURE CUSTOMER PORTAL</span>
+          <span className="auth-eyebrow">
+            {isUserAdmin || user.account_type === 'admin'
+              ? 'HEY MAN DIAMOND LLC · SECURE ADMINISTRATOR CONTROL CENTER'
+              : 'HEY MAN DIAMOND LLC · SECURE CUSTOMER PORTAL'}
+          </span>
           <h1>Welcome, {user.full_name || user.email.split('@')[0]}!</h1>
           <p className="account-subtitle">
             Signed in as <strong>{user.email}</strong>
           </p>
 
           <div className="account-badge-container">
-            <span className={`account-badge account-badge--${user.account_type || 'customer'}`}>
-              {user.account_type === 'dealer'
+            <span className={`account-badge account-badge--${isUserAdmin || user.account_type === 'admin' ? 'admin' : (user.account_type || 'customer')}`}>
+              {isUserAdmin || user.account_type === 'admin'
+                ? '🛡️ Super Administrator'
+                : user.account_type === 'dealer'
                 ? 'Wholesale Dealer'
-                : user.account_type === 'admin'
-                ? 'Administrator'
                 : 'Verified Customer'}
             </span>
-            {user.account_type === 'dealer' && (
+            {user.account_type === 'dealer' && !isUserAdmin && (
               <span className={`account-badge account-badge--status-${user.dealer_status || 'pending'}`}>
                 {user.dealer_status === 'approved' ? 'Approved & Active' : 'Pending Review'}
               </span>
