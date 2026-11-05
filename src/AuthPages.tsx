@@ -950,8 +950,8 @@ export default function AuthPages({
   // ── Account Dashboard View (Rendered when signed in) ──────────────────────
   if (user) {
     return (
-      <main className="auth-page">
-        <header className="auth-header">
+      <main className="auth-page auth-page--dashboard">
+        <header className="auth-header auth-header--dashboard">
           <a href="#home">
             <img src="/heyman-diamond-logo.png" alt="Hey Man Diamond LLC" />
           </a>
