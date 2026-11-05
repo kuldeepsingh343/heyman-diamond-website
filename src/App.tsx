@@ -5,6 +5,7 @@ import CustomerExperience from './CustomerExperience'
 import PolicyPages from './PolicyPages'
 import AuthPages from './AuthPages'
 import AboutPage from './AboutPage'
+import ReviewsPage from './ReviewsPage'
 import type { UserProfile } from './AuthPages'
 import InstagramReels from './InstagramReels'
 import OffersHero from './OffersHero'
@@ -99,6 +100,10 @@ function App() {
     if (typeof window === 'undefined') return false
     return window.location.hash === '#about'
   })
+  const [isReviews, setIsReviews] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.location.hash === '#reviews'
+  })
 
   useEffect(() => {
     const normalizeCurrentHash = () => {
@@ -140,8 +145,11 @@ function App() {
       const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq)$/)
       setPolicySlug(match?.[1] ?? '')
       setIsAbout(window.location.hash === '#about')
+      setIsReviews(window.location.hash === '#reviews')
       setAuthRoute(resolveAuthRoute())
-      if (match || window.location.hash === '#about') window.scrollTo({ top: 0, behavior: 'auto' })
+      if (match || window.location.hash === '#about' || window.location.hash === '#reviews') {
+        window.scrollTo({ top: 0, behavior: 'auto' })
+      }
     }
 
     window.addEventListener('hashchange', syncRoute)
@@ -152,6 +160,7 @@ function App() {
     }
   }, [])
 
+  if (isReviews) return <ReviewsPage />
   if (isAbout) return <AboutPage />
   if (policySlug) return <PolicyPages slug={policySlug} />
   if (authRoute) return <AuthPages key={authRoute} mode={authRoute} onUserChange={setCurrentUser} />
@@ -418,6 +427,7 @@ function App() {
 
         <nav className="footer-policy-links" aria-label="Policies and customer help">
           <a href="#about">About Us</a>
+          <a href="#reviews">Reviews</a>
           <a href="#policy-shipping">Shipping &amp; Delivery</a>
           <a href="#policy-returns">Returns &amp; Refunds</a>
           <a href="#policy-privacy">Privacy Policy</a>
