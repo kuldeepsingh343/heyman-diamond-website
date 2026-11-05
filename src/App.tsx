@@ -1,51 +1,18 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import './App.css'
 import CustomerExperience from './CustomerExperience'
 import PolicyPages from './PolicyPages'
 import AuthPages from './AuthPages'
 import AboutPage from './AboutPage'
 import ReviewsSection from './ReviewsSection'
+import DiamondCollection from './DiamondCollection'
 import type { UserProfile } from './AuthPages'
 import InstagramReels from './InstagramReels'
 import OffersHero from './OffersHero'
 import { resolveAuthRoute, normalizeHashFragment } from './routeUtils'
 
-const categories = [
-  {
-    number: '01',
-    name: 'Loose Fancy Diamonds',
-    description: 'Explore fancy shapes and distinctive diamond styles.',
-    image: '/loose-fancy-diamonds.png',
-  },
-  {
-    number: '02',
-    name: 'Round Melee Diamonds',
-    description: 'Round diamonds for jewelry manufacturing and design.',
-    image: '/round-melee-diamonds.jpg',
-  },
-  {
-    number: '03',
-    name: 'Certified Diamonds',
-    description: 'Explore certified stones and ask our team for details.',
-    image:
-      'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=900&q=85',
-  },
-  {
-    number: '04',
-    name: 'Color Non Cert Diamonds',
-    description: 'Ask us about available colors, sizes, and specifications.',
-    image:
-      'https://images.unsplash.com/photo-1603561596112-db6e5e4e9a7d?auto=format&fit=crop&w=900&q=85',
-  },
-  {
-    number: '05',
-    name: 'Match Pairs',
-    description: 'Find matching diamond pairs for your next design.',
-    image:
-      'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=900&q=85',
-  },
-]
+
 
 const team = [
   {
@@ -100,6 +67,16 @@ function App() {
     if (typeof window === 'undefined') return false
     return window.location.hash === '#about'
   })
+
+  const refreshCart = useCallback(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const items = JSON.parse(localStorage.getItem('hmd_cart') || '[]')
+      setCartCount(Array.isArray(items) ? items.reduce((s: number, i: { quantity?: number }) => s + (i.quantity || 1), 0) : 0)
+    } catch {
+      setCartCount(0)
+    }
+  }, [])
 
   useEffect(() => {
     const normalizeCurrentHash = () => {
@@ -253,48 +230,7 @@ function App() {
         </div>
       </section>
 
-      <section className="collection" id="collection">
-        <div className="section-heading">
-          <div>
-            <div className="eyebrow">
-              <span className="eyebrow-line" />
-              FIND YOUR PERFECT STONE
-            </div>
-            <h2>
-              Explore our <em>diamond</em> collections.
-            </h2>
-          </div>
-          <p>
-            From individual stones to matching pairs, explore our
-            categories and contact our team about availability.
-          </p>
-        </div>
-
-        <div className="category-grid">
-          {categories.map((category) => (
-            <a
-              className="category-card"
-              href="#contact"
-              key={category.number}
-            >
-              <div className="category-image-wrap">
-                <img
-                  className="category-image"
-                  src={category.image}
-                  alt=""
-                  loading="lazy"
-                />
-                <span className="category-number">{category.number}</span>
-              </div>
-              <div className="category-copy">
-                <h3>{category.name}</h3>
-                <p>{category.description}</p>
-                <span className="text-link">Ask about availability</span>
-              </div>
-            </a>
-          ))}
-        </div>
-      </section>
+      <DiamondCollection currentUser={currentUser} onCartChange={refreshCart} />
 
       <section className="wholesale-section" id="wholesale">
         <div className="wholesale-image">

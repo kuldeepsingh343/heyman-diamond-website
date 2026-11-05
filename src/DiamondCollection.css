@@ -1,0 +1,583 @@
+/* ── Diamond Collection & Live Inventory Explorer Styles ─────────────────── */
+
+.diamond-collection-section {
+  position: relative;
+  padding: 64px 24px;
+  max-width: 1360px;
+  margin: 0 auto;
+}
+
+/* Category card buttons */
+.category-card-button {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease), border-color 0.22s ease;
+  font-family: inherit;
+  color: inherit;
+  padding: 0;
+}
+
+.category-card-button:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--gold-light);
+}
+
+.category-card-button--active {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold), var(--shadow-md);
+}
+
+/* Toast banner for cart add */
+.diamond-cart-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1d3324;
+  color: #e5f6eb;
+  padding: 14px 22px;
+  border-radius: 10px;
+  margin: 28px 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  animation: slideDownFade 0.3s ease-out;
+}
+
+.toast-cart-link {
+  color: #a8dfb5;
+  text-decoration: underline;
+  font-weight: 600;
+  margin-left: 16px;
+}
+
+.toast-cart-link:hover {
+  color: #ffffff;
+}
+
+/* Catalog Wrapper Box */
+.diamond-catalog-wrap {
+  margin-top: 56px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 36px 32px;
+  box-shadow: var(--shadow-sm);
+}
+
+.diamond-catalog-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.diamond-catalog-title-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.diamond-catalog-title-box h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  color: var(--ink);
+  margin: 0;
+  font-weight: 600;
+}
+
+.diamond-count-pill {
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 20px;
+  letter-spacing: 0.3px;
+}
+
+.pricing-access-pill {
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 30px;
+  background: var(--soft);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pricing-access-pill a {
+  color: var(--gold-dark);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.pricing-access-pill .access-dealer {
+  color: #176038;
+}
+
+.pricing-access-pill .access-pending {
+  color: #8c5b05;
+}
+
+/* Toolbar */
+.diamond-catalog-toolbar {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.diamond-category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diamond-tab-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 24px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: inherit;
+}
+
+.diamond-tab-btn:hover {
+  border-color: var(--gold);
+  color: var(--ink);
+  background: #faf8f3;
+}
+
+.diamond-tab-btn--active {
+  background: var(--dark);
+  color: #ffffff;
+  border-color: var(--dark);
+}
+
+.diamond-toolbar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.diamond-shape-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.diamond-shape-btn {
+  background: transparent;
+  border: 1px solid #ddd7ca;
+  color: #55534c;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.diamond-shape-btn:hover {
+  background: var(--soft);
+  color: var(--ink);
+}
+
+.diamond-shape-btn--active {
+  background: var(--gold);
+  color: #ffffff;
+  border-color: var(--gold);
+}
+
+.diamond-search-box {
+  position: relative;
+  min-width: 280px;
+}
+
+.diamond-search-input {
+  width: 100%;
+  padding: 9px 36px 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #ffffff;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  font-family: inherit;
+}
+
+.diamond-search-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(165, 138, 80, 0.15);
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
+/* Loading & Empty States */
+.diamond-loading-state,
+.diamond-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+
+.diamond-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid var(--soft);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.diamond-empty-state h4 {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.diamond-empty-state p {
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* Product Cards Grid */
+.public-diamond-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+  margin-top: 32px;
+}
+
+.public-diamond-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  position: relative;
+}
+
+.public-diamond-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: #d6cdbc;
+}
+
+/* Badges */
+.card-top-badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.lab-badge {
+  background: #f4efe2;
+  color: #79622d;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.category-tag-badge {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--soft);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Stone Heading */
+.card-stone-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stone-shape-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+.stone-carat-tag {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gold-dark);
+}
+
+/* Specs Row */
+.card-specs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: #faf8f5;
+  border: 1px solid #eee8dc;
+  border-radius: 8px;
+  padding: 10px 8px;
+  margin-bottom: 16px;
+}
+
+.spec-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.spec-item small {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.spec-item strong {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.spec-pipe {
+  color: #d8d2c4;
+  font-size: 12px;
+}
+
+/* Technical Details */
+.card-tech-details {
+  font-size: 12px;
+  color: #636159;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+  flex-grow: 1;
+}
+
+.tech-detail-row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed #f0ece2;
+  padding-bottom: 4px;
+}
+
+.sku-mono {
+  font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: #88857d;
+}
+
+/* Pricing Block */
+.card-pricing-block {
+  background: #fbfaf7;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.customer-price-box {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.price-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.price-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Dealer Wholesale Price */
+.dealer-price-box {
+  padding-top: 8px;
+  border-top: 1px dashed #e8e2d4;
+}
+
+.dealer-price-unlocked {
+  background: #f2f9f4;
+  border: 1px solid #d1ebd8;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.dealer-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #176038;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.dealer-price-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #176038;
+}
+
+.dealer-discount-badge {
+  font-size: 10px;
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.dealer-price-locked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8f6f0;
+  border: 1px dashed #e0dacd;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: #6d6a62;
+}
+
+.dealer-price-locked a {
+  color: var(--gold-dark);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.dealer-price-locked--pending {
+  background: #fdfaf2;
+  border-color: #ecd7a4;
+  color: #8c5b05;
+}
+
+.dealer-lock-icon {
+  font-size: 14px;
+}
+
+.dealer-lock-text {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Action Buttons */
+.card-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
+.card-add-btn {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.card-inquire-btn {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  text-align: center;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-inquire-btn:hover {
+  background: #e8e3d8;
+  color: #000000;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .diamond-catalog-wrap {
+    padding: 24px 16px;
+  }
+
+  .diamond-toolbar-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .diamond-search-box {
+    width: 100%;
+  }
+
+  .public-diamond-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

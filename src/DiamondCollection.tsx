@@ -1,0 +1,485 @@
+import { useState, useEffect } from 'react'
+import type { UserProfile } from './AuthPages'
+import './DiamondCollection.css'
+
+export interface PublicDiamondItem {
+  id?: string
+  sku: string
+  category: string
+  shape: string
+  carat: number
+  color: string
+  clarity: string
+  cut: string
+  polish?: string
+  symmetry?: string
+  fluorescence?: string
+  lab?: string
+  certificateNumber?: string
+  price: number
+  customerPrice?: number
+  wholesalePrice?: number
+  dealerPrice?: number
+  measurements?: string
+  imageUrl?: string | null
+  videoUrl?: string | null
+  status?: string
+}
+
+interface DiamondCollectionProps {
+  currentUser: UserProfile | null
+  onCartChange?: () => void
+}
+
+const categoriesMeta = [
+  {
+    categoryKey: 'Loose Fancy Diamonds',
+    number: '01',
+    name: 'Loose Fancy Diamonds',
+    description: 'Explore fancy shapes and distinctive diamond styles.',
+    image: '/loose-fancy-diamonds.png',
+  },
+  {
+    categoryKey: 'Round Melee Diamonds',
+    number: '02',
+    name: 'Round Melee Diamonds',
+    description: 'Round diamonds for jewelry manufacturing and design.',
+    image: '/round-melee-diamonds.jpg',
+  },
+  {
+    categoryKey: 'Certified Diamonds',
+    number: '03',
+    name: 'Certified Diamonds',
+    description: 'Explore certified stones and ask our team for details.',
+    image:
+      'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=900&q=85',
+  },
+  {
+    categoryKey: 'Color Non-Certified Diamonds',
+    number: '04',
+    name: 'Color Non Cert Diamonds',
+    description: 'Ask us about available colors, sizes, and specifications.',
+    image:
+      'https://images.unsplash.com/photo-1603561596112-db6e5e4e9a7d?auto=format&fit=crop&w=900&q=85',
+  },
+  {
+    categoryKey: 'Matched Pairs',
+    number: '05',
+    name: 'Match Pairs',
+    description: 'Find matching diamond pairs for your next design.',
+    image:
+      'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=900&q=85',
+  },
+]
+
+const categoryFilters = [
+  { label: 'All Collections', value: 'all' },
+  { label: 'Certified Diamonds', value: 'Certified Diamonds' },
+  { label: 'Round Melee Diamonds', value: 'Round Melee Diamonds' },
+  { label: 'Loose Fancy Diamonds', value: 'Loose Fancy Diamonds' },
+  { label: 'Color Non Cert Diamonds', value: 'Color Non-Certified Diamonds' },
+  { label: 'Match Pairs', value: 'Matched Pairs' },
+]
+
+const shapeFilters = ['all', 'Round', 'Oval', 'Emerald', 'Radiant', 'Pear', 'Cushion']
+
+export default function DiamondCollection({ currentUser, onCartChange }: DiamondCollectionProps) {
+  const [items, setItems] = useState<PublicDiamondItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [selectedShape, setSelectedShape] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  const isApprovedDealer =
+    currentUser?.account_type === 'dealer' && currentUser?.dealer_status === 'approved'
+  const isPendingDealer =
+    currentUser?.account_type === 'dealer' && currentUser?.dealer_status !== 'approved'
+
+  // Fetch live inventory
+  useEffect(() => {
+    let active = true
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('hmd_access_token') : null
+    const headers: Record<string, string> = { Accept: 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const url = selectedCategory === 'all'
+      ? '/api/inventory'
+      : `/api/inventory?category=${encodeURIComponent(selectedCategory)}`
+
+    fetch(url, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error('Unable to load live inventory.')
+        return res.json()
+      })
+      .then(data => {
+        if (!active) return
+        setItems(Array.isArray(data.items) ? data.items : [])
+        setError(null)
+      })
+      .catch(err => {
+        if (!active) return
+        console.warn('Live catalog fetch notice:', err.message)
+        setError('Live inventory is loading. You can also contact our team directly for custom stone requests.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [selectedCategory])
+
+  const handleSelectCategoryCard = (categoryKey: string) => {
+    setLoading(true)
+    setSelectedCategory(categoryKey)
+    const target = document.getElementById('diamond-catalog-grid')
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
+  const handleSelectTab = (tabValue: string) => {
+    setLoading(true)
+    setSelectedCategory(tabValue)
+  }
+
+  const addToCart = (diamond: PublicDiamondItem) => {
+    try {
+      const currentCart = JSON.parse(localStorage.getItem('hmd_cart') || '[]')
+      const existing = currentCart.find((c: { sku: string }) => c.sku === diamond.sku)
+      let nextCart
+      if (existing) {
+        nextCart = currentCart.map((c: { sku: string; quantity: number }) =>
+          c.sku === diamond.sku ? { ...c, quantity: (c.quantity || 1) + 1 } : c
+        )
+      } else {
+        nextCart = [...currentCart, { ...diamond, quantity: 1 }]
+      }
+      localStorage.setItem('hmd_cart', JSON.stringify(nextCart))
+      window.dispatchEvent(new Event('storage'))
+      if (onCartChange) onCartChange()
+
+      setToastMessage(`✓ Added ${diamond.shape} ${diamond.carat}ct (${diamond.sku}) to your cart.`)
+      setTimeout(() => setToastMessage(null), 3500)
+    } catch (e) {
+      console.warn('Cart error:', e)
+    }
+  }
+
+  // Client-side filtering for shape and search text
+  const filteredItems = items.filter(item => {
+    if (selectedShape !== 'all' && item.shape.toLowerCase() !== selectedShape.toLowerCase()) {
+      return false
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      const matchSku = item.sku?.toLowerCase().includes(q)
+      const matchCert = item.certificateNumber?.toLowerCase().includes(q)
+      const matchShape = item.shape?.toLowerCase().includes(q)
+      const matchColor = item.color?.toLowerCase().includes(q)
+      const matchClarity = item.clarity?.toLowerCase().includes(q)
+      const matchCategory = item.category?.toLowerCase().includes(q)
+      if (!matchSku && !matchCert && !matchShape && !matchColor && !matchClarity && !matchCategory) {
+        return false
+      }
+    }
+    return true
+  })
+
+  return (
+    <section className="collection diamond-collection-section" id="collection">
+      {/* ── Section Heading ── */}
+      <div className="section-heading">
+        <div>
+          <div className="eyebrow">
+            <span className="eyebrow-line" />
+            FIND YOUR PERFECT STONE
+          </div>
+          <h2>
+            Explore our <em>diamond</em> collections.
+          </h2>
+        </div>
+        <p>
+          From individual certified solitaires to matching pairs and calibrated round melee,
+          browse our live inventory below or contact our sales team for bespoke sourcing.
+        </p>
+      </div>
+
+      {/* ── 5 Visual Category Cards ── */}
+      <div className="category-grid" aria-label="Diamond Categories">
+        {categoriesMeta.map(category => (
+          <button
+            type="button"
+            className={`category-card category-card-button ${selectedCategory === category.categoryKey ? 'category-card-button--active' : ''}`}
+            key={category.number}
+            onClick={() => handleSelectCategoryCard(category.categoryKey)}
+            title={`View ${category.name}`}
+          >
+            <div className="category-image-wrap">
+              <img
+                className="category-image"
+                src={category.image}
+                alt=""
+                loading="lazy"
+              />
+              <span className="category-number">{category.number}</span>
+            </div>
+            <div className="category-copy">
+              <h3>{category.name}</h3>
+              <p>{category.description}</p>
+              <span className="text-link">Explore stones →</span>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Toast Notification Banner ── */}
+      {toastMessage && (
+        <div className="diamond-cart-toast" role="status">
+          <span>{toastMessage}</span>
+          <a href="#account" className="toast-cart-link">View Cart & Shortlist →</a>
+        </div>
+      )}
+
+      {/* ── Live Diamond Catalog Explorer ── */}
+      <div className="diamond-catalog-wrap" id="diamond-catalog-grid">
+        <div className="diamond-catalog-header">
+          <div className="diamond-catalog-title-box">
+            <h3>Live Diamond Inventory</h3>
+            <span className="diamond-count-pill">
+              {filteredItems.length} {filteredItems.length === 1 ? 'Stone Available' : 'Stones Available'}
+            </span>
+          </div>
+
+          {/* Pricing Access Indicator */}
+          <div className="pricing-access-pill">
+            {isApprovedDealer ? (
+              <span className="access-dealer">
+                💎 <strong>Dealer Trade Pricing Active:</strong> Wholesale rates unlocked.
+              </span>
+            ) : isPendingDealer ? (
+              <span className="access-pending">
+                ⏳ <strong>Dealer Account Pending Review:</strong> Wholesale rates unlock after admin verification.
+              </span>
+            ) : (
+              <span className="access-retail">
+                🏷️ <strong>Customer Retail Pricing:</strong> Are you a jeweler or dealer?{' '}
+                <a href="#signup-dealer">Apply for Dealer Account</a> to unlock wholesale pricing.
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Filter Toolbar */}
+        <div className="diamond-catalog-toolbar">
+          {/* Category Tabs */}
+          <div className="diamond-category-tabs" role="tablist" aria-label="Diamond Categories">
+            {categoryFilters.map(tab => (
+              <button
+                key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={selectedCategory === tab.value}
+                className={`diamond-tab-btn ${selectedCategory === tab.value ? 'diamond-tab-btn--active' : ''}`}
+                onClick={() => handleSelectTab(tab.value)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Search & Shape Controls */}
+          <div className="diamond-toolbar-controls">
+            <div className="diamond-shape-filters">
+              {shapeFilters.map(shape => (
+                <button
+                  key={shape}
+                  type="button"
+                  className={`diamond-shape-btn ${selectedShape.toLowerCase() === shape.toLowerCase() ? 'diamond-shape-btn--active' : ''}`}
+                  onClick={() => setSelectedShape(shape)}
+                >
+                  {shape === 'all' ? 'All Shapes' : shape}
+                </button>
+              ))}
+            </div>
+
+            <div className="diamond-search-box">
+              <input
+                type="text"
+                placeholder="🔍 Search SKU, Cert #, Color, Clarity…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="diamond-search-input"
+                aria-label="Search diamond products"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="clear-search-btn"
+                  onClick={() => setSearchQuery('')}
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Products Display ── */}
+        {loading ? (
+          <div className="diamond-loading-state">
+            <div className="diamond-spinner" />
+            <p>Loading live diamond inventory…</p>
+          </div>
+        ) : error && items.length === 0 ? (
+          <div className="diamond-empty-state">
+            <p>{error}</p>
+            <a href="#contact" className="button-primary">Talk to Our Sales Team</a>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="diamond-empty-state">
+            <h4>No diamonds match your selected filters</h4>
+            <p>Try selecting "All Shapes" or clearing your search keywords to view available stones.</p>
+            <button
+              type="button"
+              className="button-primary"
+              onClick={() => {
+                setSelectedCategory('all')
+                setSelectedShape('all')
+                setSearchQuery('')
+              }}
+            >
+              Reset Filters
+            </button>
+          </div>
+        ) : (
+          <div className="public-diamond-grid">
+            {filteredItems.map(item => {
+              const displayCustomerPrice = item.customerPrice || item.price || 0
+              const displayDealerPrice = item.dealerPrice || item.wholesalePrice || 0
+
+              return (
+                <article className="public-diamond-card" key={item.sku}>
+                  {/* Top Badges */}
+                  <div className="card-top-badges">
+                    <span className="lab-badge">
+                      {item.lab && item.lab !== 'N/A' ? `${item.lab} Certified` : 'Certified Stone'}
+                    </span>
+                    <span className="category-tag-badge">{item.category || 'Fine Diamond'}</span>
+                  </div>
+
+                  {/* Stone Header */}
+                  <div className="card-stone-heading">
+                    <h4 className="stone-shape-name">
+                      {item.shape} Diamond
+                    </h4>
+                    <span className="stone-carat-tag">{item.carat} ct</span>
+                  </div>
+
+                  {/* 4Cs Specifications Strip */}
+                  <div className="card-specs-row">
+                    <span className="spec-item">
+                      <small>Color</small>
+                      <strong>{item.color}</strong>
+                    </span>
+                    <span className="spec-pipe">|</span>
+                    <span className="spec-item">
+                      <small>Clarity</small>
+                      <strong>{item.clarity}</strong>
+                    </span>
+                    <span className="spec-pipe">|</span>
+                    <span className="spec-item">
+                      <small>Cut</small>
+                      <strong>{item.cut || 'Excellent'}</strong>
+                    </span>
+                  </div>
+
+                  {/* Details / Dimensions */}
+                  <div className="card-tech-details">
+                    <div className="tech-detail-row">
+                      <span>Report / Cert:</span>
+                      <strong>{item.certificateNumber || 'On file'}</strong>
+                    </div>
+                    <div className="tech-detail-row">
+                      <span>Measurements:</span>
+                      <span>{item.measurements || 'Available on request'}</span>
+                    </div>
+                    <div className="tech-detail-row">
+                      <span>SKU:</span>
+                      <span className="sku-mono">{item.sku}</span>
+                    </div>
+                  </div>
+
+                  {/* Dual-Tier Pricing Display */}
+                  <div className="card-pricing-block">
+                    {/* 1. Customer Price (Always Visible to All) */}
+                    <div className="customer-price-box">
+                      <span className="price-label">Customer Price</span>
+                      <div className="price-value">
+                        ${displayCustomerPrice.toLocaleString()}
+                      </div>
+                    </div>
+
+                    {/* 2. Diamond Dealer Price (Strictly Gated for Approved Dealers) */}
+                    <div className="dealer-price-box">
+                      {isApprovedDealer ? (
+                        <div className="dealer-price-unlocked">
+                          <span className="dealer-label">💎 Dealer Wholesale Rate</span>
+                          <div className="dealer-price-value">
+                            ${displayDealerPrice.toLocaleString()}
+                          </div>
+                          <small className="dealer-discount-badge">Approved Trade Partner Rate</small>
+                        </div>
+                      ) : isPendingDealer ? (
+                        <div className="dealer-price-locked dealer-price-locked--pending">
+                          <span className="dealer-lock-icon">⏳</span>
+                          <span className="dealer-lock-text">
+                            <strong>Dealer Wholesale Rate</strong>
+                            <small>Pending admin approval</small>
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="dealer-price-locked">
+                          <span className="dealer-lock-icon">🔒</span>
+                          <span className="dealer-lock-text">
+                            <strong>Dealer Wholesale Rate</strong>
+                            <small>
+                              <a href="#signin">Sign In</a> or <a href="#signup-dealer">Register as Dealer</a>
+                            </small>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="card-actions-row">
+                    <button
+                      type="button"
+                      className="button-primary card-add-btn"
+                      onClick={() => addToCart(item)}
+                    >
+                      + Add to Cart
+                    </button>
+                    <a
+                      href={`mailto:sales@heymandiamond.com?subject=Inquiry%20about%20${encodeURIComponent(item.shape)}%20${item.carat}ct%20(${encodeURIComponent(item.sku)})&body=Hello%20Hey%20Man%20Diamond%20Team,%0A%0AI%20am%20interested%20in%20learning%20more%20about%20SKU%20${encodeURIComponent(item.sku)}%20(${encodeURIComponent(item.shape)}%20${item.carat}ct,%20Color%20${encodeURIComponent(item.color)},%20Clarity%20${encodeURIComponent(item.clarity)}).%0A%0APlease%20let%20me%20know%20availability%20and%20shipping%20details.`}
+                      className="card-inquire-btn"
+                      title="Contact sales about this stone"
+                    >
+                      Inquire
+                    </a>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}

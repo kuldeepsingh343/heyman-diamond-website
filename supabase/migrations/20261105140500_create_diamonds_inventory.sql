@@ -31,3 +31,4 @@ alter table public.diamonds_inventory enable row level security;
 
 grant all privileges on table public.diamonds_inventory to service_role;
 grant all privileges on table public.diamonds_inventory to postgres;
+

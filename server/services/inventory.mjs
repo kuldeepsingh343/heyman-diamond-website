@@ -1,7 +1,7 @@
 import { json, bodyJson, db, supabaseReady } from './shared.mjs'
 
 // ── Flomiz Stock Pull API Configuration ─────────────────────────────────────
-export const getFlomizApiKey = () => (process.env.FLOMIZ_API_KEY || '').trim()
+export const getFlomizApiKey = () => (process.env.FLOMIZ_API_KEY || process.env.FLOMIZ_KEY || '').trim()
 export const getFlomizBaseUrl = () => (process.env.FLOMIZ_BASE_URL || process.env.FLOMIZ_STOCK_URL || 'https://diamond.flomiz.com').replace(/\/$/, '')
 
 export function isFlomizConfigured() {
@@ -13,6 +13,7 @@ export function isFlomizConfigured() {
 let memoryInventory = [
   {
     sku: 'HMD-LG-1001',
+    category: 'Certified Diamonds',
     shape: 'Round',
     carat: 1.52,
     color: 'E',
@@ -26,12 +27,13 @@ let memoryInventory = [
     price: 1850,
     wholesalePrice: 1350,
     measurements: '7.38 x 7.42 x 4.55 mm',
-    status: 'available',
+    status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
   },
   {
     sku: 'HMD-LG-1002',
+    category: 'Certified Diamonds',
     shape: 'Oval',
     carat: 2.05,
     color: 'F',
@@ -45,12 +47,13 @@ let memoryInventory = [
     price: 2650,
     wholesalePrice: 1950,
     measurements: '10.12 x 7.15 x 4.48 mm',
-    status: 'available',
+    status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
   },
   {
     sku: 'HMD-LG-1003',
+    category: 'Certified Diamonds',
     shape: 'Emerald',
     carat: 2.50,
     color: 'D',
@@ -64,12 +67,13 @@ let memoryInventory = [
     price: 4200,
     wholesalePrice: 3100,
     measurements: '9.20 x 6.50 x 4.30 mm',
-    status: 'available',
+    status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
   },
   {
     sku: 'HMD-LG-1004',
+    category: 'Loose Fancy Diamonds',
     shape: 'Radiant',
     carat: 3.01,
     color: 'E',
@@ -83,12 +87,13 @@ let memoryInventory = [
     price: 4900,
     wholesalePrice: 3600,
     measurements: '9.80 x 7.40 x 4.90 mm',
-    status: 'available',
+    status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
   },
   {
     sku: 'HMD-LG-1005',
+    category: 'Loose Fancy Diamonds',
     shape: 'Pear',
     carat: 1.80,
     color: 'G',
@@ -102,7 +107,67 @@ let memoryInventory = [
     price: 2100,
     wholesalePrice: 1550,
     measurements: '10.50 x 6.70 x 4.10 mm',
-    status: 'available',
+    status: 'published',
+    source: 'seed',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    sku: 'HMD-RM-2001',
+    category: 'Round Melee Diamonds',
+    shape: 'Round',
+    carat: 0.05,
+    color: 'DEF',
+    clarity: 'VVS-VS',
+    cut: 'Ideal',
+    polish: 'Excellent',
+    symmetry: 'Excellent',
+    fluorescence: 'None',
+    lab: 'In-House',
+    certificateNumber: 'N/A',
+    price: 180,
+    wholesalePrice: 125,
+    measurements: '2.40 mm calibrated',
+    status: 'published',
+    source: 'seed',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    sku: 'HMD-CP-3001',
+    category: 'Color Non-Certified Diamonds',
+    shape: 'Radiant',
+    carat: 2.15,
+    color: 'Fancy Vivid Pink',
+    clarity: 'VS1',
+    cut: 'Excellent',
+    polish: 'Excellent',
+    symmetry: 'Excellent',
+    fluorescence: 'Faint',
+    lab: 'In-House',
+    certificateNumber: 'N/A',
+    price: 3400,
+    wholesalePrice: 2500,
+    measurements: '8.40 x 6.20 x 4.10 mm',
+    status: 'published',
+    source: 'seed',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    sku: 'HMD-MP-4001',
+    category: 'Matched Pairs',
+    shape: 'Pear',
+    carat: 2.02,
+    color: 'E',
+    clarity: 'VVS2',
+    cut: 'Ideal',
+    polish: 'Excellent',
+    symmetry: 'Excellent',
+    fluorescence: 'None',
+    lab: 'IGI',
+    certificateNumber: 'LG652819001/02',
+    price: 3600,
+    wholesalePrice: 2650,
+    measurements: '8.90 x 5.80 mm (Matched Pair)',
+    status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
   },
@@ -336,6 +401,27 @@ export function normalizeFlomizProduct(raw) {
   const wholesaleTotal = parseFloat(raw.TotalPrice) || (parseFloat(raw.PricePerCarat) * (carat || 1)) || 0
   const retailPrice = Math.round(wholesaleTotal * 1.30) // Standard 30% retail markup over wholesale partner cost
 
+  // Inferred category mapping for Certified, Matched Pairs, Color Non-Cert, Melee & Loose Fancy
+  const rawCat = String(raw.CategoryName || '').toLowerCase()
+  const rawName = String(raw.ProductName || '').toLowerCase()
+  const rawShape = shapeRaw.toLowerCase()
+  const rawColor = String(raw.Color || '').toUpperCase()
+  const rawLab = String(raw.Lab || '').toUpperCase().trim()
+
+  let category = 'Certified Diamonds'
+  if (rawCat.includes('pair') || rawName.includes('pair') || rawShape.includes('pair')) {
+    category = 'Matched Pairs'
+  } else if (
+    ['FANCY', 'PINK', 'YELLOW', 'BLUE', 'GREEN', 'ORANGE', 'PURPLE', 'CHAMPAGNE'].some(c => rawColor.includes(c)) ||
+    !rawLab || rawLab === 'NONE' || rawLab === 'N/A' || rawCat.includes('non cert') || rawCat.includes('color')
+  ) {
+    category = 'Color Non-Certified Diamonds'
+  } else if (rawCat.includes('melee') || rawName.includes('melee')) {
+    category = 'Round Melee Diamonds'
+  } else if (rawCat.includes('loose fancy') || (!rawShape.includes('round') && (!rawLab || rawLab === 'NONE'))) {
+    category = 'Loose Fancy Diamonds'
+  }
+
   // Extract primary image if available
   let imageUrl = null
   if (Array.isArray(raw.lstImages) && raw.lstImages.length > 0) {
@@ -349,6 +435,7 @@ export function normalizeFlomizProduct(raw) {
 
   return {
     sku,
+    category,
     shape,
     carat: isNaN(carat) ? 0 : carat,
     color: String(raw.Color || 'G').trim().toUpperCase(),
@@ -360,7 +447,9 @@ export function normalizeFlomizProduct(raw) {
     lab: String(raw.Lab || 'IGI').trim().toUpperCase(),
     certificateNumber: String(raw.CertificateNo || raw.certificateNumber || 'N/A').trim(),
     price: retailPrice,
+    customerPrice: retailPrice,
     wholesalePrice: Math.round(wholesaleTotal),
+    dealerPrice: Math.round(wholesaleTotal),
     pricePerCarat: parseFloat(raw.PricePerCarat) || 0,
     measurements: String(raw.Measurement || raw.Measurements || 'N/A').trim(),
     imageUrl,
@@ -549,35 +638,95 @@ export async function handleGetCatalog(req, res, url, user = null) {
 
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10))
     const perPage = Math.min(100, Math.max(1, parseInt(url.searchParams.get('perPage') || '24', 10)))
+    const categoryParam = url.searchParams.get('category')
 
-    // Check if external supplier API is active
-    let activeItems = memoryInventory
-    let source = 'inventory_catalog'
+    let activeItems = []
+    let source = 'diamonds_inventory'
     let isCached = false
 
-    if (isConfigured) {
+    // 1. Fetch published diamonds from database if Supabase is connected
+    if (supabaseReady()) {
       try {
-        const flomizData = await syncFlomizCatalog(page, perPage)
-        if (flomizData?.items && flomizData.items.length > 0) {
-          activeItems = flomizData.items
-          source = 'flomiz_api'
-          isCached = Boolean(flomizData.cached)
+        let dbQuery = 'diamonds_inventory?select=*&status=eq.published&order=created_at.desc&limit=500'
+        if (categoryParam && categoryParam !== 'all') {
+          dbQuery += `&category=eq.${encodeURIComponent(categoryParam)}`
         }
-      } catch (err) {
-        console.warn('Flomiz API sync failed, falling back to local inventory:', err.message)
+        const rows = await db(dbQuery)
+        if (Array.isArray(rows) && rows.length > 0) {
+          activeItems = rows.map(r => ({
+            id: r.id,
+            sku: r.sku,
+            category: r.category || 'Certified Diamonds',
+            shape: r.shape,
+            carat: parseFloat(r.carat) || 0,
+            color: r.color,
+            clarity: r.clarity,
+            cut: r.cut,
+            polish: r.polish,
+            symmetry: r.symmetry,
+            fluorescence: r.fluorescence,
+            lab: r.lab,
+            certificateNumber: r.certificate_number,
+            price: parseFloat(r.customer_price) || 0,
+            customerPrice: parseFloat(r.customer_price) || 0,
+            wholesalePrice: parseFloat(r.dealer_price) || 0,
+            dealerPrice: parseFloat(r.dealer_price) || 0,
+            measurements: r.measurements,
+            imageUrl: r.image_url,
+            videoUrl: r.video_url,
+            status: r.status,
+            source: r.source,
+            updatedAt: r.updated_at,
+          }))
+        }
+      } catch (dbErr) {
+        console.warn('DB diamonds fetch fallback to memory:', dbErr.message)
       }
     }
 
-    // Filter inventory according to 4Cs and query params
+    // 2. Fallback to memory inventory if DB returned 0 items
+    if (activeItems.length === 0) {
+      activeItems = memoryInventory.filter(item => item.status === 'published' || item.status === 'available')
+      if (categoryParam && categoryParam !== 'all') {
+        activeItems = activeItems.filter(item => (item.category || 'Certified Diamonds').toLowerCase() === categoryParam.toLowerCase())
+      }
+      source = 'inventory_catalog'
+    }
+
+    // 3. Filter inventory according to 4Cs, search, and query params
     const queryParams = Object.fromEntries(url.searchParams.entries())
     const filtered = filterInventory(activeItems, queryParams)
 
-    // Check if user is an approved dealer to surface wholesale pricing
-    const isApprovedDealer = user?.account_type === 'dealer' && user?.dealer_status === 'approved'
+    // 4. Resolve user dealer status
+    let isApprovedDealer = false
+    let isDealerPending = false
+
+    if (user) {
+      let accountType = user.user_metadata?.account_type || user.account_type || 'customer'
+      let dealerStatus = user.user_metadata?.dealer_status || user.dealer_status || 'not_applied'
+
+      if (user.id && supabaseReady()) {
+        try {
+          const profileRows = await db(`profiles?id=eq.${user.id}&select=account_type,dealer_status`)
+          if (Array.isArray(profileRows) && profileRows.length > 0) {
+            accountType = profileRows[0].account_type || accountType
+            dealerStatus = profileRows[0].dealer_status || dealerStatus
+          }
+        } catch {
+          // ignore profile fetch fallback
+        }
+      }
+
+      isApprovedDealer = accountType === 'dealer' && dealerStatus === 'approved'
+      isDealerPending = accountType === 'dealer' && dealerStatus !== 'approved'
+    }
+
+    // 5. Strictly protect wholesale pricing from guests & retail customers
     const sanitized = filtered.map(item => {
       const copy = { ...item }
       if (!isApprovedDealer) {
         delete copy.wholesalePrice
+        delete copy.dealerPrice
       }
       return copy
     })
@@ -594,6 +743,7 @@ export async function handleGetCatalog(req, res, url, user = null) {
       totalRecords: filtered.length,
       totalPages: Math.ceil(filtered.length / perPage),
       isDealerPricing: isApprovedDealer,
+      dealerPendingApproval: isDealerPending,
     })
   } catch (error) {
     console.error('Catalog fetch error:', error)
@@ -887,17 +1037,19 @@ export async function handleBatchPublishAdminDiamonds(req, res, admin) {
 export async function handleSyncFlomizToStaging(req, res, admin) {
   if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
   if (!isFlomizConfigured()) {
-    return json(res, 503, { error: 'Flomiz API key or domain is not configured yet.' })
+    return json(res, 503, { error: 'Flomiz API key or domain is not configured yet. Set FLOMIZ_API_KEY and FLOMIZ_BASE_URL.' })
   }
 
   const flomizData = await syncFlomizCatalog(1, 100, true)
   if (!flomizData || !Array.isArray(flomizData.items)) {
-    return json(res, 502, { error: 'Unable to fetch diamonds from Flomiz API at this moment.' })
+    return json(res, 502, {
+      error: 'Unable to fetch diamonds from Flomiz API at this moment. Ensure server outbound domain or IP is registered in Flomiz Origin Allowlist.',
+    })
   }
 
   const dbRows = flomizData.items.map(item => ({
     sku: item.sku,
-    category: 'Certified Diamonds',
+    category: item.category || 'Certified Diamonds',
     shape: item.shape,
     carat: item.carat,
     color: item.color,
@@ -908,8 +1060,8 @@ export async function handleSyncFlomizToStaging(req, res, admin) {
     fluorescence: item.fluorescence,
     lab: item.lab,
     certificate_number: item.certificateNumber,
-    customer_price: item.price || 0,
-    dealer_price: item.wholesalePrice || 0,
+    customer_price: item.customerPrice || item.price || 0,
+    dealer_price: item.dealerPrice || item.wholesalePrice || 0,
     measurements: item.measurements,
     image_url: item.imageUrl,
     video_url: item.videoUrl,
@@ -930,9 +1082,30 @@ export async function handleSyncFlomizToStaging(req, res, admin) {
     }
   }
 
+  // Also stage in local memoryInventory
+  for (const row of dbRows) {
+    const existing = memoryInventory.find(m => m.sku === row.sku)
+    if (existing) {
+      Object.assign(existing, {
+        category: row.category,
+        customerPrice: row.customer_price,
+        dealerPrice: row.dealer_price,
+        price: row.customer_price,
+        wholesalePrice: row.dealer_price,
+        status: 'pending_review',
+      })
+    } else {
+      memoryInventory.push({
+        ...row,
+        price: row.customer_price,
+        wholesalePrice: row.dealer_price,
+      })
+    }
+  }
+
   return json(res, 200, {
     success: true,
     count: dbRows.length,
-    message: `Successfully fetched ${dbRows.length} certified diamonds from Flomiz API into Staging (Pending Review).`,
+    message: `Successfully fetched ${dbRows.length} diamonds from Flomiz API into Staging (Pending Review).`,
   })
 }
