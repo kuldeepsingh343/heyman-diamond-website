@@ -33,7 +33,6 @@ export async function fetchInstagramReels() {
   const data = await response.json()
   const rawItems = Array.isArray(data?.data) ? data.data : []
   const reels = rawItems
-    .filter(item => item?.media_type === 'VIDEO')
     .map(item => ({
       id: item.id,
       caption: item.caption || '',
@@ -42,6 +41,7 @@ export async function fetchInstagramReels() {
       permalink: item.permalink || 'https://www.instagram.com/heymandiamond_llc/',
       timestamp: item.timestamp || null,
     }))
+    .filter(item => Boolean(item.thumbnailUrl))
 
   instagramCache = {
     expiresAt: now + INSTAGRAM_CACHE_TTL_MS,
