@@ -15,7 +15,7 @@ const curatedReels: InstagramReel[] = [
   {
     id: 'curated-2',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=800&q=85',
+    thumbnailUrl: '/round-melee-diamonds.jpg',
   },
   {
     id: 'curated-3',

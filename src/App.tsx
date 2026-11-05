@@ -21,8 +21,7 @@ const categories = [
     number: '02',
     name: 'Round Melee Diamonds',
     description: 'Round diamonds for jewelry manufacturing and design.',
-    image:
-      'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=900&q=85',
+    image: '/round-melee-diamonds.jpg',
   },
   {
     number: '03',

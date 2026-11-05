@@ -17,7 +17,7 @@ let localPromotions = [
     name: 'Trade Volume Privilege Scheme',
     description: 'Special pricing and expedited memo dispatch on calibrated Round Melee parcels & matched pairs for certified jewelers.',
     media_type: 'image',
-    media_url: 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1800&q=85',
+    media_url: '/round-melee-diamonds.jpg',
     cta_text: 'Access Trade Pricing',
     cta_link: '#signup-dealer',
     active: true,
@@ -149,3 +149,4 @@ export async function handleDeletePromotion(req, res, id, admin) {
   localPromotions = localPromotions.filter(p => p.id !== id)
   return json(res, 200, { success: true, message: 'Promotion deleted.' })
 }
+
