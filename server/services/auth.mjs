@@ -243,13 +243,28 @@ export async function handleForgotPassword(req, res) {
   const input = await bodyJson(req)
   const email = String(input.email || '').trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'Enter a valid email address.' })
+
+  // Verify account existence first if service role key is available, preventing silent failures on typos
+  if (supabaseReady()) {
+    try {
+      const existingUser = await findAuthUserByEmail(email)
+      if (!existingUser) {
+        return json(res, 404, {
+          error: `No registered account found for "${email}". Please check for typos or register a new account.`,
+        })
+      }
+    } catch {
+      // Continue if admin lookup transiently fails
+    }
+  }
+
   const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, redirect_to: getAuthRedirectUrl(req) }),
   })
   if (!response.ok) return json(res, response.status, { error: 'Unable to send a password reset email right now.' })
-  return json(res, 200, { sent: true, message: 'If this email has an account, a password reset link has been sent.' })
+  return json(res, 200, { sent: true, message: `Password reset link dispatched for ${email}. Please check your inbox and spam folder.` })
 }
 
 export async function handleResetPassword(req, res) {
