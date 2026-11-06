@@ -8,6 +8,9 @@ import {
   normalizeFlomizProduct,
   isFlomizConfigured,
   getFlomizApiKey,
+  getFlomizBaseUrl,
+  setFlomizConfig,
+  cleanFlomizBaseUrl,
 } from '../server/services/inventory.mjs'
 
 test('Inventory Service — CSV and TSV Parsing', () => {
@@ -159,6 +162,19 @@ test('Inventory Service — Flomiz Product Normalization', () => {
   assert.equal(getFlomizApiKey(), 'test_key_123')
   delete process.env.FLOMIZ_API_KEY
   assert.equal(isFlomizConfigured(), false)
+
+  // Test URL cleaning and normalization
+  assert.equal(cleanFlomizBaseUrl('https://www.billing.flomiz.com'), 'https://billing.flomiz.com')
+  assert.equal(cleanFlomizBaseUrl('www.billing.flomiz.com'), 'https://billing.flomiz.com')
+  assert.equal(cleanFlomizBaseUrl('https://diamond.flomiz.com/'), 'https://diamond.flomiz.com')
+  assert.equal(cleanFlomizBaseUrl('diamond.flomiz.com'), 'https://diamond.flomiz.com')
+  assert.equal(cleanFlomizBaseUrl(''), 'https://diamond.flomiz.com')
+
+  // Test setFlomizConfig normalization
+  setFlomizConfig('my_key', 'https://www.billing.flomiz.com/')
+  assert.equal(getFlomizBaseUrl(), 'https://billing.flomiz.com')
+  assert.equal(getFlomizApiKey(), 'my_key')
+  setFlomizConfig('', 'https://diamond.flomiz.com')
 })
 
 

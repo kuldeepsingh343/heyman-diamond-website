@@ -1,16 +1,55 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { json, bodyJson, db, supabaseReady } from './shared.mjs'
 
 // ── Flomiz Stock Pull API Configuration ─────────────────────────────────────
+const FLOMIZ_CONFIG_FILE = path.resolve(process.cwd(), '.flomiz_config.json')
+
 let dynamicFlomizConfig = {
   apiKey: null,
   baseUrl: null,
 }
 
+// Attempt to load persisted config if present
+try {
+  if (fs.existsSync(FLOMIZ_CONFIG_FILE)) {
+    const raw = fs.readFileSync(FLOMIZ_CONFIG_FILE, 'utf8')
+    const saved = JSON.parse(raw)
+    if (saved.apiKey) dynamicFlomizConfig.apiKey = saved.apiKey
+    if (saved.baseUrl) dynamicFlomizConfig.baseUrl = saved.baseUrl
+  }
+} catch {
+  // ignore
+}
+
+export function cleanFlomizBaseUrl(rawUrl) {
+  if (!rawUrl) return 'https://diamond.flomiz.com'
+  let url = String(rawUrl).trim()
+  if (/^www\.billing\.flomiz\.com/i.test(url)) {
+    url = 'https://billing.flomiz.com'
+  } else if (/^https?:\/\/www\.billing\.flomiz\.com/i.test(url)) {
+    url = url.replace(/www\./i, '')
+  } else if (!/^https?:\/\//i.test(url)) {
+    url = `https://${url}`
+  }
+  return url.replace(/\/+$/, '')
+}
+
 export const getFlomizApiKey = () => (dynamicFlomizConfig.apiKey ?? (process.env.FLOMIZ_API_KEY || process.env.FLOMIZ_KEY || '')).trim()
-export const getFlomizBaseUrl = () => (dynamicFlomizConfig.baseUrl ?? (process.env.FLOMIZ_BASE_URL || process.env.FLOMIZ_STOCK_URL || 'https://diamond.flomiz.com')).replace(/\/$/, '')
+export const getFlomizBaseUrl = () => cleanFlomizBaseUrl(dynamicFlomizConfig.baseUrl ?? (process.env.FLOMIZ_BASE_URL || process.env.FLOMIZ_STOCK_URL || 'https://diamond.flomiz.com'))
 export function setFlomizConfig(apiKey, baseUrl) {
   if (apiKey !== undefined) dynamicFlomizConfig.apiKey = String(apiKey || '').trim()
-  if (baseUrl !== undefined) dynamicFlomizConfig.baseUrl = String(baseUrl || '').trim().replace(/\/$/, '')
+  if (baseUrl !== undefined) dynamicFlomizConfig.baseUrl = cleanFlomizBaseUrl(baseUrl)
+
+  try {
+    fs.writeFileSync(FLOMIZ_CONFIG_FILE, JSON.stringify({
+      apiKey: dynamicFlomizConfig.apiKey,
+      baseUrl: dynamicFlomizConfig.baseUrl,
+      updatedAt: new Date().toISOString(),
+    }, null, 2), 'utf8')
+  } catch {
+    // ignore
+  }
 }
 
 export function isFlomizConfigured() {
@@ -1132,22 +1171,46 @@ export async function handleSyncFlomizToStaging(req, res, admin) {
 }
 
 export async function handleTestFlomizConnection(req, res, admin) {
-  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
-  const apiKey = getFlomizApiKey()
-  const baseUrl = getFlomizBaseUrl()
+  if (!admin) {
+    return json(res, 401, {
+      success: false,
+      code: 401,
+      error: 'Admin authorization required. Please sign in to your administrator account.',
+      message: 'Admin authorization required. Please sign in to your administrator account.',
+    })
+  }
+
+  // Accept URL and Key directly from body if tested on-the-fly
+  const body = await bodyJson(req).catch(() => ({}))
+  const rawBaseUrl = body.baseUrl || getFlomizBaseUrl() || ''
+  const baseUrl = cleanFlomizBaseUrl(rawBaseUrl)
+  const apiKey = (body.apiKey || getFlomizApiKey() || '').trim()
+
+  if (body.baseUrl || body.apiKey) {
+    setFlomizConfig(apiKey || undefined, baseUrl || undefined)
+  }
 
   if (!apiKey) {
     return json(res, 400, {
       success: false,
       code: 400,
       error: 'Flomiz API Key is missing.',
-      message: 'Please set your issued sk_live_... API key in the configuration.'
+      message: 'Please enter your issued Flomiz API Key (sk_live_...) before testing connection.',
+    })
+  }
+
+  if (!baseUrl) {
+    return json(res, 400, {
+      success: false,
+      code: 400,
+      error: 'Flomiz Instance Base URL is missing.',
+      message: 'Please enter your Flomiz server URL.',
     })
   }
 
   const endpoint = `${baseUrl}/api/stock-api/products?PerPage=1`
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 8000)
+  const timeoutId = setTimeout(() => controller.abort(), 9000)
 
   try {
     const response = await fetch(endpoint, {
@@ -1160,14 +1223,20 @@ export async function handleTestFlomizConnection(req, res, admin) {
     })
     clearTimeout(timeoutId)
 
+    const contentType = response.headers.get('content-type') || ''
+    const isJson = contentType.includes('application/json')
+    const responseBody = isJson ? await response.json().catch(() => ({})) : await response.text().catch(() => '')
+
     if (response.status === 200) {
-      const data = await response.json().catch(() => ({}))
+      const data = isJson ? responseBody : {}
+      const total = data.PageContext?.TotalRecord ?? (Array.isArray(data.lstProduct) ? data.lstProduct.length : 0)
       return json(res, 200, {
         success: true,
         code: 200,
-        message: 'Connection successful! Connected to Flomiz B2B Stock API.',
+        message: `Connection successful! Connected to Flomiz B2B Stock API (${total} products currently available).`,
         endpoint,
-        totalRecord: data.PageContext?.TotalRecord ?? (Array.isArray(data.lstProduct) ? data.lstProduct.length : 0),
+        baseUrl,
+        totalRecord: total,
       })
     }
 
@@ -1176,38 +1245,61 @@ export async function handleTestFlomizConnection(req, res, admin) {
         success: false,
         code: 401,
         endpoint,
-        message: 'Authentication failed (401). Flomiz requires your server outbound IP or domain to be added to their Origin Allowlist before allowing API calls. Please contact your Flomiz administrator to register your domain / IP.',
+        baseUrl,
+        error: 'Authentication failed (401). Origin allowlist rejected request.',
+        message: 'Authentication failed (401): Flomiz rejected this request. Per Flomiz Stock API integration guidelines, your API Key is locked to an Origin / IP allowlist. Please contact your Flomiz administrator to register Hey Man Diamond website domain (heymandiamond.com) and hosting outbound IP in your key allowlist.',
       })
     }
 
     if (response.status === 404) {
+      const isNextJsBilling = typeof responseBody === 'string' && (responseBody.includes('Page Not Found - Flomiz') || baseUrl.includes('billing.flomiz.com'))
+      const diagnosticMsg = isNextJsBilling
+        ? `Flomiz returned 404 Not Found at "${endpoint}". "billing.flomiz.com" is Flomiz's customer billing dashboard, not the inventory API server. The Stock API is hosted on Flomiz's ERP system (e.g. https://diamond.flomiz.com). Please check with Flomiz support for your dedicated API Server URL.`
+        : `Flomiz returned 404 Not Found at "${endpoint}". The server instance at "${baseUrl}" does not expose the stock API endpoint.`
+
       return json(res, 200, {
         success: false,
         code: 404,
         endpoint,
-        message: `Flomiz returned 404 Not Found at "${endpoint}". The base URL "${baseUrl}" may not be the correct server instance for your tenant. Please check with your Flomiz account representative for your specific instance Base URL.`,
+        baseUrl,
+        error: 'Flomiz Endpoint Not Found (404)',
+        message: diagnosticMsg,
       })
     }
+
+    const msg = isJson && responseBody?.Message
+      ? `Flomiz responded with: ${responseBody.Message}`
+      : `Flomiz responded with HTTP status ${response.status}.`
 
     return json(res, 200, {
       success: false,
       code: response.status,
       endpoint,
-      message: `Flomiz responded with HTTP status ${response.status}.`,
+      baseUrl,
+      error: `HTTP Error ${response.status}`,
+      message: msg,
     })
   } catch (err) {
     clearTimeout(timeoutId)
+    const errMsg = err?.message || 'Network error'
+    const isDnsError = errMsg.includes('ENOTFOUND') || errMsg.includes('getaddrinfo')
+    const userFriendlyMsg = isDnsError
+      ? `Could not resolve domain "${baseUrl}". "www.billing.flomiz.com" does not exist in public DNS. Please use billing.flomiz.com or diamond.flomiz.com without "www."`
+      : `Network connection to Flomiz failed: ${errMsg}`
+
     return json(res, 200, {
       success: false,
       code: 504,
       endpoint,
-      message: `Network connection to Flomiz timed out or failed: ${err.message}`,
+      baseUrl,
+      error: isDnsError ? 'DNS Resolution Failed' : 'Connection Failed',
+      message: userFriendlyMsg,
     })
   }
 }
 
 export async function handleUpdateFlomizConfig(req, res, admin) {
-  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  if (!admin) return json(res, 401, { error: 'Admin authorization required.', message: 'Admin authorization required.' })
   const body = await bodyJson(req).catch(() => ({}))
   if (body.apiKey) setFlomizConfig(body.apiKey, body.baseUrl)
   else if (body.baseUrl) setFlomizConfig(undefined, body.baseUrl)

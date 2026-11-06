@@ -175,7 +175,7 @@ const server = createServer(async (req, res) => {
     // ── Admin Gateway & Protected Sub-Services ───────────────────────────────
     if (url.pathname.startsWith('/api/admin/')) {
       const admin = await requireAdmin(req)
-      if (!admin) return json(res, 401, { error: 'Sign in with an authorized administrator account.' })
+      if (!admin) return json(res, 401, { error: 'Sign in with an authorized administrator account.', message: 'Sign in with an authorized administrator account.' })
       const p = admin.permissions
 
       // Admin Inventory Upload

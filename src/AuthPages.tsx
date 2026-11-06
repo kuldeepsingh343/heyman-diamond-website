@@ -218,7 +218,7 @@ export default function AuthPages({
   const [flomizBaseUrlInput, setFlomizBaseUrlInput] = useState('https://diamond.flomiz.com')
   const [flomizApiKeyInput, setFlomizApiKeyInput] = useState('')
   const [testingFlomiz, setTestingFlomiz] = useState(false)
-  const [flomizTestResult, setFlomizTestResult] = useState<{ success: boolean; code?: number; message: string } | null>(null)
+  const [flomizTestResult, setFlomizTestResult] = useState<{ success: boolean; code?: number; message: string; error?: string; endpoint?: string } | null>(null)
 
   // ── Offers & Schemes state (Admin / Owner portal) ───────────────────────
   const [promotions, setPromotions] = useState<PromotionOffer[]>([])
@@ -510,6 +510,19 @@ export default function AuthPages({
     setTestingFlomiz(true)
     setFlomizTestResult(null)
     const token = localStorage.getItem('hmd_access_token')
+
+    let cleanBaseUrl = flomizBaseUrlInput.trim()
+    if (/^https?:\/\/www\.billing\.flomiz\.com/i.test(cleanBaseUrl)) {
+      cleanBaseUrl = cleanBaseUrl.replace(/www\./i, '')
+      setFlomizBaseUrlInput(cleanBaseUrl)
+    } else if (/^www\.billing\.flomiz\.com/i.test(cleanBaseUrl)) {
+      cleanBaseUrl = 'https://billing.flomiz.com'
+      setFlomizBaseUrlInput(cleanBaseUrl)
+    } else if (!/^https?:\/\//i.test(cleanBaseUrl) && cleanBaseUrl) {
+      cleanBaseUrl = `https://${cleanBaseUrl}`
+      setFlomizBaseUrlInput(cleanBaseUrl)
+    }
+
     try {
       const res = await fetch('/api/admin/flomiz/test', {
         method: 'POST',
@@ -517,9 +530,21 @@ export default function AuthPages({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({
+          baseUrl: cleanBaseUrl,
+          apiKey: flomizApiKeyInput.trim(),
+        }),
       })
-      const data = await res.json()
-      setFlomizTestResult(data)
+      const data = await res.json().catch(() => ({}))
+      const isSuccess = Boolean(data.success && res.ok)
+      const msg = data.message || data.error || (res.ok ? 'Connection successful!' : `Server returned error (${res.status})`)
+      setFlomizTestResult({
+        success: isSuccess,
+        code: data.code || res.status,
+        message: msg,
+        error: data.error,
+        endpoint: data.endpoint,
+      })
     } catch (err) {
       setFlomizTestResult({
         success: false,
@@ -533,6 +558,18 @@ export default function AuthPages({
 
   const handleSaveFlomizConfig = async () => {
     const token = localStorage.getItem('hmd_access_token')
+    let cleanBaseUrl = flomizBaseUrlInput.trim()
+    if (/^https?:\/\/www\.billing\.flomiz\.com/i.test(cleanBaseUrl)) {
+      cleanBaseUrl = cleanBaseUrl.replace(/www\./i, '')
+      setFlomizBaseUrlInput(cleanBaseUrl)
+    } else if (/^www\.billing\.flomiz\.com/i.test(cleanBaseUrl)) {
+      cleanBaseUrl = 'https://billing.flomiz.com'
+      setFlomizBaseUrlInput(cleanBaseUrl)
+    } else if (!/^https?:\/\//i.test(cleanBaseUrl) && cleanBaseUrl) {
+      cleanBaseUrl = `https://${cleanBaseUrl}`
+      setFlomizBaseUrlInput(cleanBaseUrl)
+    }
+
     try {
       const res = await fetch('/api/admin/flomiz/config', {
         method: 'POST',
@@ -541,18 +578,22 @@ export default function AuthPages({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          baseUrl: flomizBaseUrlInput,
-          apiKey: flomizApiKeyInput,
+          baseUrl: cleanBaseUrl,
+          apiKey: flomizApiKeyInput.trim(),
         }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setFlomizTestResult({ success: true, message: 'Gateway settings saved! Click "Test Connection" to test.' })
       } else {
-        setFlomizTestResult({ success: false, message: data.error || 'Failed to save configuration.' })
+        setFlomizTestResult({
+          success: false,
+          code: res.status,
+          message: data.message || data.error || 'Failed to save configuration.',
+        })
       }
     } catch {
-      setFlomizTestResult({ success: false, message: 'Unable to save gateway settings.' })
+      setFlomizTestResult({ success: false, code: 500, message: 'Unable to save gateway settings.' })
     }
   }
 
@@ -1584,6 +1625,23 @@ export default function AuthPages({
                           style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px', marginTop: '3px', background: '#fff' }}
                         />
                       </label>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10.5px', color: '#777' }}>Quick presets:</span>
+                        <button
+                          type="button"
+                          onClick={() => setFlomizBaseUrlInput('https://diamond.flomiz.com')}
+                          style={{ fontSize: '10px', padding: '2px 7px', border: '1px solid #ccc', borderRadius: '3px', background: flomizBaseUrlInput === 'https://diamond.flomiz.com' ? '#f0ede6' : '#fff', cursor: 'pointer' }}
+                        >
+                          diamond.flomiz.com (Stock API)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFlomizBaseUrlInput('https://billing.flomiz.com')}
+                          style={{ fontSize: '10px', padding: '2px 7px', border: '1px solid #ccc', borderRadius: '3px', background: flomizBaseUrlInput === 'https://billing.flomiz.com' ? '#f0ede6' : '#fff', cursor: 'pointer' }}
+                        >
+                          billing.flomiz.com
+                        </button>
+                      </div>
 
                       <label style={{ display: 'block', fontSize: '11.5px', color: '#555', marginTop: '8px', marginBottom: '4px' }}>
                         Flomiz API Key (x-api-key):
@@ -1595,6 +1653,10 @@ export default function AuthPages({
                           style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px', marginTop: '3px', background: '#fff' }}
                         />
                       </label>
+
+                      <div style={{ fontSize: '11px', color: '#6e695d', margin: '8px 0', background: '#f8f6f2', padding: '7px 10px', borderRadius: '4px', borderLeft: '3px solid #c9bda5', lineHeight: '1.4' }}>
+                        ℹ️ <strong>Flomiz API Requirements:</strong> Per Flomiz guidelines, each API key is restricted to an <strong>Origin Allowlist</strong>. Flomiz must whitelist your website domain (<em>heymandiamond.com</em>) or server outbound IP before external requests succeed.
+                      </div>
 
                       <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                         <button
@@ -1615,9 +1677,30 @@ export default function AuthPages({
                       </div>
 
                       {flomizTestResult && (
-                        <div style={{ marginTop: '10px', padding: '9px 12px', fontSize: '11.5px', borderRadius: '6px', background: flomizTestResult.success ? '#e9f7ee' : '#fcf0ed', color: flomizTestResult.success ? '#15652e' : '#a12b1d', border: `1px solid ${flomizTestResult.success ? '#b4e2c3' : '#f5c5bd'}` }}>
-                          <strong>{flomizTestResult.success ? '✓ Connected' : `✕ HTTP ${flomizTestResult.code || 'Error'}`}: </strong>
-                          {flomizTestResult.message}
+                        <div style={{
+                          marginTop: '10px',
+                          padding: '10px 12px',
+                          fontSize: '11.5px',
+                          lineHeight: '1.5',
+                          borderRadius: '6px',
+                          background: flomizTestResult.success ? '#e9f7ee' : '#fcf0ed',
+                          color: flomizTestResult.success ? '#15652e' : '#a12b1d',
+                          border: `1px solid ${flomizTestResult.success ? '#b4e2c3' : '#f5c5bd'}`,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{flomizTestResult.success ? '✓' : '✕'}</span>
+                            <div style={{ flex: 1 }}>
+                              <strong style={{ display: 'block', marginBottom: '2px' }}>
+                                {flomizTestResult.success ? '✓ Connection Successful' : `HTTP Error ${flomizTestResult.code || ''}`}
+                              </strong>
+                              <div>{flomizTestResult.message || flomizTestResult.error || 'Connection attempt failed.'}</div>
+                              {flomizTestResult.endpoint && (
+                                <div style={{ fontSize: '10.5px', color: '#666', marginTop: '4px', wordBreak: 'break-all' }}>
+                                  Target: <code>{flomizTestResult.endpoint}</code>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>

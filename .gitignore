@@ -27,6 +27,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+.flomiz_config.json
+*.flomiz_config.json
 
 # Agent scratch and run state
 .agents/
