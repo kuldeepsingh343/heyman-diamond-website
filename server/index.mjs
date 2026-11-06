@@ -63,6 +63,7 @@ import {
   handleGetAdminReviews,
   handleUpdateReviewStatus,
   handleCreateReviewReply,
+  handleDeleteReview,
 } from './services/reviews.mjs'
 
 import {
@@ -217,9 +218,13 @@ const server = createServer(async (req, res) => {
       if (req.method === 'GET' && url.pathname === '/api/admin/reviews') {
         return await handleGetAdminReviews(req, res, admin)
       }
-      if (req.method === 'PATCH' && /^\/api\/admin\/reviews\/[0-9a-f-]+$/i.test(url.pathname)) {
+      if (req.method === 'PATCH' && /^\/api\/admin\/reviews\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
         const id = url.pathname.split('/').pop()
         return await handleUpdateReviewStatus(req, res, admin, id)
+      }
+      if (req.method === 'DELETE' && /^\/api\/admin\/reviews\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+        const id = url.pathname.split('/').pop()
+        return await handleDeleteReview(req, res, admin, id)
       }
       if (req.method === 'POST' && url.pathname === '/api/admin/review-replies') {
         return await handleCreateReviewReply(req, res, admin)

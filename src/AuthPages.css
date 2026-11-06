@@ -1801,4 +1801,332 @@
   background: #fdfcf9;
 }
 
+/* ── Reviews & Customer Feedback Control Center ── */
+.reviews-manager-box {
+  background: #ffffff;
+  border: 1px solid #e5ded0;
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.reviews-manager-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0ebe0;
+}
+
+.reviews-manager-header h3 {
+  margin: 0 0 4px;
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  color: #1a1a12;
+}
+
+.reviews-manager-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #77746b;
+}
+
+.reviews-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.reviews-stat-card {
+  background: #faf8f5;
+  border: 1px solid #ede8de;
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.reviews-stat-card span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #77746b;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.reviews-stat-card strong {
+  font-size: 20px;
+  font-family: 'Playfair Display', serif;
+  color: #1a1a12;
+}
+
+.reviews-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: #fbf9f4;
+  border: 1px solid #ede8de;
+  border-radius: 6px;
+}
+
+.reviews-search-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid #dcd4c5;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.reviews-select-filter {
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid #dcd4c5;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.admin-reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-review-card {
+  background: #ffffff;
+  border: 1px solid #e8e2d5;
+  border-radius: 8px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.15s ease;
+}
+
+.admin-review-card:hover {
+  border-color: #c9bda5;
+}
+
+.admin-review-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f4efe6;
+}
+
+.admin-review-author-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-review-author-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a12;
+}
+
+.admin-review-email {
+  font-size: 12px;
+  color: #8c887b;
+  text-decoration: none;
+}
+
+.admin-review-email:hover {
+  text-decoration: underline;
+  color: #a58a50;
+}
+
+.admin-review-stars {
+  color: #c69214;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.admin-review-date {
+  font-size: 11.5px;
+  color: #99958a;
+}
+
+.admin-review-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-review-badge--published {
+  background: #e9f7ee;
+  color: #137333;
+  border: 1px solid #b7e1cd;
+}
+
+.admin-review-badge--hidden {
+  background: #fce8e6;
+  color: #c5221f;
+  border: 1px solid #fad2cf;
+}
+
+.admin-review-quote {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #2b271d;
+  margin: 0 0 16px;
+  background: #fbf9f5;
+  padding: 12px 16px;
+  border-left: 3px solid #a58a50;
+  border-radius: 0 6px 6px 0;
+  font-style: italic;
+}
+
+.admin-review-reply-display {
+  background: #fdfbf7;
+  border: 1px solid #ede3d1;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.admin-review-reply-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.admin-review-reply-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #7a652e;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.admin-review-reply-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #3b362b;
+  margin: 0;
+}
+
+.admin-review-reply-editor {
+  margin-bottom: 14px;
+  background: #faf8f5;
+  border: 1px solid #e0d7c7;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.admin-review-reply-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 80px;
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  border: 1px solid #c9bda5;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1a1a12;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.admin-review-reply-textarea:focus {
+  outline: none;
+  border-color: #7a652e;
+  box-shadow: 0 0 0 2px rgba(165, 138, 80, 0.15);
+}
+
+.admin-review-reply-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.admin-review-footer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f4efe6;
+}
+
+.admin-review-footer-left {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-btn-reply {
+  background: #1c1b17;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-btn-reply:hover {
+  background: #333027;
+}
+
+.admin-btn-toggle-status {
+  background: transparent;
+  color: #555248;
+  border: 1px solid #dcd4c5;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-btn-toggle-status:hover {
+  background: #f5efe6;
+  color: #1a1a12;
+}
+
+.admin-btn-delete-review {
+  background: transparent;
+  color: #c5221f;
+  border: 1px solid #f28b82;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-btn-delete-review:hover {
+  background: #fce8e6;
+  border-color: #d93025;
+}
+
 

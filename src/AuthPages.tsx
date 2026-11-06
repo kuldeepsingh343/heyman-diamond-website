@@ -6,7 +6,19 @@ import type { PromotionOffer } from './OffersHero'
 import { getDiamondMedia } from './diamondUtils'
 
 type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account' | 'admin'
-type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools' | 'dealers' | 'offers'
+type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools' | 'dealers' | 'offers' | 'reviews'
+
+export interface AdminReviewItem {
+  id: string
+  customer_name: string
+  customer_email?: string
+  rating: number
+  remarks: string
+  status: string
+  submitted_at: string
+  reply?: string | null
+  reply_created_at?: string | null
+}
 
 export interface DealerApplication {
   id: string
@@ -239,6 +251,18 @@ export default function AuthPages({
   const [loadingDealerApps, setLoadingDealerApps] = useState(false)
   const [dealerAppMsg, setDealerAppMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
 
+  // ── Customer Reviews moderation state (Admin) ─────────────────────────────
+  const [adminReviews, setAdminReviews] = useState<AdminReviewItem[]>([])
+  const [loadingReviews, setLoadingReviews] = useState(false)
+  const [reviewReplyInputs, setReviewReplyInputs] = useState<Record<string, string>>({})
+  const [editingReplyReviewId, setEditingReplyReviewId] = useState<string | null>(null)
+  const [submittingReplyId, setSubmittingReplyId] = useState<string | null>(null)
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null)
+  const [reviewMsg, setReviewMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+  const [reviewSearch, setReviewSearch] = useState('')
+  const [reviewStatusFilter, setReviewStatusFilter] = useState<'all' | 'published' | 'hidden'>('all')
+  const [reviewRatingFilter, setReviewRatingFilter] = useState<number | 'all'>('all')
+
   const isUserAdmin = Boolean(
     user?.account_type === 'admin' ||
     (user?.email && (
@@ -415,6 +439,121 @@ export default function AuthPages({
       setTimeout(() => setDealerAppMsg(null), 3000)
     } catch (err) {
       setDealerAppMsg({ text: err instanceof Error ? err.message : 'Update failed', kind: 'error' })
+    }
+  }
+
+  const fetchAdminReviews = useCallback(async () => {
+    setLoadingReviews(true)
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch('/api/admin/reviews', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.items)) {
+          setAdminReviews(data.items)
+          const initialInputs: Record<string, string> = {}
+          data.items.forEach((r: AdminReviewItem) => {
+            if (r.reply) initialInputs[r.id] = r.reply
+          })
+          setReviewReplyInputs(initialInputs)
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch admin reviews:', err)
+    } finally {
+      setLoadingReviews(false)
+    }
+  }, [])
+
+  const handlePostReviewReply = async (reviewId: string) => {
+    const text = (reviewReplyInputs[reviewId] || '').trim()
+    if (!text) {
+      setReviewMsg({ text: 'Please type a reply message before posting.', kind: 'error' })
+      return
+    }
+    setSubmittingReplyId(reviewId)
+    setReviewMsg(null)
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch('/api/admin/review-replies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ reviewId, replyText: text }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setAdminReviews(prev =>
+          prev.map(r => (r.id === reviewId ? { ...r, reply: text } : r))
+        )
+        setEditingReplyReviewId(null)
+        setReviewMsg({ text: '✓ Reply posted successfully! It is now visible on the website.', kind: 'success' })
+        setTimeout(() => setReviewMsg(null), 4000)
+      } else {
+        setReviewMsg({ text: data.error || 'Failed to post reply.', kind: 'error' })
+      }
+    } catch (err) {
+      setReviewMsg({ text: err instanceof Error ? err.message : 'Network error posting reply.', kind: 'error' })
+    } finally {
+      setSubmittingReplyId(null)
+    }
+  }
+
+  const handleDeleteReview = async (reviewId: string, customerName: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete the review from "${customerName}"? This action cannot be undone.`)) {
+      return
+    }
+    setDeletingReviewId(reviewId)
+    setReviewMsg(null)
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch(`/api/admin/reviews/${reviewId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setAdminReviews(prev => prev.filter(r => r.id !== reviewId))
+        setReviewMsg({ text: `✓ Review from "${customerName}" has been permanently deleted.`, kind: 'success' })
+        setTimeout(() => setReviewMsg(null), 4000)
+      } else {
+        setReviewMsg({ text: data.error || 'Failed to delete review.', kind: 'error' })
+      }
+    } catch (err) {
+      setReviewMsg({ text: err instanceof Error ? err.message : 'Network error deleting review.', kind: 'error' })
+    } finally {
+      setDeletingReviewId(null)
+    }
+  }
+
+  const handleToggleReviewStatus = async (reviewId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === 'published' ? 'hidden' : 'published'
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch(`/api/admin/reviews/${reviewId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setAdminReviews(prev =>
+          prev.map(r => (r.id === reviewId ? { ...r, status: nextStatus } : r))
+        )
+        setReviewMsg({ text: `✓ Review status updated to "${nextStatus}".`, kind: 'success' })
+        setTimeout(() => setReviewMsg(null), 3000)
+      } else {
+        setReviewMsg({ text: data.error || 'Failed to update review status.', kind: 'error' })
+      }
+    } catch {
+      setReviewMsg({ text: 'Error updating review status.', kind: 'error' })
     }
   }
 
@@ -734,6 +873,9 @@ export default function AuthPages({
     if (tab === 'dealers') {
       fetchDealerApplications()
     }
+    if (tab === 'reviews') {
+      fetchAdminReviews()
+    }
   }
 
   // Load profile if token is present but user state is empty (e.g. after OAuth redirect)
@@ -786,6 +928,22 @@ export default function AuthPages({
         .then(data => {
           if (!ignore && Array.isArray(data?.items)) {
             setDealerApps(data.items)
+          }
+        })
+        .catch(() => {})
+
+      fetch('/api/admin/reviews', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!ignore && Array.isArray(data?.items)) {
+            setAdminReviews(data.items)
+            const initialInputs: Record<string, string> = {}
+            data.items.forEach((r: AdminReviewItem) => {
+              if (r.reply) initialInputs[r.id] = r.reply
+            })
+            setReviewReplyInputs(initialInputs)
           }
         })
         .catch(() => {})
@@ -1213,6 +1371,15 @@ export default function AuthPages({
                 ✨ Offers & Schemes Banner
               </button>
             )}
+            {isUserAdmin && (
+              <button
+                type="button"
+                className={`account-tab-btn ${activeTab === 'reviews' ? 'account-tab-btn--active' : ''}`}
+                onClick={() => switchTab('reviews')}
+              >
+                ⭐ Reviews & Replies {adminReviews.length > 0 ? `(${adminReviews.length})` : ''}
+              </button>
+            )}
           </nav>
 
           {/* ── TAB 1: OVERVIEW ── */}
@@ -1245,6 +1412,18 @@ export default function AuthPages({
                     </div>
                     <button type="button" className="button-primary" onClick={() => switchTab('dealers')}>
                       Review Dealer Requests →
+                    </button>
+                  </div>
+                )}
+
+                {isUserAdmin && (
+                  <div className="account-card-item account-card-item--admin-highlight">
+                    <div>
+                      <h3>⭐ Customer Reviews &amp; Feedback Manager</h3>
+                      <p>Read client testimonials, post official verified replies as Hey Man Diamond LLC to customer feedback, or delete reviews.</p>
+                    </div>
+                    <button type="button" className="button-primary" onClick={() => switchTab('reviews')}>
+                      Manage Customer Reviews →
                     </button>
                   </div>
                 )}
@@ -2357,6 +2536,260 @@ export default function AuthPages({
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB 9: CUSTOMER REVIEWS & REPLIES (ADMIN) ── */}
+          {activeTab === 'reviews' && isUserAdmin && (
+            <div className="tab-content tab-content--reviews">
+              <div className="reviews-manager-box">
+                <div className="reviews-manager-header">
+                  <div>
+                    <h3>⭐ Customer Reviews &amp; Feedback Moderation</h3>
+                    <p>
+                      View customer testimonials, publish official replies as Hey Man Diamond LLC to the live website, and delete or hide reviews.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="sync-api-btn"
+                    onClick={fetchAdminReviews}
+                    disabled={loadingReviews}
+                  >
+                    {loadingReviews ? 'Refreshing…' : '🔄 Refresh Reviews'}
+                  </button>
+                </div>
+
+                {reviewMsg && (
+                  <p className={`auth-status auth-status--${reviewMsg.kind}`} style={{ margin: '14px 0' }}>
+                    {reviewMsg.text}
+                  </p>
+                )}
+
+                {/* Quick KPI Stats Row */}
+                <div className="reviews-stats-row">
+                  <div className="reviews-stat-card">
+                    <span>Total Reviews</span>
+                    <strong>{adminReviews.length}</strong>
+                  </div>
+                  <div className="reviews-stat-card">
+                    <span>Average Rating</span>
+                    <strong>
+                      {adminReviews.length > 0
+                        ? (adminReviews.reduce((sum, r) => sum + (r.rating || 5), 0) / adminReviews.length).toFixed(1)
+                        : '5.0'} ★
+                    </strong>
+                  </div>
+                  <div className="reviews-stat-card">
+                    <span>Replied</span>
+                    <strong style={{ color: '#137333' }}>
+                      {adminReviews.filter(r => Boolean(r.reply)).length}
+                    </strong>
+                  </div>
+                  <div className="reviews-stat-card">
+                    <span>Awaiting Reply</span>
+                    <strong style={{ color: adminReviews.filter(r => !r.reply).length > 0 ? '#b06000' : '#777' }}>
+                      {adminReviews.filter(r => !r.reply).length}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Search & Filters Bar */}
+                <div className="reviews-filter-bar">
+                  <input
+                    type="text"
+                    className="reviews-search-input"
+                    placeholder="Search by customer name, email, or remarks…"
+                    value={reviewSearch}
+                    onChange={e => setReviewSearch(e.target.value)}
+                  />
+                  <select
+                    className="reviews-select-filter"
+                    value={reviewStatusFilter}
+                    onChange={e => setReviewStatusFilter(e.target.value as 'all' | 'published' | 'hidden')}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="published">Published Only</option>
+                    <option value="hidden">Hidden Only</option>
+                  </select>
+                  <select
+                    className="reviews-select-filter"
+                    value={reviewRatingFilter}
+                    onChange={e => setReviewRatingFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  >
+                    <option value="all">All Star Ratings</option>
+                    <option value="5">5 Stars ★★★★★</option>
+                    <option value="4">4 Stars ★★★★</option>
+                    <option value="3">3 Stars ★★★</option>
+                    <option value="2">2 Stars ★★</option>
+                    <option value="1">1 Star ★</option>
+                  </select>
+                  {(reviewSearch || reviewStatusFilter !== 'all' || reviewRatingFilter !== 'all') && (
+                    <button
+                      type="button"
+                      className="reject-dealer-btn"
+                      onClick={() => {
+                        setReviewSearch('')
+                        setReviewStatusFilter('all')
+                        setReviewRatingFilter('all')
+                      }}
+                      style={{ padding: '6px 12px' }}
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+
+                {/* Reviews List */}
+                {loadingReviews ? (
+                  <p style={{ padding: '30px', textAlign: 'center', color: '#77746b' }}>Loading customer reviews…</p>
+                ) : adminReviews.length === 0 ? (
+                  <div style={{ padding: '30px', textAlign: 'center', color: '#77746b' }}>
+                    <p>No customer reviews found.</p>
+                  </div>
+                ) : (
+                  <div className="admin-reviews-list">
+                    {adminReviews
+                      .filter(r => {
+                        if (reviewStatusFilter !== 'all' && (r.status || 'published') !== reviewStatusFilter) return false
+                        if (reviewRatingFilter !== 'all' && r.rating !== reviewRatingFilter) return false
+                        if (reviewSearch.trim()) {
+                          const q = reviewSearch.toLowerCase().trim()
+                          const inName = (r.customer_name || '').toLowerCase().includes(q)
+                          const inEmail = (r.customer_email || '').toLowerCase().includes(q)
+                          const inRemarks = (r.remarks || '').toLowerCase().includes(q)
+                          const inReply = (r.reply || '').toLowerCase().includes(q)
+                          if (!inName && !inEmail && !inRemarks && !inReply) return false
+                        }
+                        return true
+                      })
+                      .map(review => {
+                        const hasReply = Boolean(review.reply)
+                        const currentInput = reviewReplyInputs[review.id] ?? (review.reply || '')
+
+                        return (
+                          <article key={review.id} className="admin-review-card">
+                            <div className="admin-review-card-top">
+                              <div className="admin-review-author-info">
+                                <span className="admin-review-stars" aria-label={`${review.rating} stars`}>
+                                  {'★'.repeat(review.rating || 5)}
+                                </span>
+                                <span className="admin-review-author-name">{review.customer_name}</span>
+                                {review.customer_email && (
+                                  <a href={`mailto:${review.customer_email}`} className="admin-review-email">
+                                    ({review.customer_email})
+                                  </a>
+                                )}
+                                <span className="admin-review-date">
+                                  {review.submitted_at ? new Date(review.submitted_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Recent'}
+                                </span>
+                              </div>
+
+                              <div>
+                                <span className={`admin-review-badge admin-review-badge--${review.status === 'hidden' ? 'hidden' : 'published'}`}>
+                                  {review.status === 'hidden' ? '✕ Hidden' : '✓ Published'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <p className="admin-review-quote">
+                              “{review.remarks}”
+                            </p>
+
+                            {/* Existing Reply Display */}
+                            {hasReply && editingReplyReviewId !== review.id && (
+                              <div className="admin-review-reply-display">
+                                <div className="admin-review-reply-header">
+                                  <span className="admin-review-reply-title">
+                                    🏢 Hey Man Diamond LLC (Official Reply):
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingReplyReviewId(review.id)
+                                      setReviewReplyInputs(prev => ({ ...prev, [review.id]: review.reply || '' }))
+                                    }}
+                                    style={{ background: 'none', border: 'none', color: '#a58a50', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                                  >
+                                    ✏️ Edit Reply
+                                  </button>
+                                </div>
+                                <p className="admin-review-reply-body">{review.reply}</p>
+                              </div>
+                            )}
+
+                            {/* Reply Editor (if no reply or editing) */}
+                            {(!hasReply || editingReplyReviewId === review.id) && (
+                              <div className="admin-review-reply-editor">
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#555248', marginBottom: '6px' }}>
+                                  {hasReply ? 'Edit Official Reply as Hey Man Diamond LLC:' : '💬 Reply to this Review as Hey Man Diamond LLC:'}
+                                </label>
+                                <textarea
+                                  className="admin-review-reply-textarea"
+                                  value={currentInput}
+                                  onChange={e => setReviewReplyInputs(prev => ({ ...prev, [review.id]: e.target.value }))}
+                                  placeholder="Thank you for choosing Hey Man Diamond LLC! We appreciate your trust and look forward to working with you again..."
+                                />
+                                <div className="admin-review-reply-actions">
+                                  <button
+                                    type="button"
+                                    className="admin-btn-reply"
+                                    disabled={submittingReplyId === review.id}
+                                    onClick={() => handlePostReviewReply(review.id)}
+                                  >
+                                    {submittingReplyId === review.id ? 'Publishing Reply…' : '✓ Publish Reply to Website'}
+                                  </button>
+                                  {hasReply && (
+                                    <button
+                                      type="button"
+                                      className="admin-btn-toggle-status"
+                                      onClick={() => setEditingReplyReviewId(null)}
+                                    >
+                                      Cancel
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Footer Actions: Moderation & Delete */}
+                            <div className="admin-review-footer-bar">
+                              <div className="admin-review-footer-left">
+                                {!hasReply && editingReplyReviewId !== review.id && (
+                                  <button
+                                    type="button"
+                                    className="admin-btn-reply"
+                                    onClick={() => setEditingReplyReviewId(review.id)}
+                                  >
+                                    💬 Write Reply
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="admin-btn-toggle-status"
+                                  onClick={() => handleToggleReviewStatus(review.id, review.status || 'published')}
+                                >
+                                  {review.status === 'hidden' ? '👁️ Unhide (Publish)' : '👁️ Hide from Public'}
+                                </button>
+                              </div>
+
+                              <div>
+                                <button
+                                  type="button"
+                                  className="admin-btn-delete-review"
+                                  disabled={deletingReviewId === review.id}
+                                  onClick={() => handleDeleteReview(review.id, review.customer_name)}
+                                >
+                                  {deletingReviewId === review.id ? 'Deleting…' : '🗑️ Delete Review'}
+                                </button>
+                              </div>
+                            </div>
+                          </article>
+                        )
+                      })}
                   </div>
                 )}
               </div>
