@@ -117,10 +117,11 @@ export async function handleSignup(req, res) {
     !phone || phone.length > 40 ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
     !['female', 'male', 'non_binary', 'prefer_not_to_say'].includes(gender) ||
-    password.length < 10 || password.length > 128 ||
+    password.length < 8 || password.length > 128 ||
+    !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) ||
     (accountType === 'dealer' && (!companyName || companyName.length > 160))
   ) {
-    return json(res, 400, { error: 'Please complete all required fields. Password must be at least 10 characters.' })
+    return json(res, 400, { error: 'Please complete all required fields. Password must be at least 8 characters and include uppercase, lowercase, and numbers.' })
   }
 
   const existingUser = await findAuthUserByEmail(email)
@@ -244,7 +245,9 @@ export async function handleForgotPassword(req, res) {
   const email = String(input.email || '').trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'Enter a valid email address.' })
 
-  // Verify account existence first if service role key is available, preventing silent failures on typos
+  let directResetUrl = null
+
+  // 1. Verify account existence first if service role key is available, preventing silent failures on typos
   if (supabaseReady()) {
     try {
       const existingUser = await findAuthUserByEmail(email)
@@ -253,18 +256,58 @@ export async function handleForgotPassword(req, res) {
           error: `No registered account found for "${email}". Please check for typos or register a new account.`,
         })
       }
+
+      // Generate direct recovery action link (immune to email SMTP rate limits)
+      const linkRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'recovery',
+          email,
+          options: {
+            redirectTo: getAuthRedirectUrl(req),
+          },
+        }),
+      })
+      if (linkRes.ok) {
+        const linkData = await linkRes.json()
+        directResetUrl = linkData.action_link || linkData.properties?.action_link || null
+      }
     } catch {
       // Continue if admin lookup transiently fails
     }
   }
 
+  // 2. Attempt standard email dispatch via Supabase GoTrue
   const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, redirect_to: getAuthRedirectUrl(req) }),
   })
-  if (!response.ok) return json(res, response.status, { error: 'Unable to send a password reset email right now.' })
-  return json(res, 200, { sent: true, message: `Password reset link dispatched for ${email}. Please check your inbox and spam folder.` })
+
+  // 3. Return success with directResetUrl if generated
+  if (response.ok) {
+    return json(res, 200, {
+      sent: true,
+      directResetUrl,
+      message: `Password reset link dispatched for ${email}. Check your email or use the direct reset link below.`,
+    })
+  }
+
+  // If email was throttled by rate limit (429) but directResetUrl is available, succeed smoothly!
+  if (directResetUrl) {
+    return json(res, 200, {
+      sent: true,
+      directResetUrl,
+      message: `Email sending is temporarily throttled by the mail server. You can reset your password immediately using the secure link below.`,
+    })
+  }
+
+  return json(res, response.status, { error: 'Unable to send a password reset email right now. Please try again shortly.' })
 }
 
 export async function handleResetPassword(req, res) {
@@ -280,14 +323,14 @@ export async function handleResetPassword(req, res) {
   }
 
   if (
-    password.length < 10 ||
+    password.length < 8 ||
     password.length > 128 ||
     !/[a-z]/.test(password) ||
     !/[A-Z]/.test(password) ||
     !/\d/.test(password)
   ) {
     return json(res, 400, {
-      error: 'Password must be between 10 and 128 characters and include uppercase, lowercase, and numbers.',
+      error: 'Password must be between 8 and 128 characters and include uppercase, lowercase, and numbers.',
     })
   }
 

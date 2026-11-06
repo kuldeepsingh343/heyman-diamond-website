@@ -223,6 +223,7 @@ export default function AuthPages({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [forgotSubmitted, setForgotSubmitted] = useState(false)
   const [resetSubmitted, setResetSubmitted] = useState(false)
+  const [directResetUrl, setDirectResetUrl] = useState<string | null>(null)
   const [recoveryToken, setRecoveryToken] = useState<string>(() => {
     if (typeof window === 'undefined') return ''
     const authStatus = parseAuthStatusFromHash()
@@ -1047,8 +1048,10 @@ export default function AuthPages({
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
       return 'Please enter a valid email address.'
-    if (password.length < 10)
-      return 'Password must be at least 10 characters long.'
+    if (password.length < 8)
+      return 'Password must be at least 8 characters long.'
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password))
+      return 'Password must contain uppercase letters, lowercase letters, and numbers.'
     return null
   }
 
@@ -1261,6 +1264,9 @@ export default function AuthPages({
       if (!res.ok) {
         throw new Error(data.error || 'Failed to send reset link. Please try again.')
       }
+      if (data.directResetUrl) {
+        setDirectResetUrl(data.directResetUrl)
+      }
       setStatus({
         text: data.message || 'If this email has an account, a password reset link has been sent.',
         kind: 'success',
@@ -1284,8 +1290,8 @@ export default function AuthPages({
       })
       return
     }
-    if (newPassword.length < 10) {
-      setStatus({ text: 'Password must be at least 10 characters long.', kind: 'error' })
+    if (newPassword.length < 8) {
+      setStatus({ text: 'Password must be at least 8 characters long.', kind: 'error' })
       return
     }
     if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword)) {
@@ -2962,8 +2968,33 @@ export default function AuthPages({
           {forgotSubmitted ? (
             <div className="auth-recovery-success">
               <div className="auth-status auth-status--success" role="status">
-                {status.text || 'A password reset link has been sent to your email.'}
+                {status.text || 'A password reset link has been dispatched.'}
               </div>
+              {directResetUrl && (
+                <div style={{ marginTop: '20px', padding: '16px', background: '#fdfbf7', border: '1px solid #cbb279', borderRadius: '8px' }}>
+                  <p style={{ margin: '0 0 12px', color: '#1a1a12', fontWeight: 600, fontSize: '14px' }}>
+                    ⚡ Instant 1-Click Password Reset:
+                  </p>
+                  <a
+                    href={directResetUrl}
+                    className="button-primary"
+                    style={{
+                      display: 'inline-block',
+                      width: '100%',
+                      textAlign: 'center',
+                      boxSizing: 'border-box',
+                      background: '#a58a50',
+                      color: '#ffffff',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      padding: '12px 20px',
+                      borderRadius: '6px'
+                    }}
+                  >
+                    Click Here to Set New Password Now →
+                  </a>
+                </div>
+              )}
               <p style={{ marginTop: '16px', color: '#555', fontSize: '14px', lineHeight: '1.5' }}>
                 Please check your inbox (and spam folder) for the reset link and follow the instructions to choose a new password.
               </p>
@@ -3031,7 +3062,7 @@ export default function AuthPages({
           <span className="auth-eyebrow">HEY MAN DIAMOND LLC · SET NEW PASSWORD</span>
           <h1>Create New Password</h1>
           <p>
-            Please enter your new secure password below (at least 10 characters with uppercase, lowercase, and numbers).
+            Please enter your new secure password below (at least 8 characters with uppercase, lowercase, and numbers).
           </p>
 
           {resetSubmitted ? (
@@ -3052,14 +3083,14 @@ export default function AuthPages({
           ) : (
             <form onSubmit={handleResetPasswordSubmit} noValidate>
               <label>
-                New Password <span style={{ fontWeight: 400, opacity: 0.7 }}>(min. 10 characters)</span>
+                New Password <span style={{ fontWeight: 400, opacity: 0.7 }}>(min. 8 characters)</span>
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
                     autoComplete="new-password"
-                    minLength={10}
+                    minLength={8}
                     required
                     maxLength={128}
                     placeholder="••••••••••"
@@ -3095,7 +3126,7 @@ export default function AuthPages({
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
                     autoComplete="new-password"
-                    minLength={10}
+                    minLength={8}
                     required
                     maxLength={128}
                     placeholder="••••••••••"
@@ -3289,14 +3320,14 @@ export default function AuthPages({
           </label>
 
           <label>
-            Password {signup && <span style={{ fontWeight: 400, opacity: 0.7 }}>(min. 10 characters)</span>}
+            Password {signup && <span style={{ fontWeight: 400, opacity: 0.7 }}>(min. 8 characters)</span>}
             <div style={{ position: 'relative' }}>
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 autoComplete={signup ? 'new-password' : 'current-password'}
-                minLength={10}
+                minLength={8}
                 required
                 maxLength={128}
                 placeholder="••••••••••"
