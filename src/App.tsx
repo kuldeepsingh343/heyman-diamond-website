@@ -1,5 +1,5 @@
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import './App.css'
 import CustomerExperience from './CustomerExperience'
 import PolicyPages from './PolicyPages'
@@ -11,6 +11,22 @@ import type { UserProfile } from './AuthPages'
 import InstagramReels from './InstagramReels'
 import OffersHero from './OffersHero'
 import { resolveAuthRoute, normalizeHashFragment, isStaffOrAdmin } from './routeUtils'
+
+export interface AddedToCartEventDetail {
+  diamond: {
+    sku: string
+    shape: string
+    carat: number | string
+    color?: string
+    clarity?: string
+    cut?: string
+    price: number
+    certificateNumber?: string
+    imageUrl?: string | null
+  }
+  totalItems: number
+  subtotal: number
+}
 
 
 
@@ -63,6 +79,9 @@ function App() {
       return 0
     }
   })
+  const [cartToast, setCartToast] = useState<AddedToCartEventDetail | null>(null)
+  const [cartBumping, setCartBumping] = useState(false)
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [policySlug, setPolicySlug] = useState(() => {
     const match = window.location.hash.match(/^#policy-(shipping|returns|privacy|terms|faq)$/)
     return match?.[1] ?? ''
@@ -138,11 +157,28 @@ function App() {
       }
     }
 
+    const handleCartAdded = (e: Event) => {
+      const detail = (e as CustomEvent<AddedToCartEventDetail>).detail
+      if (detail) {
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+        setCartToast(detail)
+        setCartBumping(true)
+        setTimeout(() => setCartBumping(false), 700)
+        checkUserAndCart()
+        toastTimeoutRef.current = setTimeout(() => {
+          setCartToast(null)
+        }, 5500)
+      }
+    }
+
     window.addEventListener('hashchange', syncRoute)
     window.addEventListener('storage', checkUserAndCart)
+    window.addEventListener('hmd-cart-added', handleCartAdded)
     return () => {
       window.removeEventListener('hashchange', syncRoute)
       window.removeEventListener('storage', checkUserAndCart)
+      window.removeEventListener('hmd-cart-added', handleCartAdded)
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
     }
   }, [])
 
@@ -176,8 +212,35 @@ function App() {
         </nav>
 
         <div className="nav-actions">
-          <a className="nav-button nav-cart" href="#account" title="View Diamond Cart & Shortlist">
-            🛒 Cart {cartCount > 0 ? `(${cartCount})` : ''}
+          <a
+            className={`nav-button nav-cart ${cartBumping ? 'nav-cart--bumping' : ''}`}
+            href="#account"
+            onClick={() => {
+              localStorage.setItem('hmd_active_tab', 'cart')
+              window.dispatchEvent(new Event('hmd-switch-tab'))
+            }}
+            title="View Diamond Cart & Shortlist"
+          >
+            <span className="nav-cart-icon-wrap">
+              <svg
+                className="nav-cart-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+              </svg>
+              <span className={`nav-cart-badge ${cartCount > 0 ? 'nav-cart-badge--active' : ''}`}>
+                {cartCount}
+              </span>
+            </span>
+            <span className="nav-cart-text">Cart</span>
           </a>
           {currentUser ? (
             <>
@@ -209,9 +272,108 @@ function App() {
               <a className="nav-button nav-signup" href="#signup-customer">Sign Up</a>
             </>
           )}
-          <a className="nav-button nav-contact" href="#contact">Talk to Our Team</a>
+          <a
+            className={`nav-button nav-contact ${currentUser ? 'nav-contact--logged-in' : ''}`}
+            href="#contact"
+          >
+            Talk to Our Team
+          </a>
         </div>
       </header>
+
+      {/* ── Amazon-style Added-to-Cart Confirmation Flyout ── */}
+      {cartToast && (
+        <aside
+          className="amazon-cart-toast"
+          role="dialog"
+          aria-label="Added to Cart Confirmation"
+          onMouseEnter={() => {
+            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+          }}
+          onMouseLeave={() => {
+            toastTimeoutRef.current = setTimeout(() => setCartToast(null), 3000)
+          }}
+        >
+          <div className="amazon-toast-header">
+            <span className="amazon-toast-success-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              Added to Cart
+            </span>
+            <button
+              type="button"
+              className="amazon-toast-close"
+              onClick={() => setCartToast(null)}
+              aria-label="Close notification"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="amazon-toast-body">
+            <div className="amazon-toast-product-row">
+              {cartToast.diamond.imageUrl ? (
+                <img
+                  src={cartToast.diamond.imageUrl}
+                  alt={`${cartToast.diamond.shape} Diamond`}
+                  className="amazon-toast-thumb"
+                />
+              ) : (
+                <div className="amazon-toast-thumb-placeholder">💎</div>
+              )}
+              <div className="amazon-toast-details">
+                <h4 className="amazon-toast-title">
+                  {cartToast.diamond.carat}ct {cartToast.diamond.shape} Diamond
+                </h4>
+                <div className="amazon-toast-specs">
+                  Color: {cartToast.diamond.color || 'F'} · Clarity: {cartToast.diamond.clarity || 'VS1'} · Cut: {cartToast.diamond.cut || 'Excellent'}
+                </div>
+                <div className="amazon-toast-sku">
+                  SKU: {cartToast.diamond.sku} {cartToast.diamond.certificateNumber ? `· Cert: ${cartToast.diamond.certificateNumber}` : ''}
+                </div>
+                <div className="amazon-toast-item-price">
+                  ${cartToast.diamond.price.toLocaleString()}
+                </div>
+              </div>
+            </div>
+
+            <div className="amazon-toast-subtotal-box">
+              <span>
+                Cart subtotal (<strong>{cartToast.totalItems} {cartToast.totalItems === 1 ? 'item' : 'items'}</strong>):
+              </span>
+              <strong className="amazon-subtotal-price">
+                ${cartToast.subtotal.toLocaleString()}
+              </strong>
+            </div>
+
+            <div className="amazon-toast-actions">
+              <a
+                href="#account"
+                className="amazon-toast-primary-btn"
+                onClick={() => {
+                  localStorage.setItem('hmd_active_tab', 'cart')
+                  setCartToast(null)
+                  window.dispatchEvent(new Event('hmd-switch-tab'))
+                }}
+              >
+                View Cart & Request Quote ({cartToast.totalItems}) →
+              </a>
+              <button
+                type="button"
+                className="amazon-toast-secondary-btn"
+                onClick={() => setCartToast(null)}
+              >
+                Continue Browsing
+              </button>
+            </div>
+          </div>
+
+          <div className="amazon-toast-progress">
+            <div className="amazon-toast-progress-bar" />
+          </div>
+        </aside>
+      )}
 
       <OffersHero />
 

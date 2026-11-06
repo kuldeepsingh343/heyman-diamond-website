@@ -91,6 +91,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const [selectedShape, setSelectedShape] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [addedSku, setAddedSku] = useState<string | null>(null)
 
   const isApprovedDealer =
     currentUser?.account_type === 'dealer' && currentUser?.dealer_status === 'approved'
@@ -149,19 +150,53 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
 
   const addToCart = (diamond: PublicDiamondItem) => {
     try {
+      const effectivePrice = isApprovedDealer
+        ? (diamond.wholesalePrice || diamond.dealerPrice || diamond.customerPrice || diamond.price || 0)
+        : (diamond.customerPrice || diamond.price || 0)
+
       const currentCart = JSON.parse(localStorage.getItem('hmd_cart') || '[]')
       const existing = currentCart.find((c: { sku: string }) => c.sku === diamond.sku)
       let nextCart
       if (existing) {
-        nextCart = currentCart.map((c: { sku: string; quantity: number }) =>
-          c.sku === diamond.sku ? { ...c, quantity: (c.quantity || 1) + 1 } : c
+        nextCart = currentCart.map((c: { sku: string; quantity: number; price?: number }) =>
+          c.sku === diamond.sku ? { ...c, quantity: (c.quantity || 1) + 1, price: effectivePrice } : c
         )
       } else {
-        nextCart = [...currentCart, { ...diamond, quantity: 1 }]
+        nextCart = [...currentCart, { ...diamond, price: effectivePrice, quantity: 1 }]
       }
       localStorage.setItem('hmd_cart', JSON.stringify(nextCart))
       window.dispatchEvent(new Event('storage'))
       if (onCartChange) onCartChange()
+
+      const totalItems = nextCart.reduce((s: number, i: { quantity?: number }) => s + (i.quantity || 1), 0)
+      const subtotal = nextCart.reduce((s: number, i: { price?: number; quantity?: number }) => s + ((i.price || 0) * (i.quantity || 1)), 0)
+
+      // Micro-interaction on clicked button
+      setAddedSku(diamond.sku)
+      setTimeout(() => {
+        setAddedSku(prev => (prev === diamond.sku ? null : prev))
+      }, 1800)
+
+      // Dispatch Amazon-style added to cart event to sync across header and drawer
+      window.dispatchEvent(
+        new CustomEvent('hmd-cart-added', {
+          detail: {
+            diamond: {
+              sku: diamond.sku,
+              shape: diamond.shape,
+              carat: diamond.carat,
+              color: diamond.color,
+              clarity: diamond.clarity,
+              cut: diamond.cut || 'Excellent',
+              price: effectivePrice,
+              certificateNumber: diamond.certificateNumber || '',
+              imageUrl: diamond.imageUrl || null,
+            },
+            totalItems,
+            subtotal,
+          },
+        })
+      )
 
       setToastMessage(`✓ Added ${diamond.shape} ${diamond.carat}ct (${diamond.sku}) to your cart.`)
       setTimeout(() => setToastMessage(null), 3500)
@@ -461,10 +496,10 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                   <div className="card-actions-row">
                     <button
                       type="button"
-                      className="button-primary card-add-btn"
+                      className={`button-primary card-add-btn ${addedSku === item.sku ? 'card-add-btn--added' : ''}`}
                       onClick={() => addToCart(item)}
                     >
-                      + Add to Cart
+                      {addedSku === item.sku ? '✓ Added to Cart!' : '+ Add to Cart'}
                     </button>
                     <a
                       href={`mailto:sales@heymandiamond.com?subject=Inquiry%20about%20${encodeURIComponent(item.shape)}%20${item.carat}ct%20(${encodeURIComponent(item.sku)})&body=Hello%20Hey%20Man%20Diamond%20Team,%0A%0AI%20am%20interested%20in%20learning%20more%20about%20SKU%20${encodeURIComponent(item.sku)}%20(${encodeURIComponent(item.shape)}%20${item.carat}ct,%20Color%20${encodeURIComponent(item.color)},%20Clarity%20${encodeURIComponent(item.clarity)}).%0A%0APlease%20let%20me%20know%20availability%20and%20shipping%20details.`}

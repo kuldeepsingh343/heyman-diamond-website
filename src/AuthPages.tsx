@@ -44,6 +44,7 @@ export interface DiamondItem {
   wholesalePrice?: number
   measurements?: string
   status?: string
+  imageUrl?: string | null
 }
 
 export interface CartItem extends DiamondItem {
@@ -138,7 +139,17 @@ export default function AuthPages({
     return null
   })
 
-  const [activeTab, setActiveTab] = useState<AccountTab>(mode === 'admin' ? 'tools' : 'overview')
+  const [activeTab, setActiveTab] = useState<AccountTab>(() => {
+    if (typeof window !== 'undefined') {
+      const savedTab = localStorage.getItem('hmd_active_tab') as AccountTab | null
+      if (savedTab && ['overview', 'catalog', 'cart', 'profile', 'orders', 'tools', 'dealers', 'promotions'].includes(savedTab)) {
+        localStorage.removeItem('hmd_active_tab')
+        return savedTab
+      }
+    }
+    return mode === 'admin' ? 'tools' : 'overview'
+  })
+  const [addedCatalogSku, setAddedCatalogSku] = useState<string | null>(null)
 
   // ── signup / signin form state ──────────────────────────────────────────
   const [fullName, setFullName] = useState('')
@@ -531,12 +542,42 @@ export default function AuthPages({
 
   const addToCart = (diamond: DiamondItem) => {
     const existing = cart.find(c => c.sku === diamond.sku)
+    let nextCart: CartItem[]
     if (existing) {
-      updateCart(cart.map(c => c.sku === diamond.sku ? { ...c, quantity: c.quantity + 1 } : c))
+      nextCart = cart.map(c => c.sku === diamond.sku ? { ...c, quantity: c.quantity + 1 } : c)
     } else {
-      updateCart([...cart, { ...diamond, quantity: 1 }])
+      nextCart = [...cart, { ...diamond, quantity: 1 }]
     }
+    updateCart(nextCart)
     setCartMsg({ text: `Added ${diamond.shape} ${diamond.carat}ct (${diamond.sku}) to your cart.`, kind: 'success' })
+
+    setAddedCatalogSku(diamond.sku)
+    setTimeout(() => {
+      setAddedCatalogSku(prev => (prev === diamond.sku ? null : prev))
+    }, 1800)
+
+    const totalItems = nextCart.reduce((sum, i) => sum + (i.quantity || 1), 0)
+    const subtotal = nextCart.reduce((sum, i) => sum + ((i.price || 0) * (i.quantity || 1)), 0)
+
+    window.dispatchEvent(
+      new CustomEvent('hmd-cart-added', {
+        detail: {
+          diamond: {
+            sku: diamond.sku,
+            shape: diamond.shape,
+            carat: diamond.carat,
+            color: diamond.color,
+            clarity: diamond.clarity,
+            cut: diamond.cut || 'Excellent',
+            price: diamond.price,
+            certificateNumber: diamond.certificateNumber || '',
+            imageUrl: diamond.imageUrl || null,
+          },
+          totalItems,
+          subtotal,
+        },
+      })
+    )
   }
 
   const removeFromCart = (sku: string) => {
@@ -663,6 +704,23 @@ export default function AuthPages({
       window.location.hash = '#account'
     }
   }, [user, mode, isUserAdmin])
+
+  // Synchronize active tab when requested from cart flyout or header
+  useEffect(() => {
+    const handleSwitchTab = () => {
+      const savedTab = localStorage.getItem('hmd_active_tab') as AccountTab | null
+      if (savedTab && ['overview', 'catalog', 'cart', 'profile', 'orders', 'tools', 'dealers', 'promotions'].includes(savedTab)) {
+        localStorage.removeItem('hmd_active_tab')
+        setActiveTab(savedTab)
+      }
+    }
+    window.addEventListener('hmd-switch-tab', handleSwitchTab)
+    window.addEventListener('hashchange', handleSwitchTab)
+    return () => {
+      window.removeEventListener('hmd-switch-tab', handleSwitchTab)
+      window.removeEventListener('hashchange', handleSwitchTab)
+    }
+  }, [])
 
   // Load profile from server when entering profile tab
   useEffect(() => {
@@ -1207,10 +1265,10 @@ export default function AuthPages({
                         <div className="diamond-card-price">${item.price.toLocaleString()}</div>
                         <button
                           type="button"
-                          className="button-primary add-cart-btn"
+                          className={`button-primary add-cart-btn ${addedCatalogSku === item.sku ? 'card-add-btn--added' : ''}`}
                           onClick={() => addToCart(item)}
                         >
-                          + Add to Cart
+                          {addedCatalogSku === item.sku ? '✓ Added to Cart!' : '+ Add to Cart'}
                         </button>
                       </div>
                     </div>
