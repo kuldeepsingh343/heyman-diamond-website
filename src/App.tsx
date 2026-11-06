@@ -574,7 +574,6 @@ function App() {
           <span>Made with ❤️ by Kuldeep Singh Chauhan</span>
         </div>
       </footer>
-
     </main>
   )
 }

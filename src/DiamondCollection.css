@@ -9,29 +9,30 @@
 
 /* Category card buttons */
 .category-card-button {
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  border-radius: 16px;
   text-align: left;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease), border-color 0.22s ease;
+  transition: transform 0.28s var(--ease), box-shadow 0.28s var(--ease), border-color 0.28s ease;
   font-family: inherit;
   color: inherit;
   padding: 0;
+  box-shadow: 0 4px 16px rgba(41, 40, 32, 0.04);
 }
 
 .category-card-button:hover {
   transform: translateY(-4px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--gold-light);
+  box-shadow: 0 14px 32px rgba(179, 147, 82, 0.16);
+  border-color: rgba(212, 175, 55, 0.5);
 }
 
 .category-card-button--active {
   border-color: var(--gold);
-  box-shadow: 0 0 0 2px var(--gold), var(--shadow-md);
+  box-shadow: 0 0 0 2px var(--gold), 0 12px 30px rgba(179, 147, 82, 0.2);
 }
 
 /* Toast banner for cart add */
@@ -39,14 +40,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #1d3324;
+  background: #142419;
   color: #e5f6eb;
-  padding: 14px 22px;
-  border-radius: 10px;
+  padding: 15px 24px;
+  border-radius: 12px;
   margin: 28px 0 16px;
   font-size: 14px;
   font-weight: 500;
   box-shadow: var(--shadow-md);
+  border: 1px solid rgba(46, 125, 50, 0.35);
   animation: slideDownFade 0.3s ease-out;
 }
 
@@ -65,10 +67,10 @@
 .diamond-catalog-wrap {
   margin-top: 56px;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 36px 32px;
-  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  border-radius: 24px;
+  padding: 40px 36px;
+  box-shadow: 0 8px 32px rgba(41, 40, 32, 0.05);
 }
 
 .diamond-catalog-header {
@@ -289,19 +291,20 @@
 
 .public-diamond-card {
   background: #ffffff;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 22px;
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  border-radius: 18px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease, border-color 0.28s ease;
   position: relative;
+  box-shadow: 0 4px 18px rgba(41, 40, 32, 0.04);
 }
 
 .public-diamond-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-md);
-  border-color: #d6cdbc;
+  transform: translateY(-5px);
+  box-shadow: 0 16px 38px rgba(179, 147, 82, 0.16);
+  border-color: rgba(212, 175, 55, 0.55);
 }
 
 /* Badges */
@@ -310,27 +313,32 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .lab-badge {
-  background: #f4efe2;
-  color: #79622d;
+  background: linear-gradient(135deg, #f7f1e4 0%, #ede3cb 100%);
+  color: #7a6128;
+  border: 1px solid rgba(212, 175, 55, 0.32);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 3px 8px;
-  border-radius: 4px;
+  letter-spacing: 0.8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .category-tag-badge {
+  font-family: var(--font-sans);
   font-size: 11px;
-  color: var(--muted);
-  background: var(--soft);
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-weight: 500;
+  color: #736f64;
+  background: #f4efe4;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
 }
 
 /* Stone Heading */
@@ -343,17 +351,20 @@
 }
 
 .stone-shape-name {
-  font-family: 'Playfair Display', serif;
-  font-size: 20px;
+  font-family: var(--font-serif);
+  font-size: 22px;
   font-weight: 600;
-  color: var(--ink);
+  color: #161712;
   margin: 0;
+  letter-spacing: -0.2px;
 }
 
 .stone-carat-tag {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--gold-dark);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 800;
+  color: #8c7138;
+  letter-spacing: -0.2px;
 }
 
 /* Specs Row */
@@ -361,10 +372,10 @@
   display: flex;
   align-items: center;
   justify-content: space-around;
-  background: #faf8f5;
-  border: 1px solid #eee8dc;
-  border-radius: 8px;
-  padding: 10px 8px;
+  background: #faf8f4;
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  border-radius: 10px;
+  padding: 12px 10px;
   margin-bottom: 16px;
 }
 
@@ -375,22 +386,25 @@
 }
 
 .spec-item small {
+  font-family: var(--font-sans);
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--muted);
-  margin-bottom: 2px;
-}
-
-.spec-item strong {
-  font-size: 13px;
-  color: var(--ink);
+  letter-spacing: 0.6px;
+  color: #827e74;
+  margin-bottom: 3px;
   font-weight: 600;
 }
 
+.spec-item strong {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: #1a1a14;
+  font-weight: 700;
+}
+
 .spec-pipe {
-  color: #d8d2c4;
-  font-size: 12px;
+  color: rgba(212, 175, 55, 0.3);
+  font-size: 13px;
 }
 
 /* Technical Details */
@@ -555,34 +569,35 @@
 .card-media-wrapper {
   position: relative;
   width: 100%;
-  height: 200px;
-  background: radial-gradient(circle at 50% 45%, #ffffff 0%, #f7f4ec 100%);
-  border: 1px solid #e7e2d6;
-  border-radius: 10px;
+  height: 215px;
+  background: radial-gradient(circle at 50% 45%, #ffffff 0%, #f7f3ea 100%);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 12px;
   overflow: hidden;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  transition: border-color 0.28s ease, box-shadow 0.28s ease, transform 0.28s ease;
 }
 
 .card-media-wrapper:hover {
   border-color: var(--gold);
-  box-shadow: 0 4px 16px rgba(165, 138, 80, 0.16);
+  box-shadow: 0 6px 20px rgba(179, 147, 82, 0.2);
 }
 
 .card-diamond-image {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 14px;
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 16px;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.08));
 }
 
 .card-media-wrapper:hover .card-diamond-image {
-  transform: scale(1.08);
+  transform: scale(1.09);
 }
 
 .card-media-overlay {
@@ -597,17 +612,18 @@
 .card-video-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  background: rgba(18, 17, 14, 0.85);
+  gap: 6px;
+  background: rgba(18, 17, 14, 0.9);
   color: #f7df99;
-  border: 1px solid rgba(212, 160, 23, 0.45);
+  border: 1px solid rgba(212, 160, 23, 0.55);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 700;
-  padding: 4px 9px;
+  padding: 5px 11px;
   border-radius: 20px;
-  backdrop-filter: blur(4px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  letter-spacing: 0.02em;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.03em;
 }
 
 .card-photo-pill {

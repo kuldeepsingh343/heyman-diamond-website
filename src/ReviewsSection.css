@@ -107,15 +107,18 @@
 /* Review Form Card */
 .reviews-form-card {
   background: #ffffff;
-  border: 1px solid #e2dac9;
-  border-radius: 4px;
-  padding: clamp(26px, 4vw, 42px);
-  box-shadow: 0 12px 36px rgba(45, 38, 24, 0.04);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 16px;
+  padding: clamp(28px, 4vw, 44px);
+  box-shadow: 0 12px 36px rgba(45, 38, 24, 0.05);
 }
 
 .reviews-form-card h3 {
-  margin: 0 0 6px;
-  font: 500 28px/1.25 'Playfair Display', Georgia, serif;
+  margin: 0 0 8px;
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1.25;
   color: #1a1a12;
 }
 
@@ -307,20 +310,20 @@
 
 .client-review-card {
   background: #ffffff;
-  border: 1px solid #e4ddcf;
-  border-radius: 6px;
-  padding: 30px;
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  border-radius: 16px;
+  padding: 32px 28px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 0 4px 18px rgba(45, 38, 24, 0.04);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease, border-color 0.28s ease;
 }
 
 .client-review-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 30px rgba(45, 38, 24, 0.08);
-  border-color: #bfa15f;
+  box-shadow: 0 14px 34px rgba(179, 147, 82, 0.16);
+  border-color: rgba(212, 175, 55, 0.55);
 }
 
 .review-card-top {
@@ -331,18 +334,21 @@
 }
 
 .review-card-stars {
-  color: #bfa15f;
+  color: #d4a017;
   letter-spacing: 2px;
-  font-size: 14px;
+  font-size: 15px;
+  filter: drop-shadow(0 1px 2px rgba(212, 160, 23, 0.25));
 }
 
 .review-card-badge {
+  font-family: var(--font-sans);
   font-size: 11px;
-  font-weight: 600;
-  color: #3f6844;
-  background: #edf5ee;
-  padding: 3px 9px;
-  border-radius: 12px;
+  font-weight: 700;
+  color: #276033;
+  background: #eaf4ec;
+  border: 1px solid rgba(46, 125, 50, 0.2);
+  padding: 3px 10px;
+  border-radius: 20px;
 }
 
 .review-card-quote {
