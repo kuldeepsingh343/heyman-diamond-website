@@ -252,6 +252,55 @@ export async function handleForgotPassword(req, res) {
   return json(res, 200, { sent: true, message: 'If this email has an account, a password reset link has been sent.' })
 }
 
+export async function handleResetPassword(req, res) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Authentication service is not configured yet.' })
+  const input = await bodyJson(req)
+  const password = String(input.password || '')
+  const authHeader = req.headers['authorization'] || ''
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+  const token = bearerToken || String(input.accessToken || '').trim()
+
+  if (!token) {
+    return json(res, 401, { error: 'Your password reset session or link is invalid or expired. Please request a new link.' })
+  }
+
+  if (
+    password.length < 10 ||
+    password.length > 128 ||
+    !/[a-z]/.test(password) ||
+    !/[A-Z]/.test(password) ||
+    !/\d/.test(password)
+  ) {
+    return json(res, 400, {
+      error: 'Password must be between 10 and 128 characters and include uppercase, lowercase, and numbers.',
+    })
+  }
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password }),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      return json(res, response.status, {
+        error: data.msg || data.message || 'Unable to update password. Your reset link may have expired.',
+      })
+    }
+    return json(res, 200, {
+      success: true,
+      message: 'Your password has been updated successfully. You can now sign in with your new password.',
+    })
+  } catch {
+    return json(res, 500, { error: 'Failed to communicate with authentication service.' })
+  }
+}
+
 export async function handleGetProfile(req, res) {
   const user = await authenticatedUser(req)
   if (!user?.id) return json(res, 401, { error: 'Please sign in to view your profile.' })

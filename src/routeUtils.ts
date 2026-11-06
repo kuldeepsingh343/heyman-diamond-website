@@ -63,9 +63,14 @@ export function resolveAuthRoute(hash?: string): string {
   const currentHash = hash ?? (typeof window !== 'undefined' ? window.location.hash : '')
   if (!currentHash) return ''
 
-  // Standard auth routes: #signup-customer, #signup-dealer, #signin, #account, #admin
-  const standardMatch = currentHash.match(/^#(signup-customer|signup-dealer|signin|account|admin)$/)
+  // Standard auth routes: #signup-customer, #signup-dealer, #signin, #account, #admin, #forgot-password, #reset-password
+  const standardMatch = currentHash.match(/^#(signup-customer|signup-dealer|signin|account|admin|forgot-password|reset-password)$/)
   if (standardMatch) return standardMatch[1]
+
+  // Supabase password recovery link redirection (e.g. #access_token=...&type=recovery or #signin#access_token=...&type=recovery or #type=recovery)
+  if (currentHash.includes('type=recovery')) {
+    return 'reset-password'
+  }
 
   // Supabase verification redirect tokens (e.g. #access_token=... or #signin#access_token=...)
   // or error fragments (e.g. #error=... or #error_description=...)
@@ -76,6 +81,14 @@ export function resolveAuthRoute(hash?: string): string {
   // Handle #signin with query parameters or trailing fragment, e.g. #signin?... or #signin&...
   if (/^#signin[#&?]/.test(currentHash)) {
     return 'signin'
+  }
+
+  if (/^#forgot-password[#&?]/.test(currentHash)) {
+    return 'forgot-password'
+  }
+
+  if (/^#reset-password[#&?]/.test(currentHash)) {
+    return 'reset-password'
   }
 
   return ''
@@ -108,16 +121,19 @@ export function parseAuthStatusFromHash(hash?: string): AuthStatusResult {
     return { text: decodedText, kind: 'error' }
   }
 
-  // 2. Check for successful email verification access tokens or OAuth redirect tokens
+  // 2. Check for successful email verification access tokens, password recovery tokens, or OAuth redirect tokens
   const accessToken = params.get('access_token')
   const refreshToken = params.get('refresh_token')
   if (accessToken) {
     const isSignupConfirm = params.get('type') === 'signup'
+    const isRecovery = params.get('type') === 'recovery'
     return {
-      text: isSignupConfirm
+      text: isRecovery
+        ? 'Verification successful. Please enter your new password below.'
+        : isSignupConfirm
         ? 'Your email has been confirmed successfully. You can now sign in to your account.'
         : 'You are signed in successfully.',
-      kind: 'success',
+      kind: isRecovery ? 'info' : 'success',
       accessToken,
       refreshToken: refreshToken ?? undefined,
     }

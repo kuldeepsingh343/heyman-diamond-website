@@ -5,7 +5,7 @@ import { parseAuthStatusFromHash } from './routeUtils'
 import type { PromotionOffer } from './OffersHero'
 import { getDiamondMedia } from './diamondUtils'
 
-type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account' | 'admin'
+type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account' | 'admin' | 'forgot-password' | 'reset-password'
 type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools' | 'dealers' | 'offers' | 'reviews'
 
 export interface AdminReviewItem {
@@ -123,9 +123,11 @@ export default function AuthPages({
   mode: string
   onUserChange?: (user: UserProfile | null) => void
 }) {
-  const current = (['signup-customer', 'signup-dealer', 'signin', 'account'].includes(mode) ? mode : 'signin') as Mode
+  const current = (['signup-customer', 'signup-dealer', 'signin', 'account', 'admin', 'forgot-password', 'reset-password'].includes(mode) ? mode : 'signin') as Mode
   const dealer = current === 'signup-dealer'
   const signup = current === 'signup-customer' || current === 'signup-dealer'
+  const isForgotPassword = current === 'forgot-password'
+  const isResetPassword = current === 'reset-password'
 
   // ── user session state ──────────────────────────────────────────────────
   const [user, setUser] = useState<UserProfile | null>(() => {
@@ -198,6 +200,13 @@ export default function AuthPages({
   const [cart, setCart] = useState<CartItem[]>(() => {
     if (typeof window === 'undefined') return []
     try {
+      const token = localStorage.getItem('hmd_access_token')
+      const raw = localStorage.getItem('hmd_user')
+      const isGuestActive = sessionStorage.getItem('hmd_guest_cart_active') === 'true'
+      if (!token && !raw && !isGuestActive) {
+        localStorage.removeItem('hmd_cart')
+        return []
+      }
       const saved = localStorage.getItem('hmd_cart')
       return saved ? JSON.parse(saved) : []
     } catch {
@@ -206,6 +215,19 @@ export default function AuthPages({
   })
   const [submittingCart, setSubmittingCart] = useState(false)
   const [cartMsg, setCartMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+
+  // ── forgot & reset password state ────────────────────────────────────────
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [forgotSubmitted, setForgotSubmitted] = useState(false)
+  const [resetSubmitted, setResetSubmitted] = useState(false)
+  const [recoveryToken, setRecoveryToken] = useState<string>(() => {
+    if (typeof window === 'undefined') return ''
+    const authStatus = parseAuthStatusFromHash()
+    return authStatus.accessToken || ''
+  })
 
   // ── orders & quotes state ───────────────────────────────────────────────
   const [orders, setOrders] = useState<UserOrder[]>([])
@@ -905,6 +927,18 @@ export default function AuthPages({
     }
   }, [user, updateUserSession])
 
+  // Synchronize recovery token if URL hash changes
+  useEffect(() => {
+    const handleHash = () => {
+      const authStatus = parseAuthStatusFromHash()
+      if (authStatus.accessToken) {
+        setRecoveryToken(authStatus.accessToken)
+      }
+    }
+    window.addEventListener('hashchange', handleHash)
+    return () => window.removeEventListener('hashchange', handleHash)
+  }, [])
+
   // Auto-fetch admin data asynchronously when administrator is logged in
   useEffect(() => {
     let ignore = false
@@ -1207,6 +1241,88 @@ export default function AuthPages({
     }
   }
 
+  async function handleForgotPasswordSubmit(e: FormEvent) {
+    e.preventDefault()
+    setStatus({ text: '', kind: 'info' })
+    const trimmedEmail = email.trim()
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setStatus({ text: 'Please enter a valid email address.', kind: 'error' })
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail }),
+      })
+      const isJson = res.headers.get('content-type')?.includes('application/json')
+      const data = isJson ? await res.json().catch(() => ({})) : {}
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send reset link. Please try again.')
+      }
+      setStatus({
+        text: data.message || 'If this email has an account, a password reset link has been sent.',
+        kind: 'success',
+      })
+      setForgotSubmitted(true)
+    } catch (err) {
+      setStatus({ text: err instanceof Error ? err.message : 'Unable to request password reset.', kind: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleResetPasswordSubmit(e: FormEvent) {
+    e.preventDefault()
+    setStatus({ text: '', kind: 'info' })
+    const token = recoveryToken || parseAuthStatusFromHash().accessToken || ''
+    if (!token) {
+      setStatus({
+        text: 'Your password reset link is invalid or has expired. Please request a new password reset link.',
+        kind: 'error',
+      })
+      return
+    }
+    if (newPassword.length < 10) {
+      setStatus({ text: 'Password must be at least 10 characters long.', kind: 'error' })
+      return
+    }
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setStatus({ text: 'Password must contain uppercase letters, lowercase letters, and numbers.', kind: 'error' })
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setStatus({ text: 'Passwords do not match. Please verify and try again.', kind: 'error' })
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ accessToken: token, password: newPassword }),
+      })
+      const isJson = res.headers.get('content-type')?.includes('application/json')
+      const data = isJson ? await res.json().catch(() => ({})) : {}
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update password. Your reset link may have expired.')
+      }
+      setStatus({
+        text: data.message || 'Your password has been successfully updated! You can now sign in with your new password.',
+        kind: 'success',
+      })
+      setResetSubmitted(true)
+    } catch (err) {
+      setStatus({ text: err instanceof Error ? err.message : 'Unable to update password.', kind: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files[0]) {
       setUploadFile(e.target.files[0])
@@ -1270,8 +1386,8 @@ export default function AuthPages({
     ? catalogItems
     : catalogItems.filter(item => item.shape.toLowerCase() === selectedShape.toLowerCase())
 
-  // ── Account Dashboard View (Rendered when signed in) ──────────────────────
-  if (user) {
+  // ── Account Dashboard View (Rendered when signed in and not in password recovery) ──
+  if (user && !isForgotPassword && !isResetPassword) {
     return (
       <main className="auth-page auth-page--dashboard">
         <header className="auth-header auth-header--dashboard">
@@ -2806,7 +2922,12 @@ export default function AuthPages({
                 localStorage.removeItem('hmd_access_token')
                 localStorage.removeItem('hmd_refresh_token')
                 localStorage.removeItem('hmd_user')
+                localStorage.removeItem('hmd_cart')
+                localStorage.removeItem('hmd_active_tab')
+                sessionStorage.removeItem('hmd_guest_cart_active')
                 updateUserSession(null)
+                setCart([])
+                window.dispatchEvent(new Event('storage'))
                 setStatus({ text: '', kind: 'info' })
                 window.location.hash = '#home'
               }}
@@ -2814,6 +2935,213 @@ export default function AuthPages({
               Sign Out
             </button>
           </div>
+        </section>
+      </main>
+    )
+  }
+
+  // ── Forgot Password View ──────────────────────────────────────────────────
+  if (isForgotPassword) {
+    return (
+      <main className="auth-page">
+        <header className="auth-header">
+          <a href="#home">
+            <img src="/heyman-diamond-logo.png" alt="Hey Man Diamond LLC" />
+          </a>
+          <a href="#home">← Back to website</a>
+        </header>
+
+        <section className="auth-card">
+          <span className="auth-eyebrow">HEY MAN DIAMOND LLC · SECURE ACCOUNT ASSISTANCE</span>
+          <h1>Reset Your Password</h1>
+          <p>
+            Enter the email address registered with your Hey Man Diamond account.
+            We will send you a secure link to reset your password.
+          </p>
+
+          {forgotSubmitted ? (
+            <div className="auth-recovery-success">
+              <div className="auth-status auth-status--success" role="status">
+                {status.text || 'A password reset link has been sent to your email.'}
+              </div>
+              <p style={{ marginTop: '16px', color: '#555', fontSize: '14px', lineHeight: '1.5' }}>
+                Please check your inbox (and spam folder) for the reset link and follow the instructions to choose a new password.
+              </p>
+              <div style={{ marginTop: '24px' }}>
+                <a
+                  href="#signin"
+                  className="button-primary"
+                  style={{ display: 'inline-block', width: '100%', textAlign: 'center', boxSizing: 'border-box' }}
+                >
+                  Return to Sign In
+                </a>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPasswordSubmit} noValidate>
+              <label>
+                Email address
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                  maxLength={254}
+                  placeholder="you@example.com"
+                />
+              </label>
+
+              <button type="submit" disabled={busy}>
+                {busy ? 'Sending Reset Link…' : 'Send Password Reset Link'}
+              </button>
+
+              {status.text && (
+                <p className={statusClass} role="status" aria-live="polite">
+                  {status.text}
+                </p>
+              )}
+
+              <p className="auth-switch" style={{ marginTop: '20px' }}>
+                Remember your password? <a href="#signin">Back to Sign In</a>
+              </p>
+            </form>
+          )}
+
+          <p className="auth-footnote">
+            For security, password reset links expire after a short period. If you do not receive an email, check your spam folder or verify your registered email address.
+          </p>
+        </section>
+      </main>
+    )
+  }
+
+  // ── Reset Password View ───────────────────────────────────────────────────
+  if (isResetPassword) {
+    return (
+      <main className="auth-page">
+        <header className="auth-header">
+          <a href="#home">
+            <img src="/heyman-diamond-logo.png" alt="Hey Man Diamond LLC" />
+          </a>
+          <a href="#home">← Back to website</a>
+        </header>
+
+        <section className="auth-card">
+          <span className="auth-eyebrow">HEY MAN DIAMOND LLC · SET NEW PASSWORD</span>
+          <h1>Create New Password</h1>
+          <p>
+            Please enter your new secure password below (at least 10 characters with uppercase, lowercase, and numbers).
+          </p>
+
+          {resetSubmitted ? (
+            <div className="auth-recovery-success">
+              <div className="auth-status auth-status--success" role="status">
+                {status.text || 'Your password has been successfully updated.'}
+              </div>
+              <div style={{ marginTop: '24px' }}>
+                <a
+                  href="#signin"
+                  className="button-primary"
+                  style={{ display: 'inline-block', width: '100%', textAlign: 'center', boxSizing: 'border-box' }}
+                >
+                  Sign In With New Password
+                </a>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleResetPasswordSubmit} noValidate>
+              <label>
+                New Password <span style={{ fontWeight: 400, opacity: 0.7 }}>(min. 10 characters)</span>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={10}
+                    required
+                    maxLength={128}
+                    placeholder="••••••••••"
+                    style={{ paddingRight: '48px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(v => !v)}
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      border: 'none',
+                      background: 'none',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: '#77746b',
+                      padding: '4px',
+                    }}
+                  >
+                    {showNewPassword ? '🙈' : '👁'}
+                  </button>
+                </div>
+              </label>
+
+              <label>
+                Confirm New Password
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={10}
+                    required
+                    maxLength={128}
+                    placeholder="••••••••••"
+                    style={{ paddingRight: '48px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(v => !v)}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      border: 'none',
+                      background: 'none',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: '#77746b',
+                      padding: '4px',
+                    }}
+                  >
+                    {showConfirmPassword ? '🙈' : '👁'}
+                  </button>
+                </div>
+              </label>
+
+              <button type="submit" disabled={busy}>
+                {busy ? 'Updating Password…' : 'Update Password'}
+              </button>
+
+              {status.text && (
+                <p className={statusClass} role="status" aria-live="polite">
+                  {status.text}
+                </p>
+              )}
+
+              <p className="auth-switch" style={{ marginTop: '20px' }}>
+                <a href="#signin">Back to Sign In</a>
+              </p>
+            </form>
+          )}
+
+          <p className="auth-footnote">
+            Passwords must contain uppercase, lowercase, and numeric characters to ensure strict account protection.
+          </p>
         </section>
       </main>
     )
@@ -2995,6 +3323,14 @@ export default function AuthPages({
               </button>
             </div>
           </label>
+
+          {!signup && !isAdminLogin && (
+            <div className="auth-forgot-row">
+              <a href="#forgot-password" className="auth-forgot-link">
+                Forgot password?
+              </a>
+            </div>
+          )}
 
           <button type="submit" disabled={busy}>
             {busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}

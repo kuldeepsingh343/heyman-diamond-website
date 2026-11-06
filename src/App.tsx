@@ -73,6 +73,13 @@ function App() {
   const [cartCount, setCartCount] = useState(() => {
     if (typeof window === 'undefined') return 0
     try {
+      const token = localStorage.getItem('hmd_access_token')
+      const raw = localStorage.getItem('hmd_user')
+      const isGuestActive = sessionStorage.getItem('hmd_guest_cart_active') === 'true'
+      if (!token && !raw && !isGuestActive) {
+        localStorage.removeItem('hmd_cart')
+        return 0
+      }
       const items = JSON.parse(localStorage.getItem('hmd_cart') || '[]')
       return Array.isArray(items) ? items.reduce((s: number, i: { quantity?: number }) => s + (i.quantity || 1), 0) : 0
     } catch {
@@ -123,6 +130,7 @@ function App() {
       if (typeof window === 'undefined') return
       const token = localStorage.getItem('hmd_access_token')
       const raw = localStorage.getItem('hmd_user')
+      const isGuestActive = sessionStorage.getItem('hmd_guest_cart_active') === 'true'
       if (token && raw) {
         try {
           setCurrentUser(JSON.parse(raw))
@@ -131,6 +139,11 @@ function App() {
         }
       } else {
         setCurrentUser(null)
+        if (!isGuestActive) {
+          localStorage.removeItem('hmd_cart')
+          setCartCount(0)
+          return
+        }
       }
 
       try {
@@ -259,7 +272,12 @@ function App() {
                   localStorage.removeItem('hmd_access_token')
                   localStorage.removeItem('hmd_refresh_token')
                   localStorage.removeItem('hmd_user')
+                  localStorage.removeItem('hmd_cart')
+                  localStorage.removeItem('hmd_active_tab')
+                  sessionStorage.removeItem('hmd_guest_cart_active')
                   setCurrentUser(null)
+                  setCartCount(0)
+                  window.dispatchEvent(new Event('storage'))
                   window.location.hash = '#home'
                 }}
               >

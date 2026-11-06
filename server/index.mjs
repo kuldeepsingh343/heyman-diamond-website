@@ -20,6 +20,7 @@ import {
   handleResendConfirmation,
   handleSignin,
   handleForgotPassword,
+  handleResetPassword,
   handleGetProfile,
   handleUpdateProfile,
   handleOAuth,
@@ -115,6 +116,9 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/auth/forgot-password') {
       return await handleForgotPassword(req, res)
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/reset-password') {
+      return await handleResetPassword(req, res)
     }
     if (req.method === 'GET' && url.pathname === '/api/auth/oauth') {
       return await handleOAuth(req, res, url)

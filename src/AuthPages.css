@@ -2129,4 +2129,35 @@
   border-color: #d93025;
 }
 
+/* ── Forgot Password & Reset Password Styles ── */
+.auth-forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+  margin-bottom: 16px;
+}
+
+.auth-forgot-link {
+  color: #8b734b;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.auth-forgot-link:hover {
+  color: #1a1a12;
+  text-decoration: underline;
+}
+
+.auth-recovery-success {
+  background: #f9fbf9;
+  border: 1px solid #cce8d0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 16px;
+  text-align: center;
+}
+
+
 

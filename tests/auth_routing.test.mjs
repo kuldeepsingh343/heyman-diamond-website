@@ -8,6 +8,16 @@ test('Frontend Hash Route Resolution', async t => {
     assert.equal(resolveAuthRoute('#signin'), 'signin')
     assert.equal(resolveAuthRoute('#signup-customer'), 'signup-customer')
     assert.equal(resolveAuthRoute('#signup-dealer'), 'signup-dealer')
+    assert.equal(resolveAuthRoute('#forgot-password'), 'forgot-password')
+    assert.equal(resolveAuthRoute('#reset-password'), 'reset-password')
+  })
+
+  await t.test('resolves password recovery redirect hash with type=recovery to reset-password', () => {
+    const recoveryHash = '#access_token=rec_token_789&refresh_token=rec_ref_012&type=recovery'
+    assert.equal(resolveAuthRoute(recoveryHash), 'reset-password')
+
+    const doubleRecoveryHash = '#signin#access_token=rec_token_789&refresh_token=rec_ref_012&type=recovery'
+    assert.equal(resolveAuthRoute(doubleRecoveryHash), 'reset-password')
   })
 
   await t.test('returns empty for non-auth hashes or home', () => {
@@ -71,6 +81,15 @@ test('Frontend Hash Route Resolution', async t => {
     assert.equal(status.text, 'Your email has been confirmed successfully. You can now sign in to your account.')
     assert.equal(status.accessToken, 'token_abc_123')
     assert.equal(status.refreshToken, 'ref_xyz_456')
+  })
+
+  await t.test('parses password recovery access token hash into info status for reset-password', () => {
+    const recoveryHash = '#access_token=token_rec_456&refresh_token=ref_rec_789&type=recovery'
+    const status = parseAuthStatusFromHash(recoveryHash)
+    assert.equal(status.kind, 'info')
+    assert.equal(status.text, 'Verification successful. Please enter your new password below.')
+    assert.equal(status.accessToken, 'token_rec_456')
+    assert.equal(status.refreshToken, 'ref_rec_789')
   })
 
   await t.test('returns empty info status for regular navigation hashes', () => {

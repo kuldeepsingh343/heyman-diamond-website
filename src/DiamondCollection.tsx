@@ -167,6 +167,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
       } else {
         nextCart = [...currentCart, { ...diamond, price: effectivePrice, quantity: 1 }]
       }
+      sessionStorage.setItem('hmd_guest_cart_active', 'true')
       localStorage.setItem('hmd_cart', JSON.stringify(nextCart))
       window.dispatchEvent(new Event('storage'))
       if (onCartChange) onCartChange()
