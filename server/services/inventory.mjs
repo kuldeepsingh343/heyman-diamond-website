@@ -1,8 +1,17 @@
 import { json, bodyJson, db, supabaseReady } from './shared.mjs'
 
 // ── Flomiz Stock Pull API Configuration ─────────────────────────────────────
-export const getFlomizApiKey = () => (process.env.FLOMIZ_API_KEY || process.env.FLOMIZ_KEY || '').trim()
-export const getFlomizBaseUrl = () => (process.env.FLOMIZ_BASE_URL || process.env.FLOMIZ_STOCK_URL || 'https://diamond.flomiz.com').replace(/\/$/, '')
+let dynamicFlomizConfig = {
+  apiKey: null,
+  baseUrl: null,
+}
+
+export const getFlomizApiKey = () => (dynamicFlomizConfig.apiKey ?? (process.env.FLOMIZ_API_KEY || process.env.FLOMIZ_KEY || '')).trim()
+export const getFlomizBaseUrl = () => (dynamicFlomizConfig.baseUrl ?? (process.env.FLOMIZ_BASE_URL || process.env.FLOMIZ_STOCK_URL || 'https://diamond.flomiz.com')).replace(/\/$/, '')
+export function setFlomizConfig(apiKey, baseUrl) {
+  if (apiKey !== undefined) dynamicFlomizConfig.apiKey = String(apiKey || '').trim()
+  if (baseUrl !== undefined) dynamicFlomizConfig.baseUrl = String(baseUrl || '').trim().replace(/\/$/, '')
+}
 
 export function isFlomizConfigured() {
   const key = getFlomizApiKey()
@@ -27,6 +36,8 @@ let memoryInventory = [
     price: 1850,
     wholesalePrice: 1350,
     measurements: '7.38 x 7.42 x 4.55 mm',
+    imageUrl: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=85',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-diamond-rotating-on-a-black-background-41584-large.mp4',
     status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
@@ -47,6 +58,8 @@ let memoryInventory = [
     price: 2650,
     wholesalePrice: 1950,
     measurements: '10.12 x 7.15 x 4.48 mm',
+    imageUrl: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=800&q=85',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-diamond-rotating-on-a-black-background-41584-large.mp4',
     status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
@@ -67,6 +80,8 @@ let memoryInventory = [
     price: 4200,
     wholesalePrice: 3100,
     measurements: '9.20 x 6.50 x 4.30 mm',
+    imageUrl: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?auto=format&fit=crop&w=800&q=85',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-diamond-rotating-on-a-black-background-41584-large.mp4',
     status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
@@ -87,6 +102,8 @@ let memoryInventory = [
     price: 4900,
     wholesalePrice: 3600,
     measurements: '9.80 x 7.40 x 4.90 mm',
+    imageUrl: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?auto=format&fit=crop&w=800&q=85',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-diamond-rotating-on-a-black-background-41584-large.mp4',
     status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
@@ -107,6 +124,8 @@ let memoryInventory = [
     price: 2100,
     wholesalePrice: 1550,
     measurements: '10.50 x 6.70 x 4.10 mm',
+    imageUrl: 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=800&q=85',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-diamond-rotating-on-a-black-background-41584-large.mp4',
     status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
@@ -123,10 +142,12 @@ let memoryInventory = [
     symmetry: 'Excellent',
     fluorescence: 'None',
     lab: 'In-House',
-    certificateNumber: 'N/A',
-    price: 180,
-    wholesalePrice: 125,
-    measurements: '2.40 mm calibrated',
+    certificateNumber: 'Calibrated Parcel',
+    price: 350,
+    wholesalePrice: 240,
+    measurements: '0.8mm - 2.5mm',
+    imageUrl: '/round-melee-diamonds.jpg',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-diamond-rotating-on-a-black-background-41584-large.mp4',
     status: 'published',
     source: 'seed',
     updatedAt: new Date().toISOString(),
@@ -1107,5 +1128,95 @@ export async function handleSyncFlomizToStaging(req, res, admin) {
     success: true,
     count: dbRows.length,
     message: `Successfully fetched ${dbRows.length} diamonds from Flomiz API into Staging (Pending Review).`,
+  })
+}
+
+export async function handleTestFlomizConnection(req, res, admin) {
+  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  const apiKey = getFlomizApiKey()
+  const baseUrl = getFlomizBaseUrl()
+
+  if (!apiKey) {
+    return json(res, 400, {
+      success: false,
+      code: 400,
+      error: 'Flomiz API Key is missing.',
+      message: 'Please set your issued sk_live_... API key in the configuration.'
+    })
+  }
+
+  const endpoint = `${baseUrl}/api/stock-api/products?PerPage=1`
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+      },
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    if (response.status === 200) {
+      const data = await response.json().catch(() => ({}))
+      return json(res, 200, {
+        success: true,
+        code: 200,
+        message: 'Connection successful! Connected to Flomiz B2B Stock API.',
+        endpoint,
+        totalRecord: data.PageContext?.TotalRecord ?? (Array.isArray(data.lstProduct) ? data.lstProduct.length : 0),
+      })
+    }
+
+    if (response.status === 401) {
+      return json(res, 200, {
+        success: false,
+        code: 401,
+        endpoint,
+        message: 'Authentication failed (401). Flomiz requires your server outbound IP or domain to be added to their Origin Allowlist before allowing API calls. Please contact your Flomiz administrator to register your domain / IP.',
+      })
+    }
+
+    if (response.status === 404) {
+      return json(res, 200, {
+        success: false,
+        code: 404,
+        endpoint,
+        message: `Flomiz returned 404 Not Found at "${endpoint}". The base URL "${baseUrl}" may not be the correct server instance for your tenant. Please check with your Flomiz account representative for your specific instance Base URL.`,
+      })
+    }
+
+    return json(res, 200, {
+      success: false,
+      code: response.status,
+      endpoint,
+      message: `Flomiz responded with HTTP status ${response.status}.`,
+    })
+  } catch (err) {
+    clearTimeout(timeoutId)
+    return json(res, 200, {
+      success: false,
+      code: 504,
+      endpoint,
+      message: `Network connection to Flomiz timed out or failed: ${err.message}`,
+    })
+  }
+}
+
+export async function handleUpdateFlomizConfig(req, res, admin) {
+  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  const body = await bodyJson(req).catch(() => ({}))
+  if (body.apiKey) setFlomizConfig(body.apiKey, body.baseUrl)
+  else if (body.baseUrl) setFlomizConfig(undefined, body.baseUrl)
+
+  return json(res, 200, {
+    success: true,
+    message: 'Flomiz configuration updated successfully.',
+    baseUrl: getFlomizBaseUrl(),
+    apiKeyConfigured: Boolean(getFlomizApiKey()),
+    keyPrefix: getFlomizApiKey() ? `${getFlomizApiKey().slice(0, 10)}...` : null,
   })
 }

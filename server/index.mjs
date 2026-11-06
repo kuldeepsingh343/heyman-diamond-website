@@ -37,6 +37,8 @@ import {
   handleUpdateAdminDiamond,
   handleBatchPublishAdminDiamonds,
   handleSyncFlomizToStaging,
+  handleTestFlomizConnection,
+  handleUpdateFlomizConfig,
 } from './services/inventory.mjs'
 
 import {
@@ -194,6 +196,12 @@ const server = createServer(async (req, res) => {
       }
       if (req.method === 'POST' && url.pathname === '/api/admin/diamonds/sync-flomiz') {
         return await handleSyncFlomizToStaging(req, res, admin)
+      }
+      if (req.method === 'POST' && url.pathname === '/api/admin/flomiz/test') {
+        return await handleTestFlomizConnection(req, res, admin)
+      }
+      if (req.method === 'POST' && url.pathname === '/api/admin/flomiz/config') {
+        return await handleUpdateFlomizConfig(req, res, admin)
       }
 
       // Admin Quotes

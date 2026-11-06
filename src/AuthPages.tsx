@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
 import { parseAuthStatusFromHash } from './routeUtils'
 import type { PromotionOffer } from './OffersHero'
+import { getDiamondMedia } from './diamondUtils'
 
 type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account' | 'admin'
 type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools' | 'dealers' | 'offers'
@@ -45,6 +46,7 @@ export interface DiamondItem {
   measurements?: string
   status?: string
   imageUrl?: string | null
+  videoUrl?: string | null
 }
 
 export interface CartItem extends DiamondItem {
@@ -213,6 +215,10 @@ export default function AuthPages({
   const [syncingFlomiz, setSyncingFlomiz] = useState(false)
   const [flomizSyncMsg, setFlomizSyncMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
   const [savedDiamondId, setSavedDiamondId] = useState<string | null>(null)
+  const [flomizBaseUrlInput, setFlomizBaseUrlInput] = useState('https://diamond.flomiz.com')
+  const [flomizApiKeyInput, setFlomizApiKeyInput] = useState('')
+  const [testingFlomiz, setTestingFlomiz] = useState(false)
+  const [flomizTestResult, setFlomizTestResult] = useState<{ success: boolean; code?: number; message: string } | null>(null)
 
   // ── Offers & Schemes state (Admin / Owner portal) ───────────────────────
   const [promotions, setPromotions] = useState<PromotionOffer[]>([])
@@ -497,6 +503,56 @@ export default function AuthPages({
       setFlomizSyncMsg({ text: err instanceof Error ? err.message : 'Sync request failed.', kind: 'error' })
     } finally {
       setSyncingFlomiz(false)
+    }
+  }
+
+  const handleTestFlomizConnection = async () => {
+    setTestingFlomiz(true)
+    setFlomizTestResult(null)
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch('/api/admin/flomiz/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await res.json()
+      setFlomizTestResult(data)
+    } catch (err) {
+      setFlomizTestResult({
+        success: false,
+        code: 500,
+        message: err instanceof Error ? err.message : 'Failed to connect to gateway test endpoint.',
+      })
+    } finally {
+      setTestingFlomiz(false)
+    }
+  }
+
+  const handleSaveFlomizConfig = async () => {
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch('/api/admin/flomiz/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          baseUrl: flomizBaseUrlInput,
+          apiKey: flomizApiKeyInput,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setFlomizTestResult({ success: true, message: 'Gateway settings saved! Click "Test Connection" to test.' })
+      } else {
+        setFlomizTestResult({ success: false, message: data.error || 'Failed to save configuration.' })
+      }
+    } catch {
+      setFlomizTestResult({ success: false, message: 'Unable to save gateway settings.' })
     }
   }
 
@@ -1242,6 +1298,25 @@ export default function AuthPages({
                 <div className="diamond-products-grid">
                   {filteredCatalog.map(item => (
                     <div className="diamond-product-card" key={item.sku}>
+                      <div className="card-media-wrapper" style={{ height: '175px', marginBottom: '12px' }}>
+                        <img
+                          src={getDiamondMedia(item).imageUrl}
+                          alt={`${item.shape} ${item.carat}ct Diamond`}
+                          className="card-diamond-image"
+                          loading="lazy"
+                        />
+                        <div className="card-media-overlay">
+                          {item.videoUrl && (
+                            <span className="card-video-pill">
+                              <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11" aria-hidden="true">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                              </svg>
+                              360° Video
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="diamond-card-badge">{item.lab} Certified</div>
                       <div className="diamond-card-shape">{item.shape} Diamond</div>
                       <div className="diamond-card-specs">
@@ -1491,9 +1566,62 @@ export default function AuthPages({
                     <span className="option-tag">Option 1 · Automated API</span>
                     <h4>Supplier API Integration</h4>
                     <p>Fetches certified lab diamonds directly from the Flomiz B2B API into your Staging Queue for review before publishing.</p>
-                    <div className="api-status-pill" style={{ marginBottom: '14px' }}>
-                      <span className="api-status-dot" /> Flomiz Gateway Ready
+
+                    {/* Flomiz Gateway Configuration & Live Test */}
+                    <div style={{ background: '#fcfaf6', border: '1px solid #e5ded2', borderRadius: '8px', padding: '14px', margin: '14px 0' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#7a652e', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>⚙️ Flomiz Gateway Settings</span>
+                        <span style={{ fontSize: '11px', color: '#777' }}>Pull API (v1.0)</span>
+                      </div>
+
+                      <label style={{ display: 'block', fontSize: '11.5px', color: '#555', marginBottom: '4px' }}>
+                        Flomiz Instance Base URL:
+                        <input
+                          type="text"
+                          value={flomizBaseUrlInput}
+                          onChange={e => setFlomizBaseUrlInput(e.target.value)}
+                          placeholder="https://diamond.flomiz.com"
+                          style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px', marginTop: '3px', background: '#fff' }}
+                        />
+                      </label>
+
+                      <label style={{ display: 'block', fontSize: '11.5px', color: '#555', marginTop: '8px', marginBottom: '4px' }}>
+                        Flomiz API Key (x-api-key):
+                        <input
+                          type="password"
+                          value={flomizApiKeyInput}
+                          onChange={e => setFlomizApiKeyInput(e.target.value)}
+                          placeholder="sk_live_..."
+                          style={{ width: '100%', padding: '7px 10px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px', marginTop: '3px', background: '#fff' }}
+                        />
+                      </label>
+
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                        <button
+                          type="button"
+                          onClick={handleSaveFlomizConfig}
+                          style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', fontWeight: 600, background: '#1c1b17', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          Save Config
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleTestFlomizConnection}
+                          disabled={testingFlomiz}
+                          style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', fontWeight: 600, background: '#eadecb', color: '#2b271d', border: '1px solid #c9bda5', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          {testingFlomiz ? 'Testing…' : '🔌 Test Connection'}
+                        </button>
+                      </div>
+
+                      {flomizTestResult && (
+                        <div style={{ marginTop: '10px', padding: '9px 12px', fontSize: '11.5px', borderRadius: '6px', background: flomizTestResult.success ? '#e9f7ee' : '#fcf0ed', color: flomizTestResult.success ? '#15652e' : '#a12b1d', border: `1px solid ${flomizTestResult.success ? '#b4e2c3' : '#f5c5bd'}` }}>
+                          <strong>{flomizTestResult.success ? '✓ Connected' : `✕ HTTP ${flomizTestResult.code || 'Error'}`}: </strong>
+                          {flomizTestResult.message}
+                        </div>
+                      )}
                     </div>
+
                     {isUserAdmin && (
                       <div>
                         <button
@@ -1678,15 +1806,31 @@ export default function AuthPages({
                             return (
                               <tr key={d.id || d.sku}>
                                 <td className="diamond-sku-cell">
-                                  <strong>{d.sku}</strong>
-                                  <small>{d.lab ? `${d.lab} ${d.certificateNumber || ''}` : 'Non-Certified'}</small>
-                                  <span
-                                    className={`diamond-source-tag diamond-source-tag--${
-                                      d.source === 'flomiz_api' ? 'api' : 'excel'
-                                    }`}
-                                  >
-                                    {d.source === 'flomiz_api' ? 'API' : 'Excel'}
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <img
+                                      src={getDiamondMedia(d).imageUrl}
+                                      alt=""
+                                      style={{ width: '44px', height: '44px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #e2ddd3', background: '#fdfbf7', flexShrink: 0 }}
+                                    />
+                                    <div>
+                                      <strong>{d.sku}</strong>
+                                      <div><small>{d.lab ? `${d.lab} ${d.certificateNumber || ''}` : 'Non-Certified'}</small></div>
+                                      <div style={{ display: 'flex', gap: '5px', marginTop: '3px' }}>
+                                        <span
+                                          className={`diamond-source-tag diamond-source-tag--${
+                                            d.source === 'flomiz_api' ? 'api' : 'excel'
+                                          }`}
+                                        >
+                                          {d.source === 'flomiz_api' ? 'API' : 'Excel'}
+                                        </span>
+                                        {d.videoUrl && (
+                                          <span style={{ fontSize: '9px', fontWeight: 700, background: '#1c1b17', color: '#f7df99', padding: '1px 5px', borderRadius: '3px' }}>
+                                            ▶ 360°
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
                                 </td>
 
                                 <td>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { UserProfile } from './AuthPages'
 import './DiamondCollection.css'
+import { getDiamondMedia } from './diamondUtils'
 
 export interface PublicDiamondItem {
   id?: string
@@ -92,6 +93,8 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const [searchQuery, setSearchQuery] = useState('')
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [addedSku, setAddedSku] = useState<string | null>(null)
+  const [activeMediaDiamond, setActiveMediaDiamond] = useState<PublicDiamondItem | null>(null)
+  const [mediaTab, setMediaTab] = useState<'video' | 'photo'>('video')
 
   const isApprovedDealer =
     currentUser?.account_type === 'dealer' && currentUser?.dealer_status === 'approved'
@@ -408,6 +411,43 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                     <span className="category-tag-badge">{item.category || 'Fine Diamond'}</span>
                   </div>
 
+                  {/* Diamond Photo / 360 Video Showcase */}
+                  <div
+                    className="card-media-wrapper"
+                    onClick={() => {
+                      setActiveMediaDiamond(item)
+                      setMediaTab(item.videoUrl ? 'video' : 'photo')
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    title="Click to view high-resolution photo & 360° video"
+                  >
+                    <img
+                      src={getDiamondMedia(item).imageUrl}
+                      alt={`${item.shape} ${item.carat}ct Diamond`}
+                      className="card-diamond-image"
+                      loading="lazy"
+                    />
+                    <div className="card-media-overlay">
+                      {item.videoUrl ? (
+                        <span className="card-video-pill">
+                          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                          </svg>
+                          360° Video
+                        </span>
+                      ) : (
+                        <span className="card-photo-pill">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12" aria-hidden="true">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                          </svg>
+                          View Photo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Stone Header */}
                   <div className="card-stone-heading">
                     <h4 className="stone-shape-name">
@@ -515,6 +555,151 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
           </div>
         )}
       </div>
+
+      {/* ── Luxury Diamond Media Viewer Modal (Photos & 360° Videos) ── */}
+      {activeMediaDiamond && (
+        <div
+          className="diamond-media-modal-backdrop"
+          onClick={() => setActiveMediaDiamond(null)}
+          role="dialog"
+          aria-label="Diamond Media Viewer"
+        >
+          <div
+            className="diamond-media-modal"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="media-modal-close"
+              onClick={() => setActiveMediaDiamond(null)}
+              aria-label="Close viewer"
+            >
+              ✕
+            </button>
+
+            <div className="media-modal-grid">
+              {/* Left: Media Display Pane */}
+              <div className="media-modal-viewer">
+                {activeMediaDiamond.videoUrl && (
+                  <div className="media-modal-tabs">
+                    <button
+                      type="button"
+                      className={`media-tab-btn ${mediaTab === 'video' ? 'media-tab-btn--active' : ''}`}
+                      onClick={() => setMediaTab('video')}
+                    >
+                      ▶ 360° Video
+                    </button>
+                    <button
+                      type="button"
+                      className={`media-tab-btn ${mediaTab === 'photo' ? 'media-tab-btn--active' : ''}`}
+                      onClick={() => setMediaTab('photo')}
+                    >
+                      📷 High-Res Photo
+                    </button>
+                  </div>
+                )}
+
+                <div className="media-display-area">
+                  {mediaTab === 'video' && activeMediaDiamond.videoUrl ? (
+                    <video
+                      src={activeMediaDiamond.videoUrl}
+                      controls
+                      autoPlay
+                      loop
+                      playsInline
+                      className="media-modal-video"
+                    />
+                  ) : (
+                    <img
+                      src={getDiamondMedia(activeMediaDiamond).imageUrl}
+                      alt={`${activeMediaDiamond.shape} Diamond`}
+                      className="media-modal-img"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Stone Profile & Direct Quote Actions */}
+              <div className="media-modal-details">
+                <div className="media-modal-eyebrow">
+                  <span>{activeMediaDiamond.lab && activeMediaDiamond.lab !== 'N/A' ? `${activeMediaDiamond.lab} Certified` : 'Certified Lab Diamond'}</span>
+                  <span className="media-modal-sku">SKU: {activeMediaDiamond.sku}</span>
+                </div>
+
+                <h3 className="media-modal-title">
+                  {activeMediaDiamond.carat} Carat {activeMediaDiamond.shape} Diamond
+                </h3>
+
+                <div className="media-modal-specs-table">
+                  <div className="spec-row">
+                    <span>Color Grade:</span>
+                    <strong>{activeMediaDiamond.color}</strong>
+                  </div>
+                  <div className="spec-row">
+                    <span>Clarity Grade:</span>
+                    <strong>{activeMediaDiamond.clarity}</strong>
+                  </div>
+                  <div className="spec-row">
+                    <span>Cut Grade:</span>
+                    <strong>{activeMediaDiamond.cut || 'Excellent'}</strong>
+                  </div>
+                  <div className="spec-row">
+                    <span>Polish / Symmetry:</span>
+                    <strong>{activeMediaDiamond.polish || 'Excellent'} / {activeMediaDiamond.symmetry || 'Excellent'}</strong>
+                  </div>
+                  <div className="spec-row">
+                    <span>Fluorescence:</span>
+                    <strong>{activeMediaDiamond.fluorescence || 'None'}</strong>
+                  </div>
+                  <div className="spec-row">
+                    <span>Measurements:</span>
+                    <strong>{activeMediaDiamond.measurements || 'Available on request'}</strong>
+                  </div>
+                  <div className="spec-row">
+                    <span>Certificate Report #:</span>
+                    <strong>{activeMediaDiamond.certificateNumber || 'On file'}</strong>
+                  </div>
+                </div>
+
+                <div className="media-modal-pricing">
+                  <div className="modal-price-box">
+                    <span className="modal-price-label">Customer Price</span>
+                    <span className="modal-price-value">
+                      ${(activeMediaDiamond.customerPrice || activeMediaDiamond.price || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  {isApprovedDealer && (
+                    <div className="modal-price-box modal-price-box--dealer">
+                      <span className="modal-price-label">💎 Dealer Wholesale Rate</span>
+                      <span className="modal-price-value modal-price-value--dealer">
+                        ${(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="media-modal-actions">
+                  <button
+                    type="button"
+                    className="button-primary modal-cart-btn"
+                    onClick={() => {
+                      addToCart(activeMediaDiamond)
+                    }}
+                  >
+                    + Add to Cart &amp; Request Quote
+                  </button>
+                  <a
+                    href={`mailto:sales@heymandiamond.com?subject=Inquiry%20about%20${encodeURIComponent(activeMediaDiamond.shape)}%20${activeMediaDiamond.carat}ct%20(${encodeURIComponent(activeMediaDiamond.sku)})`}
+                    className="modal-inquire-btn"
+                  >
+                    Contact Diamond Specialist
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

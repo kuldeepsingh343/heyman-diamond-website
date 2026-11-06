@@ -551,6 +551,351 @@
   color: #000000;
 }
 
+/* ── Diamond Card Media Showcase (Photos & 360 Video) ── */
+.card-media-wrapper {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background: radial-gradient(circle at 50% 45%, #ffffff 0%, #f7f4ec 100%);
+  border: 1px solid #e7e2d6;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card-media-wrapper:hover {
+  border-color: var(--gold);
+  box-shadow: 0 4px 16px rgba(165, 138, 80, 0.16);
+}
+
+.card-diamond-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 14px;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-media-wrapper:hover .card-diamond-image {
+  transform: scale(1.08);
+}
+
+.card-media-overlay {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+.card-video-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(18, 17, 14, 0.85);
+  color: #f7df99;
+  border: 1px solid rgba(212, 160, 23, 0.45);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  letter-spacing: 0.02em;
+}
+
+.card-photo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #2b281f;
+  border: 1px solid #dcd5c7;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Luxury Diamond Media Lightbox Modal ── */
+.diamond-media-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 11, 9, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeInModal 0.25s ease-out forwards;
+}
+
+@keyframes fadeInModal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.diamond-media-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  width: min(960px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  position: relative;
+  border: 1px solid rgba(184, 167, 125, 0.35);
+  animation: slideUpModal 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUpModal {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.media-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: #f4eee2;
+  border: none;
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.15s ease;
+}
+
+.media-modal-close:hover {
+  background: #e2d7c0;
+  color: #000;
+}
+
+.media-modal-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  min-height: 480px;
+}
+
+/* Media Display Pane */
+.media-modal-viewer {
+  background: radial-gradient(circle at 50% 50%, #ffffff 0%, #f4eee2 100%);
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  border-right: 1px solid #e7e0d3;
+}
+
+.media-modal-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  justify-content: center;
+}
+
+.media-tab-btn {
+  background: #ffffff;
+  border: 1px solid #dcd5c7;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.media-tab-btn--active {
+  background: #181714;
+  color: #f7df99;
+  border-color: #181714;
+}
+
+.media-display-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 340px;
+}
+
+.media-modal-img {
+  max-width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.15));
+}
+
+.media-modal-video {
+  max-width: 100%;
+  max-height: 380px;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  outline: none;
+}
+
+/* Details Pane */
+.media-modal-details {
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.media-modal-eyebrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--gold-dark);
+}
+
+.media-modal-sku {
+  color: #7a766c;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.media-modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1914;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.media-modal-specs-table {
+  background: #faf8f4;
+  border: 1px solid #eee7db;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12.5px;
+}
+
+.media-modal-specs-table .spec-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.media-modal-specs-table .spec-row span {
+  color: #636056;
+}
+
+.media-modal-specs-table .spec-row strong {
+  color: #1b1a16;
+}
+
+.media-modal-pricing {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-price-box {
+  flex: 1;
+  background: #fbf9f4;
+  border: 1px solid #e5ded2;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.modal-price-box--dealer {
+  background: #f5f0e3;
+  border-color: #d6c6a4;
+}
+
+.modal-price-label {
+  display: block;
+  font-size: 11px;
+  color: #726e63;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+}
+
+.modal-price-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1a1914;
+}
+
+.modal-price-value--dealer {
+  color: #8c733e;
+}
+
+.media-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.modal-cart-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.modal-inquire-btn {
+  text-align: center;
+  padding: 10px;
+  border: 1px solid #dcd5c7;
+  border-radius: 8px;
+  color: #3b3930;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.modal-inquire-btn:hover {
+  background: #f4eee2;
+  color: #000;
+  border-color: #b8a77d;
+}
+
+@media (max-width: 820px) {
+  .media-modal-grid {
+    grid-template-columns: 1fr;
+  }
+  .media-modal-viewer {
+    border-right: none;
+    border-bottom: 1px solid #e7e0d3;
+    padding: 20px 16px;
+  }
+  .media-modal-details {
+    padding: 24px 20px;
+  }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .diamond-catalog-wrap {
