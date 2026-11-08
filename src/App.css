@@ -995,29 +995,37 @@ button:focus-visible {
 
 .footer-brand {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #ffffff;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--gold-border);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  justify-self: start;
   align-self: flex-start;
-  transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), border-color 0.25s ease;
+  width: fit-content;
+  max-width: fit-content;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 6px;
+  transition: transform 0.25s var(--ease);
 }
 
 .footer-brand:hover {
   transform: translateY(-2px);
-  border-color: var(--gold);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55), var(--gold-glow);
 }
 
 .footer-brand .brand-logo {
-  width: min(210px, 100%);
+  width: clamp(170px, 18vw, 225px);
   height: auto;
-  mix-blend-mode: normal !important;
   display: block;
+  mix-blend-mode: normal !important;
+  border-radius: 6px;
+  border: 1px solid var(--gold-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(194, 132, 122, 0.18);
   filter: none !important;
+  transition: box-shadow 0.25s var(--ease), border-color 0.25s ease;
+}
+
+.footer-brand:hover .brand-logo {
+  border-color: var(--gold);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), var(--gold-glow);
 }
 
 .footer-contact {
