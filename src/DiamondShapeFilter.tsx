@@ -52,8 +52,8 @@ export const DiamondShapeFilter: React.FC<DiamondShapeFilterProps> = ({
           <h3 className="shape-filter-heading">Filter by Diamond Shape</h3>
           <p className="shape-filter-subheading">
             {selectedCategoryName && selectedCategoryName !== 'all'
-              ? `Exploring ${selectedCategoryName}. Click any 3D diamond cut below to refine.`
-              : 'Select any real cut diamond below to refine your search.'}
+              ? `Exploring ${selectedCategoryName}. Click any diamond shape below to filter.`
+              : 'Select any diamond shape below to filter live inventory.'}
           </p>
         </div>
 
@@ -95,7 +95,7 @@ export const DiamondShapeFilter: React.FC<DiamondShapeFilterProps> = ({
         </div>
       )}
 
-      {/* ── Interactive 3D Diamond Shapes Grid ── */}
+      {/* ── Compact Grid of Colorless 3D Diamond Shapes ── */}
       <div
         className="diamond-shapes-grid"
         role="group"
@@ -118,7 +118,7 @@ export const DiamondShapeFilter: React.FC<DiamondShapeFilterProps> = ({
           <span className="shape-name">All Shapes</span>
         </button>
 
-        {/* 19 3D Diamond Shape Tiles */}
+        {/* 19 Colorless 3D Diamond Shape Tiles */}
         {visibleShapes.map(shape => {
           const active = isShapeActive(shape)
 
@@ -147,9 +147,8 @@ export const DiamondShapeFilter: React.FC<DiamondShapeFilterProps> = ({
 }
 
 /**
- * Photorealistic 3D Vector Gemological Renders for all 19 Diamond Shapes.
- * Employs true-to-life facet scintillation, Total Internal Reflection (TIR),
- * optical contrast facets, delicate crystal refraction lines, and table brilliance.
+ * Photorealistic Colorless Diamond Gemological Renders (D-E-F Color Grade, Completely Spotless).
+ * Zero black spots or dark inclusions. Pure crystal white brilliance with delicate ice reflections.
  */
 interface DiamondShape3DIconProps {
   shapeId: string
@@ -165,60 +164,55 @@ export const DiamondShape3DIcon: React.FC<DiamondShape3DIconProps> = ({ shapeId 
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        {/* ── True Diamond Optical Shaders ── */}
+        {/* ── 100% Colorless Pure White Diamond Shaders (No Black Inclusions) ── */}
 
-        {/* Pure Brilliant Table Reflection */}
-        <linearGradient id="diaTable" x1="15%" y1="10%" x2="85%" y2="90%">
+        {/* Pure Brilliant Diamond Table */}
+        <linearGradient id="diaTable" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-          <stop offset="55%" stopColor="#F8FBFF" stopOpacity="0.98" />
-          <stop offset="100%" stopColor="#D9EEFC" stopOpacity="0.9" />
+          <stop offset="60%" stopColor="#FAFDFF" stopOpacity="0.98" />
+          <stop offset="100%" stopColor="#EDF6FD" stopOpacity="0.95" />
         </linearGradient>
 
-        {/* Bright Sparkling Facet */}
+        {/* Sparkling Diamond Facet (Pure White) */}
         <linearGradient id="diaLight" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-          <stop offset="65%" stopColor="#F2F8FD" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="#CDE7FB" stopOpacity="0.88" />
+          <stop offset="65%" stopColor="#F5FAFE" stopOpacity="0.98" />
+          <stop offset="100%" stopColor="#E2F1FC" stopOpacity="0.92" />
         </linearGradient>
 
-        {/* Mid-Tone Crystal Refraction */}
+        {/* Crystalline Ice Facet */}
         <linearGradient id="diaMid" x1="100%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#EAF4FC" stopOpacity="0.95" />
-          <stop offset="50%" stopColor="#C4E3F8" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#96C8E9" stopOpacity="0.82" />
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.98" />
+          <stop offset="45%" stopColor="#E7F3FC" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="#D0E8F9" stopOpacity="0.9" />
         </linearGradient>
 
-        {/* Deep Optical Contrast (TIR Pavilion Reflection - Essential for Real Diamonds) */}
-        <linearGradient id="diaDeep" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#3B6580" stopOpacity="0.92" />
-          <stop offset="50%" stopColor="#25475D" stopOpacity="0.96" />
-          <stop offset="100%" stopColor="#1B3647" stopOpacity="0.98" />
+        {/* Clean Luminous Facet Depth (Pristine Light Ice - Zero Dark Spots) */}
+        <linearGradient id="diaDepth" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#E4F2FD" stopOpacity="0.98" />
+          <stop offset="50%" stopColor="#CDE7FB" stopOpacity="0.92" />
+          <stop offset="100%" stopColor="#B3DAF6" stopOpacity="0.88" />
         </linearGradient>
 
-        {/* Secondary Optical Contrast */}
-        <linearGradient id="diaContrast" x1="50%" y1="0%" x2="50%" y2="100%">
-          <stop offset="0%" stopColor="#537F9C" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#30556D" stopOpacity="0.94" />
-        </linearGradient>
-
-        {/* Prismatic Dispersion Fire (Subtle Spectral Flashes) */}
-        <linearGradient id="diaFirePink" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FFF1F5" stopOpacity="0.95" />
-          <stop offset="50%" stopColor="#FFFFFF" stopOpacity="1" />
-          <stop offset="100%" stopColor="#DDF1FE" stopOpacity="0.85" />
-        </linearGradient>
-
+        {/* Subtle Diamond Scintillation (Clean Warm White Flash) */}
         <linearGradient id="diaFireWarm" x1="100%" y1="100%" x2="0%" y2="0%">
-          <stop offset="0%" stopColor="#FFF9E6" stopOpacity="0.95" />
+          <stop offset="0%" stopColor="#FFFEFA" stopOpacity="0.98" />
           <stop offset="50%" stopColor="#FFFFFF" stopOpacity="1" />
-          <stop offset="100%" stopColor="#E0F3FE" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="#EEF7FE" stopOpacity="0.92" />
         </linearGradient>
 
-        {/* Girdle Outer Crystal Rim */}
+        {/* Subtle Diamond Scintillation (Clean Ice Rose Flash) */}
+        <linearGradient id="diaFirePink" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#FFF9FC" stopOpacity="0.98" />
+          <stop offset="50%" stopColor="#FFFFFF" stopOpacity="1" />
+          <stop offset="100%" stopColor="#E8F4FC" stopOpacity="0.92" />
+        </linearGradient>
+
+        {/* Colorless Girdle Crystal Rim */}
         <linearGradient id="diaGirdle" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
-          <stop offset="50%" stopColor="#B8DEFB" stopOpacity="0.75" />
-          <stop offset="100%" stopColor="#7EAFD0" stopOpacity="0.85" />
+          <stop offset="0%" stopColor="#B3DCF8" stopOpacity="0.85" />
+          <stop offset="50%" stopColor="#FFFFFF" stopOpacity="1" />
+          <stop offset="100%" stopColor="#92C9EF" stopOpacity="0.8" />
         </linearGradient>
       </defs>
 
@@ -229,10 +223,10 @@ export const DiamondShape3DIcon: React.FC<DiamondShape3DIconProps> = ({ shapeId 
 }
 
 function renderShapeGeometry(shapeId: string) {
-  // Common delicate crystal stroke styles for real diamond faceting
+  // Delicate, razor-thin crystal facet borders (Pure Colorless Diamond)
   const girdleStroke = 'url(#diaGirdle)'
-  const facetStroke = 'rgba(255, 255, 255, 0.85)'
-  const darkStroke = 'rgba(27, 54, 71, 0.45)'
+  const facetStroke = 'rgba(255, 255, 255, 0.95)'
+  const edgeStroke = 'rgba(148, 196, 230, 0.55)'
 
   switch (shapeId) {
     // 1. SQUARE CUSHION
@@ -246,20 +240,20 @@ function renderShapeGeometry(shapeId: string) {
             strokeWidth="0.6"
           />
           <path d="M 24 16 L 36 28 L 64 28 L 76 16 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <path d="M 76 16 L 64 28 L 72 36 L 88 36 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
-          <path d="M 88 36 L 72 36 L 72 64 L 88 64 Z" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.35" />
+          <path d="M 76 16 L 64 28 L 72 36 L 88 36 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
+          <path d="M 88 36 L 72 36 L 72 64 L 88 64 Z" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.35" />
           <path d="M 88 64 L 72 64 L 64 72 L 76 84 Z" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.4" />
           <path d="M 76 84 L 64 72 L 36 72 L 24 84 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <path d="M 24 84 L 36 72 L 28 64 L 12 64 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <path d="M 24 84 L 36 72 L 28 64 L 12 64 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
           <path d="M 12 64 L 28 64 L 28 36 L 12 36 Z" fill="url(#diaFirePink)" stroke={facetStroke} strokeWidth="0.4" />
-          <path d="M 12 36 L 28 36 L 36 28 L 24 16 Z" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.35" />
+          <path d="M 12 36 L 28 36 L 36 28 L 24 16 Z" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.35" />
           <path
             d="M 36 28 L 64 28 L 72 36 L 72 64 L 64 72 L 36 72 L 28 64 L 28 36 Z"
             fill="url(#diaTable)"
             stroke={facetStroke}
-            strokeWidth="0.6"
+            strokeWidth="0.5"
           />
-          <circle cx="44" cy="40" r="4" fill="#ffffff" fillOpacity="0.75" />
+          <circle cx="44" cy="40" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -274,47 +268,47 @@ function renderShapeGeometry(shapeId: string) {
             strokeWidth="0.6"
           />
           <polygon points="28,14 37,26 63,26 72,14" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="72,14 63,26 74,37 86,28" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="72,14 63,26 74,37 86,28" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon points="86,28 74,37 74,63 86,72" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="86,72 74,63 63,74 72,86" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="86,72 74,63 63,74 72,86" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon points="72,86 63,74 37,74 28,86" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="28,86 37,74 26,63 14,72" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="28,86 37,74 26,63 14,72" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon points="14,72 26,63 26,37 14,28" fill="url(#diaFirePink)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="14,28 26,37 37,26 28,14" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="14,28 26,37 37,26 28,14" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon
             points="37,26 63,26 74,37 74,63 63,74 37,74 26,63 26,37"
             fill="url(#diaTable)"
             stroke={facetStroke}
-            strokeWidth="0.6"
+            strokeWidth="0.5"
           />
-          <line x1="50" y1="26" x2="50" y2="74" stroke="rgba(255,255,255,0.7)" strokeWidth="0.35" />
-          <line x1="26" y1="50" x2="74" y2="50" stroke="rgba(255,255,255,0.7)" strokeWidth="0.35" />
-          <circle cx="42" cy="38" r="3" fill="#ffffff" fillOpacity="0.8" />
+          <line x1="50" y1="26" x2="50" y2="74" stroke="rgba(255,255,255,0.85)" strokeWidth="0.35" />
+          <line x1="26" y1="50" x2="74" y2="50" stroke="rgba(255,255,255,0.85)" strokeWidth="0.35" />
+          <circle cx="43" cy="38" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
-    // 3. ROUND BRILLIANT (Signature 57-Facet Hearts & Arrows Scintillation)
+    // 3. ROUND BRILLIANT
     case 'round':
       return (
         <g className="diamond-facets">
           <circle cx="50" cy="50" r="38" fill="url(#diaMid)" stroke={girdleStroke} strokeWidth="0.6" />
-          {/* Bezel Kites (Alternating optical brilliance and depth) */}
+          {/* Bezel Kites */}
           <path d="M 50 12 L 61 24 L 50 28 L 39 24 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 77 23 L 76 39 L 66 36 L 61 24 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 77 23 L 76 39 L 66 36 L 61 24 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <path d="M 88 50 L 76 61 L 72 50 L 76 39 Z" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 77 77 L 61 76 L 66 64 L 76 61 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 77 77 L 61 76 L 66 64 L 76 61 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <path d="M 50 88 L 39 76 L 50 72 L 61 76 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 23 77 L 24 61 L 34 64 L 39 76 Z" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 23 77 L 24 61 L 34 64 L 39 76 Z" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <path d="M 12 50 L 24 39 L 28 50 L 24 61 Z" fill="url(#diaFirePink)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 23 23 L 39 24 L 34 36 L 24 39 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 23 23 L 39 24 L 34 36 L 24 39 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           {/* Star Facets */}
           <polygon points="50,28 66,36 61,24" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.3" />
           <polygon points="66,36 72,50 76,39" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.3" />
-          <polygon points="72,50 66,64 76,61" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="72,50 66,64 76,61" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="66,64 50,72 61,76" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.3" />
           <polygon points="50,72 34,64 39,76" fill="url(#diaFirePink)" stroke={facetStroke} strokeWidth="0.3" />
           <polygon points="34,64 28,50 24,61" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.3" />
-          <polygon points="28,50 34,36 24,39" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="28,50 34,36 24,39" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="34,36 50,28 39,24" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.3" />
           {/* Pure Brilliant Octagonal Table */}
           <polygon
@@ -323,7 +317,7 @@ function renderShapeGeometry(shapeId: string) {
             stroke={facetStroke}
             strokeWidth="0.5"
           />
-          <circle cx="44" cy="42" r="5" fill="#ffffff" fillOpacity="0.85" />
+          <circle cx="44" cy="42" r="4.5" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -333,20 +327,20 @@ function renderShapeGeometry(shapeId: string) {
         <g className="diamond-facets">
           <ellipse cx="50" cy="50" rx="32" ry="42" fill="url(#diaMid)" stroke={girdleStroke} strokeWidth="0.6" />
           <path d="M 50 8 L 60 22 L 50 26 L 40 22 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 75 22 L 78 40 L 68 38 L 60 22 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 75 22 L 78 40 L 68 38 L 60 22 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <path d="M 82 50 L 78 60 L 68 50 L 78 40 Z" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 75 78 L 60 78 L 68 62 L 78 60 Z" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 75 78 L 60 78 L 68 62 L 78 60 Z" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <path d="M 50 92 L 40 78 L 50 74 L 60 78 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 25 78 L 22 60 L 32 62 L 40 78 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 25 78 L 22 60 L 32 62 L 40 78 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <path d="M 18 50 L 22 40 L 32 50 L 22 60 Z" fill="url(#diaFirePink)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 25 22 L 40 22 L 32 38 L 22 40 Z" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 25 22 L 40 22 L 32 38 L 22 40 Z" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon
             points="50,26 68,38 68,62 50,74 32,62 32,38"
             fill="url(#diaTable)"
             stroke={facetStroke}
             strokeWidth="0.5"
           />
-          <circle cx="44" cy="40" r="4" fill="#ffffff" fillOpacity="0.8" />
+          <circle cx="44" cy="40" r="3.5" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -356,23 +350,23 @@ function renderShapeGeometry(shapeId: string) {
         <g className="diamond-facets">
           <rect x="14" y="14" width="72" height="72" fill="url(#diaMid)" stroke={girdleStroke} strokeWidth="0.6" />
           <polygon points="14,14 34,34 66,34 86,14" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="86,14 66,34 66,66 86,86" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="86,14 66,34 66,66 86,86" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon points="86,86 66,66 34,66 14,86" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="14,86 34,66 34,34 14,14" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="14,86 34,66 34,34 14,14" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.35" />
           <rect x="34" y="34" width="32" height="32" fill="url(#diaTable)" stroke={facetStroke} strokeWidth="0.5" />
-          <line x1="34" y1="34" x2="66" y2="66" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="66" y1="34" x2="34" y2="66" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <circle cx="44" cy="44" r="3.5" fill="#ffffff" fillOpacity="0.85" />
+          <line x1="34" y1="34" x2="66" y2="66" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="66" y1="34" x2="34" y2="66" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <circle cx="44" cy="44" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
-    // 6. EMERALD CUT (Hall of Mirrors Step Reflection)
+    // 6. EMERALD CUT
     case 'emerald':
       return (
         <g className="diamond-facets">
           <polygon
             points="28,12 72,12 88,26 88,74 72,88 28,88 12,74 12,26"
-            fill="url(#diaDeep)"
+            fill="url(#diaMid)"
             stroke={girdleStroke}
             strokeWidth="0.6"
           />
@@ -388,11 +382,11 @@ function renderShapeGeometry(shapeId: string) {
             stroke={facetStroke}
             strokeWidth="0.5"
           />
-          <line x1="28" y1="12" x2="36" y2="28" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="72" y1="12" x2="64" y2="28" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="88" y1="74" x2="72" y2="64" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="12" y1="74" x2="28" y2="64" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <circle cx="44" cy="38" r="3.5" fill="#ffffff" fillOpacity="0.85" />
+          <line x1="28" y1="12" x2="36" y2="28" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="72" y1="12" x2="64" y2="28" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="88" y1="74" x2="72" y2="64" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="12" y1="74" x2="28" y2="64" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <circle cx="44" cy="38" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -407,18 +401,18 @@ function renderShapeGeometry(shapeId: string) {
             strokeWidth="0.6"
           />
           <path d="M 50 10 L 60 28 L 50 32 L 40 28 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 75 42 L 74 64 L 64 56 L 60 28 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 75 42 L 74 64 L 64 56 L 60 28 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <path d="M 74 64 L 64 78 L 50 72 L 64 56 Z" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 50 90 L 36 78 L 50 72 L 64 78 Z" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 50 90 L 36 78 L 50 72 L 64 78 Z" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <path d="M 26 64 L 36 78 L 50 72 L 36 56 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 25 42 L 26 64 L 36 56 L 40 28 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 25 42 L 26 64 L 36 56 L 40 28 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <path
             d="M 50 32 L 64 56 L 50 72 L 36 56 Z"
             fill="url(#diaTable)"
             stroke={facetStroke}
             strokeWidth="0.5"
           />
-          <circle cx="46" cy="46" r="3.5" fill="#ffffff" fillOpacity="0.8" />
+          <circle cx="46" cy="46" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -428,7 +422,7 @@ function renderShapeGeometry(shapeId: string) {
         <g className="diamond-facets">
           <polygon
             points="32,12 68,12 88,32 88,68 68,88 32,88 12,68 12,32"
-            fill="url(#diaDeep)"
+            fill="url(#diaMid)"
             stroke={girdleStroke}
             strokeWidth="0.6"
           />
@@ -444,11 +438,11 @@ function renderShapeGeometry(shapeId: string) {
             stroke={facetStroke}
             strokeWidth="0.5"
           />
-          <line x1="32" y1="12" x2="68" y2="88" stroke="rgba(255,255,255,0.7)" strokeWidth="0.4" />
-          <line x1="68" y1="12" x2="32" y2="88" stroke="rgba(255,255,255,0.7)" strokeWidth="0.4" />
-          <line x1="12" y1="32" x2="88" y2="68" stroke="rgba(255,255,255,0.7)" strokeWidth="0.4" />
-          <line x1="12" y1="68" x2="88" y2="32" stroke="rgba(255,255,255,0.7)" strokeWidth="0.4" />
-          <circle cx="46" cy="46" r="3" fill="#ffffff" fillOpacity="0.85" />
+          <line x1="32" y1="12" x2="68" y2="88" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="68" y1="12" x2="32" y2="88" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="12" y1="32" x2="88" y2="68" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="12" y1="68" x2="88" y2="32" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <circle cx="46" cy="46" r="2.8" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -463,18 +457,18 @@ function renderShapeGeometry(shapeId: string) {
             strokeWidth="0.6"
           />
           <polygon points="50,8 58,26 50,30 42,26" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <polygon points="76,38 78,50 66,50 62,36" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="76,38 78,50 66,50 62,36" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="76,62 62,64 66,50 78,50" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.35" />
           <polygon points="50,92 42,74 50,70 58,74" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <polygon points="24,62 38,64 34,50 22,50" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
-          <polygon points="24,38 22,50 34,50 38,36" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="24,62 38,64 34,50 22,50" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
+          <polygon points="24,38 22,50 34,50 38,36" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon
             points="50,30 66,50 50,70 34,50"
             fill="url(#diaTable)"
             stroke={facetStroke}
             strokeWidth="0.5"
           />
-          <circle cx="47" cy="45" r="3.5" fill="#ffffff" fillOpacity="0.85" />
+          <circle cx="47" cy="45" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -489,22 +483,22 @@ function renderShapeGeometry(shapeId: string) {
             strokeWidth="0.6"
           />
           <polygon points="24,14 36,26 64,26 76,14" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="76,14 64,26 74,36 88,26" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="76,14 64,26 74,36 88,26" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon points="88,26 74,36 74,64 88,74" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="88,74 74,64 64,74 76,86" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="88,74 74,64 64,74 76,86" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon points="76,86 64,74 36,74 24,86" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="24,86 36,74 26,64 12,74" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="24,86 36,74 26,64 12,74" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon points="12,74 26,64 26,36 12,26" fill="url(#diaFirePink)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="12,26 26,36 36,26 24,14" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="12,26 26,36 36,26 24,14" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon
             points="36,26 64,26 74,36 74,64 64,74 36,74 26,64 26,36"
             fill="url(#diaTable)"
             stroke={facetStroke}
             strokeWidth="0.5"
           />
-          <line x1="50" y1="26" x2="50" y2="74" stroke="rgba(255,255,255,0.7)" strokeWidth="0.35" />
-          <line x1="26" y1="50" x2="74" y2="50" stroke="rgba(255,255,255,0.7)" strokeWidth="0.35" />
-          <circle cx="43" cy="38" r="3.5" fill="#ffffff" fillOpacity="0.85" />
+          <line x1="50" y1="26" x2="50" y2="74" stroke="rgba(255,255,255,0.85)" strokeWidth="0.35" />
+          <line x1="26" y1="50" x2="74" y2="50" stroke="rgba(255,255,255,0.85)" strokeWidth="0.35" />
+          <circle cx="43" cy="38" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -519,20 +513,20 @@ function renderShapeGeometry(shapeId: string) {
             strokeWidth="0.6"
           />
           <path d="M 24 14 L 36 26 L 64 26 L 76 14 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <path d="M 76 14 L 64 26 L 72 36 L 88 38 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <path d="M 76 14 L 64 26 L 72 36 L 88 38 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
           <path d="M 88 38 L 72 36 L 72 64 L 88 62 Z" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.4" />
-          <path d="M 88 62 L 72 64 L 64 74 L 76 86 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <path d="M 88 62 L 72 64 L 64 74 L 76 86 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
           <path d="M 76 86 L 64 74 L 36 74 L 24 86 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <path d="M 24 86 L 36 74 L 28 64 L 12 62 Z" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.35" />
+          <path d="M 24 86 L 36 74 L 28 64 L 12 62 Z" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.35" />
           <path d="M 12 62 L 28 64 L 28 36 L 12 38 Z" fill="url(#diaFirePink)" stroke={facetStroke} strokeWidth="0.4" />
-          <path d="M 12 38 L 28 36 L 36 26 L 24 14 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <path d="M 12 38 L 28 36 L 36 26 L 24 14 Z" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.35" />
           <path
             d="M 36 26 L 64 26 L 72 36 L 72 64 L 64 74 L 36 74 L 28 64 L 28 36 Z"
             fill="url(#diaTable)"
             stroke={facetStroke}
             strokeWidth="0.5"
           />
-          <circle cx="44" cy="38" r="4" fill="#ffffff" fillOpacity="0.8" />
+          <circle cx="44" cy="38" r="3.5" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -540,14 +534,14 @@ function renderShapeGeometry(shapeId: string) {
     case 'baguette':
       return (
         <g className="diamond-facets">
-          <rect x="28" y="14" width="44" height="72" fill="url(#diaDeep)" stroke={girdleStroke} strokeWidth="0.6" />
+          <rect x="28" y="14" width="44" height="72" fill="url(#diaMid)" stroke={girdleStroke} strokeWidth="0.6" />
           <rect x="34" y="22" width="32" height="56" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
           <rect x="40" y="30" width="20" height="40" fill="url(#diaTable)" stroke={facetStroke} strokeWidth="0.5" />
-          <line x1="28" y1="14" x2="40" y2="30" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="72" y1="14" x2="60" y2="30" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="72" y1="86" x2="60" y2="70" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="28" y1="86" x2="40" y2="70" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <circle cx="45" cy="36" r="3" fill="#ffffff" fillOpacity="0.85" />
+          <line x1="28" y1="14" x2="40" y2="30" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="72" y1="14" x2="60" y2="30" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="72" y1="86" x2="60" y2="70" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="28" y1="86" x2="40" y2="70" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <circle cx="45" cy="36" r="2.5" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -555,14 +549,14 @@ function renderShapeGeometry(shapeId: string) {
     case 'tapered-baguette':
       return (
         <g className="diamond-facets">
-          <polygon points="20,16 80,16 66,84 34,84" fill="url(#diaDeep)" stroke={girdleStroke} strokeWidth="0.6" />
+          <polygon points="20,16 80,16 66,84 34,84" fill="url(#diaMid)" stroke={girdleStroke} strokeWidth="0.6" />
           <polygon points="28,24 72,24 60,76 40,76" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
           <polygon points="36,32 64,32 54,68 46,68" fill="url(#diaTable)" stroke={facetStroke} strokeWidth="0.5" />
-          <line x1="20" y1="16" x2="36" y2="32" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="80" y1="16" x2="64" y2="32" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="66" y1="84" x2="54" y2="68" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <line x1="34" y1="84" x2="46" y2="68" stroke="rgba(255,255,255,0.75)" strokeWidth="0.4" />
-          <circle cx="45" cy="36" r="3" fill="#ffffff" fillOpacity="0.85" />
+          <line x1="20" y1="16" x2="36" y2="32" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="80" y1="16" x2="64" y2="32" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="66" y1="84" x2="54" y2="68" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <line x1="34" y1="84" x2="46" y2="68" stroke="rgba(255,255,255,0.85)" strokeWidth="0.4" />
+          <circle cx="45" cy="36" r="2.5" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -577,8 +571,8 @@ function renderShapeGeometry(shapeId: string) {
             strokeWidth="0.6"
           />
           <path d="M 50 28 C 42 18, 28 18, 24 28 L 38 42 Z" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <path d="M 50 28 C 58 18, 72 18, 76 28 L 62 42 Z" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
-          <polygon points="50,90 32,72 42,60 50,68" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <path d="M 50 28 C 58 18, 72 18, 76 28 L 62 42 Z" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
+          <polygon points="50,90 32,72 42,60 50,68" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="50,90 68,72 58,60 50,68" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.35" />
           <path
             d="M 50 38 C 44 30, 32 30, 28 38 C 24 46, 30 56, 42 64 L 50 72 L 58 64 C 70 56, 76 46, 72 38 C 68 30, 56 30, 50 38 Z"
@@ -586,7 +580,7 @@ function renderShapeGeometry(shapeId: string) {
             stroke={facetStroke}
             strokeWidth="0.5"
           />
-          <circle cx="43" cy="46" r="3.5" fill="#ffffff" fillOpacity="0.8" />
+          <circle cx="43" cy="46" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -601,10 +595,10 @@ function renderShapeGeometry(shapeId: string) {
             strokeWidth="0.6"
           />
           <polygon points="50,12 64,38 50,44 36,38" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <polygon points="88,80 62,64 74,54" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="88,80 62,64 74,54" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="12,80 26,54 38,64" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.35" />
           <polygon points="50,44 68,72 32,72" fill="url(#diaTable)" stroke={facetStroke} strokeWidth="0.5" />
-          <circle cx="50" cy="54" r="3.5" fill="#ffffff" fillOpacity="0.85" />
+          <circle cx="50" cy="54" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -614,10 +608,10 @@ function renderShapeGeometry(shapeId: string) {
         <g className="diamond-facets">
           <polygon points="50,14 88,82 12,82" fill="url(#diaMid)" stroke={girdleStroke} strokeWidth="0.6" />
           <polygon points="50,14 66,44 34,44" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
-          <polygon points="88,82 56,66 76,52" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.35" />
+          <polygon points="88,82 56,66 76,52" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.35" />
           <polygon points="12,82 24,52 44,66" fill="url(#diaFirePink)" stroke={facetStroke} strokeWidth="0.4" />
           <polygon points="50,48 68,74 32,74" fill="url(#diaTable)" stroke={facetStroke} strokeWidth="0.5" />
-          <circle cx="50" cy="56" r="3" fill="#ffffff" fillOpacity="0.85" />
+          <circle cx="50" cy="56" r="2.8" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -628,14 +622,14 @@ function renderShapeGeometry(shapeId: string) {
           <circle cx="50" cy="50" r="38" fill="url(#diaMid)" stroke={girdleStroke} strokeWidth="0.6" />
           <polygon points="50,24 64,44 36,44" fill="url(#diaTable)" stroke={facetStroke} strokeWidth="0.4" />
           <polygon points="50,24 78,28 64,44" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <polygon points="64,44 78,28 88,50" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="64,44 78,28 88,50" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="64,44 88,50 74,72" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.35" />
           <polygon points="64,44 74,72 50,68" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <polygon points="36,44 50,68 26,72" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
-          <polygon points="36,44 26,72 12,50" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="36,44 50,68 26,72" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
+          <polygon points="36,44 26,72 12,50" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="36,44 12,50 22,28" fill="url(#diaFirePink)" stroke={facetStroke} strokeWidth="0.35" />
           <polygon points="50,24 36,44 22,28" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <circle cx="50" cy="38" r="3" fill="#ffffff" fillOpacity="0.85" />
+          <circle cx="50" cy="38" r="3" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -645,12 +639,12 @@ function renderShapeGeometry(shapeId: string) {
         <g className="diamond-facets">
           <polygon points="50,10 82,42 50,90 18,42" fill="url(#diaMid)" stroke={girdleStroke} strokeWidth="0.6" />
           <polygon points="50,10 66,28 50,34 34,28" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
-          <polygon points="82,42 66,54 50,48 66,28" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="82,42 66,54 50,48 66,28" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="50,90 50,64 66,54" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.35" />
-          <polygon points="50,90 34,54 50,64" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="50,90 34,54 50,64" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="18,42 34,28 50,48 34,54" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.35" />
           <polygon points="50,34 66,48 50,64 34,48" fill="url(#diaTable)" stroke={facetStroke} strokeWidth="0.5" />
-          <circle cx="50" cy="44" r="3" fill="#ffffff" fillOpacity="0.85" />
+          <circle cx="50" cy="44" r="2.8" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
@@ -658,14 +652,14 @@ function renderShapeGeometry(shapeId: string) {
     case 'tapered-bullet':
       return (
         <g className="diamond-facets">
-          <polygon points="26,14 74,14 74,52 50,88 26,52" fill="url(#diaDeep)" stroke={girdleStroke} strokeWidth="0.6" />
+          <polygon points="26,14 74,14 74,52 50,88 26,52" fill="url(#diaMid)" stroke={girdleStroke} strokeWidth="0.6" />
           <polygon points="26,14 36,24 64,24 74,14" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
           <polygon points="74,14 64,24 64,48 74,52" fill="url(#diaFireWarm)" stroke={facetStroke} strokeWidth="0.35" />
-          <polygon points="74,52 64,48 50,74 50,88" fill="url(#diaDeep)" stroke={darkStroke} strokeWidth="0.3" />
-          <polygon points="26,52 50,88 50,74 36,48" fill="url(#diaContrast)" stroke={darkStroke} strokeWidth="0.3" />
+          <polygon points="74,52 64,48 50,74 50,88" fill="url(#diaDepth)" stroke={edgeStroke} strokeWidth="0.3" />
+          <polygon points="26,52 50,88 50,74 36,48" fill="url(#diaMid)" stroke={edgeStroke} strokeWidth="0.3" />
           <polygon points="26,14 26,52 36,48 36,24" fill="url(#diaLight)" stroke={facetStroke} strokeWidth="0.4" />
           <polygon points="36,24 64,24 64,48 50,74 36,48" fill="url(#diaTable)" stroke={facetStroke} strokeWidth="0.5" />
-          <circle cx="46" cy="38" r="3" fill="#ffffff" fillOpacity="0.85" />
+          <circle cx="46" cy="38" r="2.8" fill="#ffffff" fillOpacity="0.9" />
         </g>
       )
 
