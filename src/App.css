@@ -987,15 +987,37 @@ button:focus-visible {
   display: grid;
   grid-template-columns: 1.25fr 1fr 1fr;
   gap: 44px;
-  background: linear-gradient(180deg, #141510 0%, #0c0d09 100%);
+  background: linear-gradient(180deg, var(--emerald) 0%, var(--emerald-dark) 100%);
   color: #f9f6ed;
-  border-top: 1px solid rgba(212, 175, 55, 0.25);
+  border-top: 1px solid var(--gold-border);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+.footer-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--gold-border);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  align-self: flex-start;
+  transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), border-color 0.25s ease;
+}
+
+.footer-brand:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55), var(--gold-glow);
+}
+
 .footer-brand .brand-logo {
-  width: min(220px, 100%);
-  filter: brightness(1.1) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+  width: min(210px, 100%);
+  height: auto;
+  mix-blend-mode: normal !important;
+  display: block;
+  filter: none !important;
 }
 
 .footer-contact {
