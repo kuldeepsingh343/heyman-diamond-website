@@ -55,9 +55,9 @@ const categoriesMeta = [
     image: '/certified-diamonds.jpg',
   },
   {
-    categoryKey: 'Color Non-Certified Diamonds',
+    categoryKey: 'Solitaire Non-Certified Diamonds',
     number: '04',
-    name: 'Color Non Cert Diamonds',
+    name: 'Solitaire Non-Certified Diamonds',
     description: 'Ask us about available colors, sizes, and specifications.',
     image:
       'https://images.unsplash.com/photo-1603561596112-db6e5e4e9a7d?auto=format&fit=crop&w=900&q=85',
@@ -76,7 +76,7 @@ const categoryFilters = [
   { label: 'Certified Diamonds', value: 'Certified Diamonds' },
   { label: 'Round Melee Diamonds', value: 'Round Melee Diamonds' },
   { label: 'Loose Fancy Diamonds', value: 'Loose Fancy Diamonds' },
-  { label: 'Color Non Cert Diamonds', value: 'Color Non-Certified Diamonds' },
+  { label: 'Solitaire Non-Certified Diamonds', value: 'Solitaire Non-Certified Diamonds' },
   { label: 'Match Pairs', value: 'Matched Pairs' },
 ]
 

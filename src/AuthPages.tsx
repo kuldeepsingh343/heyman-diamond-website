@@ -2042,7 +2042,7 @@ export default function AuthPages({
                       >
                         <option value="Round Melee Diamonds">Round Melee Diamonds (Melees / Sieves)</option>
                         <option value="Loose Fancy Diamonds">Loose Fancy Diamonds (Fancy Shapes)</option>
-                        <option value="Color Non-Certified Diamonds">Color Non-Certified Diamonds (Pink, Yellow, Blue, Green)</option>
+                        <option value="Solitaire Non-Certified Diamonds">Solitaire Non-Certified Diamonds (Pink, Yellow, Blue, Green &amp; White)</option>
                         <option value="Matched Pairs">Matched Pairs (Earring &amp; Layout Pairs)</option>
                         <option value="Certified Diamonds">Certified Diamonds (Solitaires)</option>
                       </select>
@@ -2138,7 +2138,7 @@ export default function AuthPages({
                       <option value="Certified Diamonds">Certified Diamonds</option>
                       <option value="Round Melee Diamonds">Round Melee Diamonds</option>
                       <option value="Loose Fancy Diamonds">Loose Fancy Diamonds</option>
-                      <option value="Color Non-Certified Diamonds">Color Non-Certified Diamonds</option>
+                      <option value="Solitaire Non-Certified Diamonds">Solitaire Non-Certified Diamonds</option>
                       <option value="Matched Pairs">Matched Pairs</option>
                     </select>
 
@@ -2246,7 +2246,7 @@ export default function AuthPages({
                                     <option value="Certified Diamonds">Certified Diamonds</option>
                                     <option value="Round Melee Diamonds">Round Melee Diamonds</option>
                                     <option value="Loose Fancy Diamonds">Loose Fancy Diamonds</option>
-                                    <option value="Color Non-Certified Diamonds">Color Non-Certified Diamonds</option>
+                                    <option value="Solitaire Non-Certified Diamonds">Solitaire Non-Certified Diamonds</option>
                                     <option value="Matched Pairs">Matched Pairs</option>
                                   </select>
                                 </td>

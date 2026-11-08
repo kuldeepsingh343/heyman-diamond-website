@@ -193,7 +193,7 @@ let memoryInventory = [
   },
   {
     sku: 'HMD-CP-3001',
-    category: 'Color Non-Certified Diamonds',
+    category: 'Solitaire Non-Certified Diamonds',
     shape: 'Radiant',
     carat: 2.15,
     color: 'Fancy Vivid Pink',
@@ -473,9 +473,9 @@ export function normalizeFlomizProduct(raw) {
     category = 'Matched Pairs'
   } else if (
     ['FANCY', 'PINK', 'YELLOW', 'BLUE', 'GREEN', 'ORANGE', 'PURPLE', 'CHAMPAGNE'].some(c => rawColor.includes(c)) ||
-    !rawLab || rawLab === 'NONE' || rawLab === 'N/A' || rawCat.includes('non cert') || rawCat.includes('color')
+    !rawLab || rawLab === 'NONE' || rawLab === 'N/A' || rawCat.includes('non cert') || rawCat.includes('color') || rawCat.includes('solitaire')
   ) {
-    category = 'Color Non-Certified Diamonds'
+    category = 'Solitaire Non-Certified Diamonds'
   } else if (rawCat.includes('melee') || rawName.includes('melee')) {
     category = 'Round Melee Diamonds'
   } else if (rawCat.includes('loose fancy') || (!rawShape.includes('round') && (!rawLab || rawLab === 'NONE'))) {
@@ -709,14 +709,18 @@ export async function handleGetCatalog(req, res, url, user = null) {
       try {
         let dbQuery = 'diamonds_inventory?select=*&status=eq.published&order=created_at.desc&limit=500'
         if (categoryParam && categoryParam !== 'all') {
-          dbQuery += `&category=eq.${encodeURIComponent(categoryParam)}`
+          if (categoryParam === 'Solitaire Non-Certified Diamonds' || categoryParam === 'Color Non-Certified Diamonds') {
+            dbQuery += `&or=(category.eq.${encodeURIComponent('Solitaire Non-Certified Diamonds')},category.eq.${encodeURIComponent('Color Non-Certified Diamonds')})`
+          } else {
+            dbQuery += `&category=eq.${encodeURIComponent(categoryParam)}`
+          }
         }
         const rows = await db(dbQuery)
         if (Array.isArray(rows) && rows.length > 0) {
           activeItems = rows.map(r => ({
             id: r.id,
             sku: r.sku,
-            category: r.category || 'Certified Diamonds',
+            category: r.category === 'Color Non-Certified Diamonds' ? 'Solitaire Non-Certified Diamonds' : (r.category || 'Certified Diamonds'),
             shape: r.shape,
             carat: parseFloat(r.carat) || 0,
             color: r.color,
@@ -748,7 +752,14 @@ export async function handleGetCatalog(req, res, url, user = null) {
     if (activeItems.length === 0) {
       activeItems = memoryInventory.filter(item => item.status === 'published' || item.status === 'available')
       if (categoryParam && categoryParam !== 'all') {
-        activeItems = activeItems.filter(item => (item.category || 'Certified Diamonds').toLowerCase() === categoryParam.toLowerCase())
+        const isNonCert = categoryParam === 'Solitaire Non-Certified Diamonds' || categoryParam === 'Color Non-Certified Diamonds'
+        activeItems = activeItems.filter(item => {
+          const cat = item.category || 'Certified Diamonds'
+          if (isNonCert) {
+            return cat === 'Solitaire Non-Certified Diamonds' || cat === 'Color Non-Certified Diamonds'
+          }
+          return cat.toLowerCase() === categoryParam.toLowerCase()
+        })
       }
       source = 'inventory_catalog'
     }
