@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import type { UserProfile } from './AuthPages'
 import './DiamondCollection.css'
 import { getDiamondMedia } from './diamondUtils'
@@ -150,17 +150,6 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
     setSelectedCategory(tabValue)
     setSelectedShape('all')
   }
-
-  // Count available stones per shape in the active category
-  const shapeCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const item of items) {
-      if (item.shape) {
-        counts[item.shape] = (counts[item.shape] || 0) + 1
-      }
-    }
-    return counts
-  }, [items])
 
   const addToCart = (diamond: PublicDiamondItem) => {
     try {
@@ -361,8 +350,6 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
           <DiamondShapeFilter
             selectedShape={selectedShape}
             onSelectShape={shape => setSelectedShape(shape)}
-            shapeCounts={shapeCounts}
-            totalStonesCount={items.length}
             selectedCategoryName={
               selectedCategory === 'all'
                 ? 'All Diamond Collections'
