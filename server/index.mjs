@@ -13,6 +13,7 @@ import {
   getAuthRedirectUrl,
   supabaseReady,
   db,
+  SECURITY_HEADERS,
 } from './services/shared.mjs'
 
 import {
@@ -290,12 +291,17 @@ const server = createServer(async (req, res) => {
         res.writeHead(200, {
           'Content-Type': types[extname(assetPath)] || 'application/octet-stream',
           'Cache-Control': extname(assetPath) === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+          ...SECURITY_HEADERS,
         })
         return res.end(file)
       } catch {
         if (!extname(url.pathname)) {
           const html = await readFile(resolve(DIST_DIR, 'index.html'))
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache',
+            ...SECURITY_HEADERS,
+          })
           return res.end(html)
         }
       }

@@ -14,18 +14,23 @@ export async function handleCreateInquiry(req, res) {
     return json(res, 400, { error: 'Please provide a valid name, email address, and message under 3,000 characters.' })
   }
 
+  const customerMessage = [
+    phone ? `Phone: ${phone}` : null,
+    interest ? `Interest: ${interest}` : null,
+    message,
+  ].filter(Boolean).join('\n\n')
+
   const rows = await db('orders', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify({
-      order_number: `INQ-${Date.now().toString().slice(-6)}`,
       customer_name: name,
       customer_email: email,
-      customer_phone: phone || null,
-      notes: interest ? `[Interest: ${interest}] ${message}` : message,
-      status: 'new',
-      total: 0,
+      customer_message: customerMessage,
+      status: 'inquiry',
       currency: 'USD',
+      subtotal: 0,
+      total: 0,
     }),
   })
   return json(res, 201, { inquiryId: rows?.[0]?.id, message: 'Thank you. A sales manager will respond shortly.' })
@@ -47,16 +52,19 @@ export async function handleCreateQuote(req, res) {
     return json(res, 400, { error: 'Provide your name, a valid email, and between 1 and 25 items for the quote request.' })
   }
 
+  const customerMessage = [
+    phone ? `Phone: ${phone}` : null,
+    message || null,
+  ].filter(Boolean).join('\n\n') || null
+
   const quoteRows = await db('quote_requests', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify({
       user_id: customer.id,
-      quote_number: `QR-${Date.now().toString().slice(-6)}`,
       customer_name: name,
       customer_email: email,
-      customer_phone: phone || null,
-      customer_message: message || null,
+      customer_message: customerMessage,
       status: 'new',
     }),
   })
@@ -73,7 +81,9 @@ export async function handleCreateQuote(req, res) {
     },
     quantity: Math.max(1, Math.min(100, Number(item.quantity) || 1)),
     current_unit_price: null,
-    requested_unit_price: item.requestedPrice && !isNaN(Number(item.requestedPrice)) ? Number(item.requestedPrice) : null,
+    requested_unit_price: item.requestedPrice && !isNaN(Number(item.requestedPrice)) && Number(item.requestedPrice) > 0
+      ? Number(item.requestedPrice)
+      : (Number(item.price) || Number(item.customerPrice) || Number(item.wholesalePrice) || 1),
   }))
 
   await db('quote_request_items', {

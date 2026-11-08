@@ -80,9 +80,23 @@ export function getAuthRedirectUrl(req) {
 
 export const headers = getCorsHeaders()
 
+export const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+}
+
 export function json(res, status, body, responseHeaders = {}) {
   const cors = res?._corsHeaders || headers
-  res.writeHead(status, { ...cors, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...responseHeaders })
+  res.writeHead(status, {
+    ...cors,
+    ...SECURITY_HEADERS,
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    ...responseHeaders,
+  })
   res.end(JSON.stringify(body))
 }
 
