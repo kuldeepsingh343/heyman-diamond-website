@@ -38,7 +38,7 @@ const categoriesMeta = [
     number: '01',
     name: 'Loose Fancy Diamonds',
     description: 'Explore fancy shapes and distinctive diamond styles.',
-    image: '/loose-fancy-diamonds.png',
+    image: '/loose-fancy-diamonds.jpg',
   },
   {
     categoryKey: 'Round Melee Diamonds',

@@ -48,7 +48,7 @@ export function getDiamondMedia(diamond: {
   }
   if (c.includes('fancy') || s.includes('fancy')) {
     return {
-      imageUrl: '/loose-fancy-diamonds.png',
+      imageUrl: '/loose-fancy-diamonds.jpg',
       videoUrl: diamond.videoUrl || null,
       isFallback: true,
     }

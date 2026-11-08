@@ -10,7 +10,7 @@ const curatedReels: InstagramReel[] = [
   {
     id: 'curated-1',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
-    thumbnailUrl: '/loose-fancy-diamonds.png',
+    thumbnailUrl: '/loose-fancy-diamonds.jpg',
   },
   {
     id: 'curated-2',
