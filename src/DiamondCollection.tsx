@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { UserProfile } from './AuthPages'
 import './DiamondCollection.css'
 import { getDiamondMedia } from './diamondUtils'
+import DiamondShapeFilter from './DiamondShapeFilter'
+import { DIAMOND_SHAPES } from './diamondShapesData'
 
 export interface PublicDiamondItem {
   id?: string
@@ -79,7 +81,6 @@ const categoryFilters = [
   { label: 'Match Pairs', value: 'Matched Pairs' },
 ]
 
-const shapeFilters = ['all', 'Round', 'Oval', 'Emerald', 'Radiant', 'Pear', 'Cushion']
 
 export default function DiamondCollection({ currentUser, onCartChange }: DiamondCollectionProps) {
   const [items, setItems] = useState<PublicDiamondItem[]>([])
@@ -137,7 +138,8 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const handleSelectCategoryCard = (categoryKey: string) => {
     setLoading(true)
     setSelectedCategory(categoryKey)
-    const target = document.getElementById('diamond-catalog-grid')
+    setSelectedShape('all')
+    const target = document.getElementById('diamond-shape-filter-section') || document.getElementById('diamond-catalog-grid')
     if (target) {
       target.scrollIntoView({ behavior: 'smooth' })
     }
@@ -146,7 +148,19 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const handleSelectTab = (tabValue: string) => {
     setLoading(true)
     setSelectedCategory(tabValue)
+    setSelectedShape('all')
   }
+
+  // Count available stones per shape in the active category
+  const shapeCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const item of items) {
+      if (item.shape) {
+        counts[item.shape] = (counts[item.shape] || 0) + 1
+      }
+    }
+    return counts
+  }, [items])
 
   const addToCart = (diamond: PublicDiamondItem) => {
     try {
@@ -208,8 +222,23 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
 
   // Client-side filtering for shape and search text
   const filteredItems = items.filter(item => {
-    if (selectedShape !== 'all' && item.shape.toLowerCase() !== selectedShape.toLowerCase()) {
-      return false
+    if (selectedShape !== 'all') {
+      const targetShape = selectedShape.toLowerCase().replace(/[\s-_]/g, '')
+      const itemShape = (item.shape || '').toLowerCase().replace(/[\s-_]/g, '')
+      const shapeDef = DIAMOND_SHAPES.find(s =>
+        s.name.toLowerCase().replace(/[\s-_]/g, '') === targetShape ||
+        s.id.toLowerCase().replace(/[\s-_]/g, '') === targetShape ||
+        s.aliases.some(a => a.toLowerCase().replace(/[\s-_]/g, '') === targetShape)
+      )
+      const matches =
+        itemShape === targetShape ||
+        (shapeDef && shapeDef.aliases.some(a => a.toLowerCase().replace(/[\s-_]/g, '') === itemShape)) ||
+        itemShape.includes(targetShape) ||
+        targetShape.includes(itemShape)
+
+      if (!matches) {
+        return false
+      }
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim()
@@ -328,25 +357,25 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
             ))}
           </div>
 
-          {/* Search & Shape Controls */}
-          <div className="diamond-toolbar-controls">
-            <div className="diamond-shape-filters">
-              {shapeFilters.map(shape => (
-                <button
-                  key={shape}
-                  type="button"
-                  className={`diamond-shape-btn ${selectedShape.toLowerCase() === shape.toLowerCase() ? 'diamond-shape-btn--active' : ''}`}
-                  onClick={() => setSelectedShape(shape)}
-                >
-                  {shape === 'all' ? 'All Shapes' : shape}
-                </button>
-              ))}
-            </div>
+          {/* ── Interactive 3D Diamond Shapes Filter ── */}
+          <DiamondShapeFilter
+            selectedShape={selectedShape}
+            onSelectShape={shape => setSelectedShape(shape)}
+            shapeCounts={shapeCounts}
+            totalStonesCount={items.length}
+            selectedCategoryName={
+              selectedCategory === 'all'
+                ? 'All Diamond Collections'
+                : selectedCategory
+            }
+          />
 
+          {/* Search Controls */}
+          <div className="diamond-toolbar-controls">
             <div className="diamond-search-box">
               <input
                 type="text"
-                placeholder="🔍 Search SKU, Cert #, Color, Clarity…"
+                placeholder="🔍 Search SKU, Cert #, Color, Clarity, Shape…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="diamond-search-input"
@@ -379,19 +408,51 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="diamond-empty-state">
-            <h4>No diamonds match your selected filters</h4>
-            <p>Try selecting "All Shapes" or clearing your search keywords to view available stones.</p>
-            <button
-              type="button"
-              className="button-primary"
-              onClick={() => {
-                setSelectedCategory('all')
-                setSelectedShape('all')
-                setSearchQuery('')
-              }}
-            >
-              Reset Filters
-            </button>
+            <div className="empty-state-gem-icon">💎</div>
+            <h4>
+              {selectedShape !== 'all'
+                ? `No In-Stock ${selectedShape} Diamonds Found in This Category`
+                : 'No diamonds match your selected filters'}
+            </h4>
+            <p>
+              {selectedShape !== 'all'
+                ? `Looking for an exclusive ${selectedShape} cut? Hey Man Diamond LLC custom cuts, calibrates, and sources fine lab-grown stones to your exact carat, color, and clarity specifications.`
+                : 'Try selecting "All Shapes" or clearing your search keywords to view available stones.'}
+            </p>
+            <div className="empty-state-actions">
+              {selectedShape !== 'all' ? (
+                <>
+                  <a
+                    href={`mailto:sales@heymandiamond.com?subject=Custom%20Sourcing%20Request%3A%20${encodeURIComponent(selectedShape)}%20Diamond&body=Hello%20Hey%20Man%20Diamond%20Team%2C%0A%0AI%20am%20looking%20for%20a%20${encodeURIComponent(selectedShape)}%20cut%20diamond.%20Could%20you%20please%20share%20availability%20or%20a%20custom%20cutting%20quote%3F%0A%0ARequirements%3A%0A-%20Shape%3A%20${encodeURIComponent(selectedShape)}%0A-%20Target%20Carat%3A%20%0A-%20Preferred%20Color%20%26%20Clarity%3A%20%0A-%20Delivery%20Timeline%3A%20`}
+                    className="button-primary"
+                  >
+                    Request Custom {selectedShape} Cut →
+                  </a>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => {
+                      setSelectedShape('all')
+                      setSearchQuery('')
+                    }}
+                  >
+                    View All Available Shapes
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="button-primary"
+                  onClick={() => {
+                    setSelectedCategory('all')
+                    setSelectedShape('all')
+                    setSearchQuery('')
+                  }}
+                >
+                  Reset Filters
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="public-diamond-grid">

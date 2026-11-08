@@ -84,6 +84,15 @@ test('Inventory Service — 4Cs Filtering and Search', () => {
   const searchFiltered = filterInventory(inventory, { q: 'GIA2' })
   assert.equal(searchFiltered.length, 1)
   assert.equal(searchFiltered[0].sku, 'HMD-002')
+
+  // Normalized and flexible shape matching
+  const cushionFiltered = filterInventory([
+    { sku: 'C1', shape: 'Square Cushion' },
+    { sku: 'C2', shape: 'Round' },
+    { sku: 'C3', shape: 'Square-Radiant' },
+  ], { shape: 'square cushion' })
+  assert.equal(cushionFiltered.length, 1)
+  assert.equal(cushionFiltered[0].sku, 'C1')
 })
 
 test('Inventory Service — Downloadable CSV Template', () => {
