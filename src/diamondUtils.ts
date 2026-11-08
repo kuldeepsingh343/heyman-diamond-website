@@ -39,6 +39,13 @@ export function getDiamondMedia(diamond: {
       isFallback: true,
     }
   }
+  if (c.includes('cert')) {
+    return {
+      imageUrl: '/certified-diamonds.jpg',
+      videoUrl: diamond.videoUrl || null,
+      isFallback: true,
+    }
+  }
   if (c.includes('fancy') || s.includes('fancy')) {
     return {
       imageUrl: '/loose-fancy-diamonds.png',

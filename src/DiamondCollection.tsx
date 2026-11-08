@@ -52,8 +52,7 @@ const categoriesMeta = [
     number: '03',
     name: 'Certified Diamonds',
     description: 'Explore certified stones and ask our team for details.',
-    image:
-      'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=900&q=85',
+    image: '/certified-diamonds.jpg',
   },
   {
     categoryKey: 'Color Non-Certified Diamonds',
