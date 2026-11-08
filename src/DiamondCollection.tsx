@@ -68,8 +68,7 @@ const categoriesMeta = [
     number: '05',
     name: 'Match Pairs',
     description: 'Find matching diamond pairs for your next design.',
-    image:
-      'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=900&q=85',
+    image: '/matched-pairs-diamonds.jpg',
   },
 ]
 

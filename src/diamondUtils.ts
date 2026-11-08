@@ -34,7 +34,7 @@ export function getDiamondMedia(diamond: {
   }
   if (c.includes('pair')) {
     return {
-      imageUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=800&q=85',
+      imageUrl: '/matched-pairs-diamonds.jpg',
       videoUrl: diamond.videoUrl || null,
       isFallback: true,
     }
