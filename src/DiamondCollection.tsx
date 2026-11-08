@@ -59,8 +59,7 @@ const categoriesMeta = [
     number: '04',
     name: 'Solitaire Non-Certified Diamonds',
     description: 'Ask us about available colors, sizes, and specifications.',
-    image:
-      'https://images.unsplash.com/photo-1603561596112-db6e5e4e9a7d?auto=format&fit=crop&w=900&q=85',
+    image: '/solitaire-non-certified-diamonds.jpg',
   },
   {
     categoryKey: 'Matched Pairs',

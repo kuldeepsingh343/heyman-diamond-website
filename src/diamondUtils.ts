@@ -39,6 +39,13 @@ export function getDiamondMedia(diamond: {
       isFallback: true,
     }
   }
+  if (c.includes('non-cert') || c.includes('non cert') || c.includes('solitaire')) {
+    return {
+      imageUrl: '/solitaire-non-certified-diamonds.jpg',
+      videoUrl: diamond.videoUrl || null,
+      isFallback: true,
+    }
+  }
   if (c.includes('cert')) {
     return {
       imageUrl: '/certified-diamonds.jpg',
