@@ -20,14 +20,14 @@ test('Auth Registration Check — handleCheckRegistered validates registration s
     assert.equal(payload.error, 'A valid email address is required.')
   })
 
-  await t.test('recognizes staff emails as registered', async () => {
+  await t.test('recognizes active staff account as registered', async () => {
     let statusCode = 200
     let payload = null
     const res = {
       writeHead(code) { statusCode = code },
       end(body) { payload = JSON.parse(body) },
     }
-    const url = new URL('http://localhost/api/auth/check-registered?email=kuldeepsingh343@gmail.com')
+    const url = new URL('http://localhost/api/auth/check-registered?email=superadmin.test@internal.test')
     await handleCheckRegistered({}, res, url)
     assert.equal(statusCode, 200)
     assert.equal(payload.registered, true)

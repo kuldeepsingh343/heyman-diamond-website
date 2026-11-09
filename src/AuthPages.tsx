@@ -14,6 +14,7 @@ export interface StaffPermissions {
   can_review_kyc?: boolean
   can_manage_reviews?: boolean
   can_manage_promotions?: boolean
+  can_manage_users?: boolean
   can_manage_team?: boolean
 }
 
@@ -22,10 +23,13 @@ export interface StaffMember {
   user_id?: string
   email: string
   full_name: string
+  role?: 'super_admin' | 'admin' | 'sales_manager' | 'operations_manager'
   role_title: string
   is_super_admin?: boolean
+  is_active?: boolean
   status?: string
   created_at?: string
+  updated_at?: string
   permissions: StaffPermissions
 }
 
@@ -60,7 +64,10 @@ export interface UserProfile {
   gender?: string
   account_type?: 'customer' | 'dealer' | 'admin'
   dealer_status?: string
+  role?: 'super_admin' | 'admin' | 'sales_manager' | 'operations_manager'
   role_title?: string
+  is_super_admin?: boolean
+  is_admin?: boolean
   permissions?: StaffPermissions
 }
 
@@ -309,65 +316,15 @@ export default function AuthPages({
   const [reviewRatingFilter, setReviewRatingFilter] = useState<number | 'all'>('all')
 
   const isSuperAdmin = Boolean(
-    user?.permissions?.can_manage_team ||
-    (user?.email && (
-      user.email.toLowerCase() === 'kuldeepsingh343@gmail.com' ||
-      user.email.toLowerCase() === 'heymandiamondllc@gmail.com' ||
-      user.email.toLowerCase() === 'heymandiamonllc@gmail.com' ||
-      user.email.toLowerCase() === 'chauhanenterprises09@gmail.com'
-    ))
+    user?.role === 'super_admin' || user?.permissions?.can_manage_users || user?.permissions?.can_manage_team
   )
 
   const isUserAdmin = Boolean(
-    isSuperAdmin ||
-    user?.account_type === 'admin' ||
-    Boolean(user?.permissions) ||
-    (user?.email && (
-      user.email.toLowerCase().endsWith('@heymandiamond.com') ||
-      user.email.toLowerCase() === 'heymandiamondllc@gmail.com' ||
-      user.email.toLowerCase() === 'heymandiamonllc@gmail.com' ||
-      user.email.toLowerCase() === 'kuldeepsingh343@gmail.com' ||
-      user.email.toLowerCase() === 'chauhanenterprises09@gmail.com'
-    ))
+    isSuperAdmin || user?.account_type === 'admin'
   )
 
   // ── Staff & Operations Role Management (Super Admin) ─────────────────────
-  const [staffList, setStaffList] = useState<StaffMember[]>([
-    {
-      id: 'staff-superadmin-1',
-      user_id: 'staff-superadmin-1',
-      email: 'kuldeepsingh343@gmail.com',
-      full_name: 'Kuldeep Singh',
-      role_title: 'Super Administrator',
-      is_super_admin: true,
-      status: 'active',
-      permissions: {
-        can_manage_inventory: true,
-        can_manage_orders: true,
-        can_review_kyc: true,
-        can_manage_reviews: true,
-        can_manage_promotions: true,
-        can_manage_team: true,
-      },
-    },
-    {
-      id: 'staff-superadmin-2',
-      user_id: 'staff-superadmin-2',
-      email: 'heymandiamondllc@gmail.com',
-      full_name: 'Heyman Diamond Operations',
-      role_title: 'Super Administrator',
-      is_super_admin: true,
-      status: 'active',
-      permissions: {
-        can_manage_inventory: true,
-        can_manage_orders: true,
-        can_review_kyc: true,
-        can_manage_reviews: true,
-        can_manage_promotions: true,
-        can_manage_team: true,
-      },
-    },
-  ])
+  const [staffList, setStaffList] = useState<StaffMember[]>([])
   const [loadingStaff, setLoadingStaff] = useState(false)
   const [showCreateStaffForm, setShowCreateStaffForm] = useState(false)
   const [staffSearch, setStaffSearch] = useState('')
@@ -3642,7 +3599,7 @@ export default function AuthPages({
                     })
                     .map(staff => {
                       const isEditing = editingStaffId === staff.id
-                      const isSuper = staff.is_super_admin || staff.email.toLowerCase() === 'kuldeepsingh343@gmail.com'
+                      const isSuper = staff.role === 'super_admin' || staff.is_super_admin || Boolean(staff.permissions?.can_manage_users || staff.permissions?.can_manage_team)
 
                       return (
                         <div key={staff.id} className="staff-member-card">

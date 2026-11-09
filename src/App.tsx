@@ -60,9 +60,6 @@ function App() {
     if (token && raw) {
       try {
         const parsed = JSON.parse(raw)
-        if (isStaffOrAdmin(parsed)) {
-          parsed.account_type = 'admin'
-        }
         return parsed
       } catch {
         return null

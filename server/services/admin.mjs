@@ -1,15 +1,16 @@
 import { db, json, bodyJson, supabaseReady, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from './shared.mjs'
-import { isStaffEmail } from './auth.mjs'
 
 // In-memory staff storage for development and offline/mock operation
-const memoryStaffUsers = [
+export const memoryStaffUsers = [
   {
     id: 'staff-superadmin-1',
     user_id: 'staff-superadmin-1',
-    email: 'kuldeepsingh343@gmail.com',
-    full_name: 'Kuldeep Singh',
+    email: 'superadmin.test@internal.test',
+    full_name: 'Test Super Admin',
+    role: 'super_admin',
     role_title: 'Super Administrator',
     is_super_admin: true,
+    is_active: true,
     status: 'active',
     created_at: new Date('2026-10-01T00:00:00Z').toISOString(),
     permissions: {
@@ -18,28 +19,16 @@ const memoryStaffUsers = [
       can_review_kyc: true,
       can_manage_reviews: true,
       can_manage_promotions: true,
-      can_manage_team: true,
-    },
-  },
-  {
-    id: 'staff-superadmin-2',
-    user_id: 'staff-superadmin-2',
-    email: 'heymandiamondllc@gmail.com',
-    full_name: 'Heyman Diamond Operations',
-    role_title: 'Super Administrator',
-    is_super_admin: true,
-    status: 'active',
-    created_at: new Date('2026-10-01T00:00:00Z').toISOString(),
-    permissions: {
-      can_manage_inventory: true,
-      can_manage_orders: true,
-      can_review_kyc: true,
-      can_manage_reviews: true,
-      can_manage_promotions: true,
+      can_manage_users: true,
       can_manage_team: true,
     },
   },
 ]
+
+export function getMemoryStaffUser(id) {
+  if (!id) return null
+  return memoryStaffUsers.find(s => s.id === id || s.user_id === id) || null
+}
 
 export async function handleGetStaffUsers(req, res, admin) {
   if (!admin?.permissions?.can_manage_team && !admin?.isSuperAdmin) {

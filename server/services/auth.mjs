@@ -9,6 +9,7 @@ import {
   getAuthRedirectUrl,
   getClientIp,
 } from './shared.mjs'
+import { getMemoryStaffUser, memoryStaffUsers } from './admin.mjs'
 
 export async function findAuthUserByEmail(email) {
   if (!supabaseReady()) throw new Error('Database API is not configured')
@@ -39,71 +40,212 @@ export async function authenticatedUser(req) {
   return null
 }
 
+// ── Rate Limiting & Brute Force Defense ─────────────────────────────────────
+const loginAttempts = new Map()
+const signupAttempts = new Map()
+const passwordResetAttempts = new Map()
+const resendAttempts = new Map()
 
-const ADMIN_EMAILS = [
-  'heymandiamondllc@gmail.com',
-  'info@heymandiamond.com',
-  'kuldeepsingh343@gmail.com',
-]
+const MAX_LOGIN_ATTEMPTS = 5
+const MAX_SIGNUP_ATTEMPTS = 10
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 minutes lockout
+const WINDOW_DURATION_MS = 15 * 60 * 1000
 
-export function isStaffEmail(email) {
-  if (!email) return false
-  const em = String(email).toLowerCase().trim()
-  return em.endsWith('@heymandiamond.com') || ADMIN_EMAILS.includes(em)
+function checkRateLimit(store, key, maxAttempts, lockMs) {
+  const now = Date.now()
+  const record = store.get(key)
+  if (!record) return { allowed: true }
+
+  if (record.lockedUntil && now < record.lockedUntil) {
+    const remainingSec = Math.ceil((record.lockedUntil - now) / 1000)
+    return {
+      allowed: false,
+      retryAfter: remainingSec,
+      error: `Too many attempts. Access is temporarily locked. Please try again in ${Math.ceil(remainingSec / 60)} minutes.`,
+    }
+  }
+
+  if (now - record.firstAttempt > WINDOW_DURATION_MS) {
+    store.delete(key)
+    return { allowed: true }
+  }
+
+  if (record.count >= maxAttempts) {
+    record.lockedUntil = now + lockMs
+    const remainingSec = Math.ceil(lockMs / 1000)
+    return {
+      allowed: false,
+      retryAfter: remainingSec,
+      error: `Too many failed attempts. Access is temporarily locked. Please try again in ${Math.ceil(remainingSec / 60)} minutes.`,
+    }
+  }
+
+  return { allowed: true }
 }
 
-export async function requireAdmin(req) {
-  const user = await authenticatedUser(req)
-  if (!user?.id) return null
-  if (user.email && isStaffEmail(user.email)) {
-    return {
-      user,
-      isSuperAdmin: true,
-      permissions: {
-        can_review_kyc: true,
+function recordAttempt(store, key, lockMs, maxAttempts) {
+  const now = Date.now()
+  const record = store.get(key)
+  if (!record || now - record.firstAttempt > WINDOW_DURATION_MS) {
+    store.set(key, { count: 1, firstAttempt: now, lockedUntil: null })
+  } else {
+    record.count += 1
+    if (record.count >= maxAttempts) {
+      record.lockedUntil = now + lockMs
+    }
+  }
+}
+
+function resetAttempts(store, key) {
+  store.delete(key)
+}
+
+// ── Role & Permissions Architecture ─────────────────────────────────────────
+export const ROLE_TITLES = {
+  super_admin: 'Super Administrator',
+  admin: 'Administrator',
+  sales_manager: 'Sales Manager',
+  operations_manager: 'Operations Manager',
+}
+
+export function getDefaultPermissions(role) {
+  switch (role) {
+    case 'super_admin':
+      return {
+        can_manage_inventory: true,
         can_manage_orders: true,
+        can_review_kyc: true,
         can_manage_promotions: true,
         can_manage_reviews: true,
-        can_manage_inventory: true,
+        can_manage_users: true,
         can_manage_team: true,
-        role_title: 'Super Administrator',
+      }
+    case 'admin':
+      return {
+        can_manage_inventory: true,
+        can_manage_orders: true,
+        can_review_kyc: true,
+        can_manage_promotions: true,
+        can_manage_reviews: true,
+        can_manage_users: false,
+        can_manage_team: false,
+      }
+    case 'sales_manager':
+      return {
+        can_manage_inventory: false,
+        can_manage_orders: true,
+        can_review_kyc: true,
+        can_manage_promotions: false,
+        can_manage_reviews: true,
+        can_manage_users: false,
+        can_manage_team: false,
+      }
+    case 'operations_manager':
+    default:
+      return {
+        can_manage_inventory: true,
+        can_manage_orders: true,
+        can_review_kyc: false,
+        can_manage_promotions: false,
+        can_manage_reviews: false,
+        can_manage_users: false,
+        can_manage_team: false,
+      }
+  }
+}
+
+export function resolvePermissions(adminRow) {
+  if (!adminRow) return null
+  const role = ['super_admin', 'admin', 'sales_manager', 'operations_manager'].includes(adminRow.role)
+    ? adminRow.role
+    : (adminRow.can_manage_team || adminRow.can_manage_users ? 'super_admin' : 'operations_manager')
+
+  const defaults = getDefaultPermissions(role)
+
+  if (role === 'super_admin') {
+    return {
+      role: 'super_admin',
+      role_title: ROLE_TITLES.super_admin,
+      permissions: {
+        can_manage_inventory: true,
+        can_manage_orders: true,
+        can_review_kyc: true,
+        can_manage_promotions: true,
+        can_manage_reviews: true,
+        can_manage_users: true,
+        can_manage_team: true,
       },
     }
   }
-  try {
-    const permissions = await db(`admin_users?user_id=eq.${user.id}`)
-    if (permissions && permissions.length > 0) {
-      const p = permissions[0]
-      return {
-        user,
-        isSuperAdmin: Boolean(p.can_manage_team),
-        permissions: {
-          can_review_kyc: Boolean(p.can_review_kyc),
-          can_manage_orders: Boolean(p.can_manage_orders),
-          can_manage_promotions: Boolean(p.can_manage_promotions),
-          can_manage_reviews: Boolean(p.can_manage_reviews),
-          can_manage_inventory: p.can_manage_inventory !== false,
-          can_manage_team: Boolean(p.can_manage_team),
-          role_title: p.role_title || 'Operations Manager',
-        },
-      }
-    }
-    return null
-  } catch {
-    return null
+
+  return {
+    role,
+    role_title: ROLE_TITLES[role] || 'Operations Manager',
+    permissions: {
+      can_manage_inventory: adminRow.can_manage_inventory !== undefined ? Boolean(adminRow.can_manage_inventory) : defaults.can_manage_inventory,
+      can_manage_orders: adminRow.can_manage_orders !== undefined ? Boolean(adminRow.can_manage_orders) : defaults.can_manage_orders,
+      can_review_kyc: adminRow.can_review_kyc !== undefined ? Boolean(adminRow.can_review_kyc) : defaults.can_review_kyc,
+      can_manage_promotions: adminRow.can_manage_promotions !== undefined ? Boolean(adminRow.can_manage_promotions) : defaults.can_manage_promotions,
+      can_manage_reviews: adminRow.can_manage_reviews !== undefined ? Boolean(adminRow.can_manage_reviews) : defaults.can_manage_reviews,
+      can_manage_users: false,
+      can_manage_team: false,
+    },
   }
 }
 
-export async function handleSignup(req, res) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !supabaseReady()) {
-    return json(res, 503, { error: 'Account service is not configured yet.' })
+export async function requireAdmin(req) {
+  // TODO: Enforce MFA (aal2) once administrators have completed TOTP enrollment
+  const user = await authenticatedUser(req)
+  if (!user?.id) return null
+
+  // Admin access strictly requires an email-confirmed account
+  if (!user.email_confirmed_at) {
+    return null
   }
+
+  let adminRow = null
+  if (supabaseReady()) {
+    try {
+      const adminRows = await db(`admin_users?user_id=eq.${encodeURIComponent(user.id)}`)
+      if (Array.isArray(adminRows) && adminRows.length > 0) {
+        adminRow = adminRows[0]
+      }
+    } catch (err) {
+      console.warn('requireAdmin DB lookup error:', err.message)
+      return null
+    }
+  } else {
+    adminRow = getMemoryStaffUser(user.id)
+  }
+
+  if (!adminRow || adminRow.is_active === false) {
+    return null
+  }
+
+  const resolved = resolvePermissions(adminRow)
+  if (!resolved) return null
+
+  req.admin = {
+    user,
+    role: resolved.role,
+    role_title: resolved.role_title,
+    isSuperAdmin: resolved.role === 'super_admin',
+    permissions: resolved.permissions,
+  }
+  return req.admin
+}
+
+export async function handleSignup(req, res) {
   const ip = getClientIp(req)
   const rateStatus = checkRateLimit(signupAttempts, ip, MAX_SIGNUP_ATTEMPTS, LOCKOUT_DURATION_MS)
   if (!rateStatus.allowed) {
     return json(res, 429, { error: rateStatus.error }, { 'Retry-After': String(rateStatus.retryAfter) })
   }
   recordAttempt(signupAttempts, ip, LOCKOUT_DURATION_MS, MAX_SIGNUP_ATTEMPTS)
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !supabaseReady()) {
+    return json(res, 503, { error: 'Account service is not configured yet.' })
+  }
 
   const input = await bodyJson(req)
   const accountType = input.accountType === 'dealer' ? 'dealer' : 'customer'
@@ -262,66 +404,6 @@ export async function handleSignup(req, res) {
   })
 }
 
-// ── Rate Limiting & Brute Force Defense ─────────────────────────────────────
-const loginAttempts = new Map()
-const signupAttempts = new Map()
-const passwordResetAttempts = new Map()
-const resendAttempts = new Map()
-
-const MAX_LOGIN_ATTEMPTS = 5
-const MAX_SIGNUP_ATTEMPTS = 10
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 minutes lockout
-const WINDOW_DURATION_MS = 15 * 60 * 1000
-
-function checkRateLimit(store, key, maxAttempts, lockMs) {
-  const now = Date.now()
-  const record = store.get(key)
-  if (!record) return { allowed: true }
-
-  if (record.lockedUntil && now < record.lockedUntil) {
-    const remainingSec = Math.ceil((record.lockedUntil - now) / 1000)
-    return {
-      allowed: false,
-      retryAfter: remainingSec,
-      error: `Too many attempts. Access is temporarily locked. Please try again in ${Math.ceil(remainingSec / 60)} minutes.`,
-    }
-  }
-
-  if (now - record.firstAttempt > WINDOW_DURATION_MS) {
-    store.delete(key)
-    return { allowed: true }
-  }
-
-  if (record.count >= maxAttempts) {
-    record.lockedUntil = now + lockMs
-    const remainingSec = Math.ceil(lockMs / 1000)
-    return {
-      allowed: false,
-      retryAfter: remainingSec,
-      error: `Too many failed attempts. Access is temporarily locked. Please try again in ${Math.ceil(remainingSec / 60)} minutes.`,
-    }
-  }
-
-  return { allowed: true }
-}
-
-function recordAttempt(store, key, lockMs, maxAttempts) {
-  const now = Date.now()
-  const record = store.get(key)
-  if (!record || now - record.firstAttempt > WINDOW_DURATION_MS) {
-    store.set(key, { count: 1, firstAttempt: now, lockedUntil: null })
-  } else {
-    record.count += 1
-    if (record.count >= maxAttempts) {
-      record.lockedUntil = now + lockMs
-    }
-  }
-}
-
-function resetAttempts(store, key) {
-  store.delete(key)
-}
-
 export async function handleResendConfirmation(req, res) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Email confirmation is not configured yet.' })
   const ip = getClientIp(req)
@@ -392,32 +474,31 @@ export async function handleSignin(req, res) {
   resetAttempts(loginAttempts, ip)
   resetAttempts(loginAttempts, `email:${email}`)
 
-  const profiles = await db(`profiles?id=eq.${data.user.id}&select=account_type,dealer_status,full_name`)
-  const adminRows = await db(`admin_users?user_id=eq.${data.user.id}`).catch(() => [])
-  const isSuper = isStaffEmail(email) || Boolean(adminRows?.[0]?.can_manage_team)
-  const isAdmin = (Array.isArray(adminRows) && adminRows.length > 0) || isSuper
-  const permissions = isSuper
-    ? {
-      can_review_kyc: true,
-      can_manage_orders: true,
-      can_manage_promotions: true,
-      can_manage_reviews: true,
-      can_manage_inventory: true,
-      can_manage_team: true,
-      role_title: 'Super Administrator',
-    }
-    : (adminRows?.[0]
-      ? {
-        can_review_kyc: Boolean(adminRows[0].can_review_kyc),
-        can_manage_orders: Boolean(adminRows[0].can_manage_orders),
-        can_manage_promotions: Boolean(adminRows[0].can_manage_promotions),
-        can_manage_reviews: Boolean(adminRows[0].can_manage_reviews),
-        can_manage_inventory: adminRows[0].can_manage_inventory !== false,
-        can_manage_team: Boolean(adminRows[0].can_manage_team),
-        role_title: adminRows[0].role_title || 'Operations Manager',
+  let adminRecord = null
+  let isAdmin = false
+  if (data.user.email_confirmed_at) {
+    if (supabaseReady()) {
+      try {
+        const adminRows = await db(`admin_users?user_id=eq.${encodeURIComponent(data.user.id)}`)
+        if (adminRows && adminRows.length > 0 && adminRows[0].is_active !== false) {
+          adminRecord = adminRows[0]
+          isAdmin = true
+        }
+      } catch (err) {
+        console.warn('Admin status lookup failed during signin:', err.message)
       }
-      : null)
-  const accountType = isAdmin ? 'admin' : (profiles?.[0]?.account_type || 'customer')
+    } else {
+      adminRecord = getMemoryStaffUser(data.user.id)
+      if (adminRecord && adminRecord.is_active !== false) {
+        isAdmin = true
+      }
+    }
+  }
+
+  const profiles = await db(`profiles?id=eq.${encodeURIComponent(data.user.id)}&select=account_type,dealer_status,full_name`).catch(() => [])
+  const resolved = adminRecord ? resolvePermissions(adminRecord) : null
+  const accountType = isAdmin ? 'admin' : (profiles?.[0]?.account_type === 'dealer' ? 'dealer' : 'customer')
+
   return json(res, 200, {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
@@ -426,8 +507,10 @@ export async function handleSignin(req, res) {
       email: data.user.email,
       ...(profiles?.[0] || {}),
       account_type: accountType,
-      role_title: permissions?.role_title,
-      permissions: permissions || undefined,
+      role: resolved?.role || undefined,
+      role_title: resolved?.role_title || undefined,
+      is_super_admin: resolved?.role === 'super_admin',
+      permissions: resolved?.permissions || undefined,
     },
   })
 }
@@ -526,62 +609,48 @@ export async function handleGetProfile(req, res) {
   let adminRecord = null
   if (supabaseReady()) {
     try {
-      const rows = await db(`profiles?id=eq.${user.id}`)
+      const rows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}`)
       if (rows && rows.length > 0) {
         profileData = rows[0]
       }
-      const adminRows = await db(`admin_users?user_id=eq.${user.id}`)
-      if (adminRows && adminRows.length > 0) {
-        isAdmin = true
-        adminRecord = adminRows[0]
+      if (user.email_confirmed_at) {
+        const adminRows = await db(`admin_users?user_id=eq.${encodeURIComponent(user.id)}`)
+        if (adminRows && adminRows.length > 0 && adminRows[0].is_active !== false) {
+          isAdmin = true
+          adminRecord = adminRows[0]
+        }
       }
     } catch (err) {
       console.warn('Profile fetch from DB failed:', err.message)
     }
-  }
-
-  const isSuper = isStaffEmail(user.email) || Boolean(adminRecord?.can_manage_team)
-  if (isSuper) {
-    isAdmin = true
-  }
-
-  const permissions = isSuper
-    ? {
-      can_review_kyc: true,
-      can_manage_orders: true,
-      can_manage_promotions: true,
-      can_manage_reviews: true,
-      can_manage_inventory: true,
-      can_manage_team: true,
-      role_title: 'Super Administrator',
+  } else {
+    adminRecord = getMemoryStaffUser(user.id)
+    if (adminRecord && adminRecord.is_active !== false) {
+      isAdmin = true
     }
-    : (adminRecord
-      ? {
-        can_review_kyc: Boolean(adminRecord.can_review_kyc),
-        can_manage_orders: Boolean(adminRecord.can_manage_orders),
-        can_manage_promotions: Boolean(adminRecord.can_manage_promotions),
-        can_manage_reviews: Boolean(adminRecord.can_manage_reviews),
-        can_manage_inventory: adminRecord.can_manage_inventory !== false,
-        can_manage_team: Boolean(adminRecord.can_manage_team),
-        role_title: adminRecord.role_title || 'Operations Manager',
-      }
-      : null)
+  }
 
+  const resolved = adminRecord ? resolvePermissions(adminRecord) : null
+  // Never trust user_metadata for role or account_type elevation
+  const accountType = isAdmin ? 'admin' : (profileData?.account_type === 'dealer' ? 'dealer' : 'customer')
   const meta = user.user_metadata || {}
-  const isRegisteredCustomer = Boolean(isAdmin || (profileData && profileData.account_type) || (meta && meta.account_type))
-  const accountType = isAdmin ? 'admin' : (profileData?.account_type || meta.account_type || null)
+  const isRegisteredCustomer = Boolean(isAdmin || (profileData && profileData.account_type))
+
   return json(res, 200, {
     id: user.id,
     email: user.email,
     full_name: profileData?.full_name || meta.full_name || meta.name || '',
     phone: profileData?.phone || meta.phone || '',
-    address: meta.address || '',
-    gender: meta.gender || 'prefer_not_to_say',
+    address: profileData?.address || meta.address || '',
+    gender: profileData?.gender || meta.gender || 'prefer_not_to_say',
     account_type: accountType,
     dealer_status: profileData?.dealer_status || 'not_applied',
     is_registered: isRegisteredCustomer,
-    role_title: permissions?.role_title,
-    permissions: permissions || undefined,
+    is_admin: isAdmin,
+    is_super_admin: resolved?.role === 'super_admin',
+    role: resolved?.role || undefined,
+    role_title: resolved?.role_title || undefined,
+    permissions: resolved?.permissions || undefined,
     created_at: profileData?.created_at || user.created_at,
   })
 }
@@ -702,13 +771,11 @@ export async function handleCheckRegistered(req, res, url) {
     return json(res, 400, { error: 'A valid email address is required.' })
   }
 
-  // Staff and admin emails are always considered registered
-  if (isStaffEmail(email)) {
-    return json(res, 200, { registered: true, isStaff: true })
-  }
-
   if (!supabaseReady()) {
-    // When DB is in mock mode, assume unregistered unless known mock staff
+    const mem = memoryStaffUsers.find(s => s.email.toLowerCase() === email)
+    if (mem && mem.is_active !== false) {
+      return json(res, 200, { registered: true, isAdmin: true, isStaff: true })
+    }
     return json(res, 200, { registered: false })
   }
 
@@ -718,17 +785,15 @@ export async function handleCheckRegistered(req, res, url) {
       return json(res, 200, { registered: false })
     }
 
-    const adminRows = await db(`admin_users?user_id=eq.${user.id}`).catch(() => [])
-    if (Array.isArray(adminRows) && adminRows.length > 0) {
-      return json(res, 200, { registered: true, isAdmin: true })
+    if (user.email_confirmed_at) {
+      const adminRows = await db(`admin_users?user_id=eq.${encodeURIComponent(user.id)}`).catch(() => [])
+      if (Array.isArray(adminRows) && adminRows.length > 0 && adminRows[0].is_active !== false) {
+        return json(res, 200, { registered: true, isAdmin: true })
+      }
     }
 
-    const profileRows = await db(`profiles?id=eq.${user.id}&select=account_type`).catch(() => [])
+    const profileRows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}&select=account_type`).catch(() => [])
     if (profileRows?.[0]?.account_type) {
-      return json(res, 200, { registered: true })
-    }
-
-    if (user.user_metadata?.account_type) {
       return json(res, 200, { registered: true })
     }
 

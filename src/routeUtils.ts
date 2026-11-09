@@ -16,16 +16,8 @@ export interface UserLike {
 }
 
 export function isStaffOrAdmin(user?: UserLike | null): boolean {
-  if (!user || !user.email) return false
-  if (user.account_type === 'admin') return true
-  const em = user.email.toLowerCase().trim()
-  return (
-    em.endsWith('@heymandiamond.com') ||
-    em === 'heymandiamondllc@gmail.com' ||
-    em === 'heymandiamonllc@gmail.com' ||
-    em === 'kuldeepsingh343@gmail.com' ||
-    em === 'chauhanenterprises09@gmail.com'
-  )
+  if (!user) return false
+  return user.account_type === 'admin'
 }
 
 /**
