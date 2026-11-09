@@ -1046,7 +1046,7 @@ export async function handleGetCatalog(req, res, url, user = null) {
     // 1. Fetch published diamonds from database if Supabase is connected
     if (supabaseReady()) {
       try {
-        let dbQuery = 'diamonds_inventory?select=*&status=eq.published&order=created_at.desc&limit=500'
+        let dbQuery = 'diamonds_inventory?select=*&status=eq.published&deleted_at=is.null&order=created_at.desc&limit=500'
         if (categoryParam && categoryParam !== 'all') {
           if (categoryParam === 'Solitaire Non-Certified Diamonds' || categoryParam === 'Color Non-Certified Diamonds') {
             dbQuery += `&or=(category.eq.${encodeURIComponent('Solitaire Non-Certified Diamonds')},category.eq.${encodeURIComponent('Color Non-Certified Diamonds')})`
@@ -1106,7 +1106,7 @@ export async function handleGetCatalog(req, res, url, user = null) {
     // 2. Fallback to memory inventory if DB returned 0 items
     if (activeItems.length === 0) {
       activeItems = memoryInventory
-        .filter(item => item.status === 'published' || item.status === 'available')
+        .filter(item => (item.status === 'published' || item.status === 'available') && !item.deletedAt && !item.deleted_at)
         .map(item => {
           const customerListPrice = parseFloat(item.customerPrice ?? item.price) || 0
           const customerDiscPrice = item.customerDiscountPrice != null ? parseFloat(item.customerDiscountPrice) : null
@@ -1161,9 +1161,15 @@ export async function handleGetCatalog(req, res, url, user = null) {
           if (Array.isArray(profileRows) && profileRows.length > 0) {
             accountType = profileRows[0].account_type || 'customer'
             dealerStatus = profileRows[0].dealer_status || 'not_applied'
+          } else if (user.account_type) {
+            accountType = user.account_type
+            dealerStatus = user.dealer_status || 'not_applied'
           }
         } catch {
-          // ignore profile fetch fallback
+          if (user.account_type) {
+            accountType = user.account_type
+            dealerStatus = user.dealer_status || 'not_applied'
+          }
         }
       } else if (user.account_type) {
         accountType = user.account_type
@@ -1268,10 +1274,43 @@ export async function handleUploadInventory(req, res, admin) {
     const defaultCat = input.defaultCategory || 'all'
     const result = parseDiamondSpreadsheet(content, defaultCat)
 
+    // Retrieve all soft-deleted SKUs to strictly prevent accidental resurrection
+    const deletedSkus = new Set()
+    for (const mem of memoryInventory) {
+      if (mem.deletedAt || mem.deleted_at) {
+        deletedSkus.add(mem.sku)
+      }
+    }
+    if (supabaseReady()) {
+      try {
+        const delRows = await db('diamonds_inventory?deleted_at=not.is.null&select=sku')
+        if (Array.isArray(delRows)) {
+          for (const r of delRows) if (r.sku) deletedSkus.add(r.sku)
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    let skippedDeletedCount = 0
+    const nonDeletedItems = []
+    for (const item of result.items) {
+      if (deletedSkus.has(item.sku)) {
+        skippedDeletedCount++
+        result.skipped.push({ row: 0, sku: item.sku, reason: 'SKU is soft-deleted and cannot be resurrected by upload.' })
+      } else {
+        nonDeletedItems.push(item)
+      }
+    }
+    result.items = nonDeletedItems
+
     if (result.items.length === 0) {
       return json(res, 400, {
-        error: 'No valid diamond rows found in the uploaded file.',
+        error: skippedDeletedCount > 0
+          ? `All ${skippedDeletedCount} diamond(s) in this upload are soft-deleted and were skipped.`
+          : 'No valid diamond rows found in the uploaded file.',
         skipped: result.skipped,
+        skippedDeletedCount,
       })
     }
 
@@ -1381,8 +1420,13 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
   if (supabaseReady()) {
     try {
       let query = 'diamonds_inventory?select=*&order=created_at.desc&limit=250'
-      if (status && status !== 'all') {
-        query += `&status=eq.${encodeURIComponent(status)}`
+      if (status === 'deleted') {
+        query += '&deleted_at=not.is.null'
+      } else {
+        query += '&deleted_at=is.null'
+        if (status && status !== 'all') {
+          query += `&status=eq.${encodeURIComponent(status)}`
+        }
       }
       if (category && category !== 'all') {
         query += `&category=eq.${encodeURIComponent(category)}`
@@ -1429,6 +1473,7 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
             videoUrl: r.video_url,
             status: r.status,
             source: r.source,
+            deletedAt: r.deleted_at || null,
             updatedAt: r.updated_at,
             createdAt: r.created_at,
           }
@@ -1441,7 +1486,17 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
 
   // Fallback to memoryInventory if DB has no rows
   if (items.length === 0 && memoryInventory.length > 0) {
-    items = memoryInventory.map(item => {
+    let memSource = memoryInventory
+    if (status === 'deleted') {
+      memSource = memSource.filter(item => Boolean(item.deletedAt || item.deleted_at))
+    } else {
+      memSource = memSource.filter(item => !item.deletedAt && !item.deleted_at)
+      if (status && status !== 'all') {
+        memSource = memSource.filter(item => item.status === status)
+      }
+    }
+
+    items = memSource.map(item => {
       const customerListPrice = parseFloat(item.customerPrice ?? item.price) || 0
       const customerDiscPrice = item.customerDiscountPrice != null ? parseFloat(item.customerDiscountPrice) : null
       const customerDiscPct = item.customerDiscountPercent != null ? parseFloat(item.customerDiscountPercent) : null
@@ -1465,6 +1520,7 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
         dealerEffectivePrice,
         price: customerListPrice,
         wholesalePrice: dealerListPrice,
+        deletedAt: item.deletedAt || item.deleted_at || null,
         status: item.status || 'published',
         source: item.source || 'excel_upload',
       }
@@ -1482,11 +1538,13 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
     )
   }
 
+  const allDiamonds = memoryInventory
   const counts = {
-    total: items.length,
-    pendingReview: items.filter(i => i.status === 'pending_review').length,
-    published: items.filter(i => i.status === 'published').length,
-    hidden: items.filter(i => i.status === 'hidden').length,
+    total: allDiamonds.filter(i => !i.deletedAt && !i.deleted_at).length,
+    pendingReview: allDiamonds.filter(i => i.status === 'pending_review' && !i.deletedAt && !i.deleted_at).length,
+    published: allDiamonds.filter(i => i.status === 'published' && !i.deletedAt && !i.deleted_at).length,
+    hidden: allDiamonds.filter(i => i.status === 'hidden' && !i.deletedAt && !i.deleted_at).length,
+    deleted: allDiamonds.filter(i => Boolean(i.deletedAt || i.deleted_at)).length,
   }
 
   return json(res, 200, { items, counts })
@@ -1624,6 +1682,163 @@ export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
   return json(res, 200, { success: true, message: 'Diamond updated successfully.' })
 }
 
+export async function handleDeleteAdminDiamond(req, res, admin, diamondId) {
+  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  if (admin.permissions && admin.permissions.can_manage_inventory === false) {
+    return json(res, 403, { error: 'Inventory management permission required.' })
+  }
+  const cleanId = String(diamondId || '').trim()
+  if (!cleanId || !/^[a-zA-Z0-9_-]+$/.test(cleanId)) {
+    return json(res, 400, { error: 'Invalid diamond identifier.' })
+  }
+  const safeId = encodeURIComponent(cleanId)
+
+  let existing = null
+  if (supabaseReady()) {
+    try {
+      const rows = await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})&limit=1`)
+      if (Array.isArray(rows) && rows.length > 0) existing = rows[0]
+    } catch {
+      // ignore
+    }
+  }
+  if (!existing) {
+    existing = memoryInventory.find(i => i.id === cleanId || i.sku === cleanId)
+  }
+
+  if (!existing) {
+    return json(res, 404, { error: 'Diamond item not found.' })
+  }
+
+  const now = new Date().toISOString()
+  const deletedBy = admin.user?.id || null
+
+  if (supabaseReady()) {
+    try {
+      await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          deleted_at: now,
+          deleted_by: deletedBy,
+          status: 'hidden',
+          updated_at: now,
+        }),
+      })
+    } catch (err) {
+      console.warn('DB soft delete failed:', err.message)
+    }
+  }
+
+  // Update in memoryInventory
+  const memItem = memoryInventory.find(i => i.id === cleanId || i.sku === cleanId)
+  if (memItem) {
+    memItem.deletedAt = now
+    memItem.deleted_at = now
+    memItem.deletedBy = deletedBy
+    memItem.status = 'hidden'
+  }
+
+  // Write audit log
+  if (supabaseReady()) {
+    try {
+      await db('audit_log', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          actor_user_id: admin?.user?.id || 'admin',
+          action: 'diamond_deleted',
+          entity_type: 'diamond',
+          entity_id: cleanId,
+          metadata: { sku: existing.sku },
+        }),
+      })
+    } catch (auditErr) {
+      console.warn('Audit log write error:', auditErr.message)
+    }
+  }
+
+  return json(res, 200, { success: true, message: `Diamond ${existing.sku} soft-deleted successfully.` })
+}
+
+export async function handleRestoreAdminDiamond(req, res, admin, diamondId) {
+  if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  if (admin.permissions && admin.permissions.can_manage_inventory === false) {
+    return json(res, 403, { error: 'Inventory management permission required.' })
+  }
+  const cleanId = String(diamondId || '').trim()
+  if (!cleanId || !/^[a-zA-Z0-9_-]+$/.test(cleanId)) {
+    return json(res, 400, { error: 'Invalid diamond identifier.' })
+  }
+  const safeId = encodeURIComponent(cleanId)
+
+  let existing = null
+  if (supabaseReady()) {
+    try {
+      const rows = await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})&limit=1`)
+      if (Array.isArray(rows) && rows.length > 0) existing = rows[0]
+    } catch {
+      // ignore
+    }
+  }
+  if (!existing) {
+    existing = memoryInventory.find(i => i.id === cleanId || i.sku === cleanId)
+  }
+
+  if (!existing) {
+    return json(res, 404, { error: 'Diamond item not found.' })
+  }
+
+  const now = new Date().toISOString()
+
+  if (supabaseReady()) {
+    try {
+      await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          deleted_at: null,
+          deleted_by: null,
+          status: 'pending_review',
+          updated_at: now,
+        }),
+      })
+    } catch (err) {
+      console.warn('DB restore failed:', err.message)
+    }
+  }
+
+  // Update in memoryInventory
+  const memItem = memoryInventory.find(i => i.id === cleanId || i.sku === cleanId)
+  if (memItem) {
+    memItem.deletedAt = null
+    memItem.deleted_at = null
+    memItem.deletedBy = null
+    memItem.status = 'pending_review'
+  }
+
+  // Write audit log
+  if (supabaseReady()) {
+    try {
+      await db('audit_log', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          actor_user_id: admin?.user?.id || 'admin',
+          action: 'diamond_restored',
+          entity_type: 'diamond',
+          entity_id: cleanId,
+          metadata: { sku: existing.sku },
+        }),
+      })
+    } catch (auditErr) {
+      console.warn('Audit log write error:', auditErr.message)
+    }
+  }
+
+  return json(res, 200, { success: true, message: `Diamond ${existing.sku} restored successfully.` })
+}
+
 export async function handleBatchPublishAdminDiamonds(req, res, admin) {
   if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
   const input = await bodyJson(req).catch(() => ({}))
@@ -1635,13 +1850,13 @@ export async function handleBatchPublishAdminDiamonds(req, res, admin) {
           .map(id => String(id || '').trim())
           .filter(id => /^[a-zA-Z0-9_-]+$/.test(id))
         for (const id of validIds) {
-          await db(`diamonds_inventory?id=eq.${encodeURIComponent(id)}`, {
+          await db(`diamonds_inventory?id=eq.${encodeURIComponent(id)}&deleted_at=is.null`, {
             method: 'PATCH',
             body: JSON.stringify({ status: 'published', updated_at: new Date().toISOString() }),
           })
         }
       } else {
-        await db('diamonds_inventory?status=eq.pending_review', {
+        await db('diamonds_inventory?status=eq.pending_review&deleted_at=is.null', {
           method: 'PATCH',
           body: JSON.stringify({ status: 'published', updated_at: new Date().toISOString() }),
         })
@@ -1652,7 +1867,7 @@ export async function handleBatchPublishAdminDiamonds(req, res, admin) {
   }
 
   memoryInventory.forEach(item => {
-    if (item.status === 'pending_review') {
+    if (item.status === 'pending_review' && !item.deletedAt && !item.deleted_at) {
       item.status = 'published'
     }
   })
@@ -1673,7 +1888,35 @@ export async function handleSyncFlomizToStaging(req, res, admin) {
     })
   }
 
-  const dbRows = flomizData.items.map(item => ({
+  // Prevent resurrecting soft-deleted items
+  const deletedSkus = new Set()
+  for (const mem of memoryInventory) {
+    if (mem.deletedAt || mem.deleted_at) {
+      deletedSkus.add(mem.sku)
+    }
+  }
+  if (supabaseReady()) {
+    try {
+      const delRows = await db('diamonds_inventory?deleted_at=not.is.null&select=sku')
+      if (Array.isArray(delRows)) {
+        for (const r of delRows) if (r.sku) deletedSkus.add(r.sku)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  let skippedDeletedCount = 0
+  const syncableFlomizItems = []
+  for (const item of flomizData.items) {
+    if (deletedSkus.has(item.sku)) {
+      skippedDeletedCount++
+    } else {
+      syncableFlomizItems.push(item)
+    }
+  }
+
+  const dbRows = syncableFlomizItems.map(item => ({
     sku: item.sku,
     category: item.category || 'Certified Diamonds',
     shape: item.shape,
@@ -1732,7 +1975,8 @@ export async function handleSyncFlomizToStaging(req, res, admin) {
   return json(res, 200, {
     success: true,
     count: dbRows.length,
-    message: `Successfully fetched ${dbRows.length} diamonds from Flomiz API into Staging (Pending Review).`,
+    skippedDeletedCount,
+    message: `Successfully fetched ${dbRows.length} diamonds from Flomiz API into Staging (Pending Review).${skippedDeletedCount > 0 ? ` (${skippedDeletedCount} soft-deleted diamonds skipped).` : ''}`,
   })
 }
 

@@ -38,6 +38,8 @@ import {
   isFlomizConfigured,
   handleGetAdminDiamonds,
   handleUpdateAdminDiamond,
+  handleDeleteAdminDiamond,
+  handleRestoreAdminDiamond,
   handleBatchPublishAdminDiamonds,
   handleSyncFlomizToStaging,
   handleTestFlomizConnection,
@@ -214,6 +216,15 @@ const server = createServer(async (req, res) => {
         if (req.method === 'PATCH' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
           const id = url.pathname.split('/').pop()
           return await handleUpdateAdminDiamond(req, res, admin, id)
+        }
+        if (req.method === 'DELETE' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+          const id = url.pathname.split('/').pop()
+          return await handleDeleteAdminDiamond(req, res, admin, id)
+        }
+        if (req.method === 'POST' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+\/restore$/i.test(url.pathname)) {
+          const parts = url.pathname.split('/')
+          const id = parts[parts.length - 2]
+          return await handleRestoreAdminDiamond(req, res, admin, id)
         }
         if (req.method === 'POST' && url.pathname === '/api/admin/diamonds/sync-flomiz') {
           return await handleSyncFlomizToStaging(req, res, admin)

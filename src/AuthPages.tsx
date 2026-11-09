@@ -660,11 +660,13 @@ export default function AuthPages({
     }
   }
 
-  const fetchAdminDiamonds = useCallback(async () => {
+  const fetchAdminDiamonds = useCallback(async (statusOverride?: string) => {
     setLoadingAdminDiamonds(true)
     const token = localStorage.getItem('hmd_access_token')
+    const activeStatus = statusOverride !== undefined ? statusOverride : diamondFilterStatus
+    const query = activeStatus && activeStatus !== 'all' ? `?status=${encodeURIComponent(activeStatus)}` : ''
     try {
-      const res = await fetch('/api/admin/diamonds', {
+      const res = await fetch(`/api/admin/diamonds${query}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (res.ok) {
@@ -678,7 +680,7 @@ export default function AuthPages({
     } finally {
       setLoadingAdminDiamonds(false)
     }
-  }, [])
+  }, [diamondFilterStatus])
 
   // ── Staff & Operations Handlers (Super Admin) ───────────────────────────
   const fetchStaff = useCallback(async () => {
@@ -879,9 +881,56 @@ export default function AuthPages({
         setAdminDiamonds(prev =>
           prev.map(d => (d.id === diamondId || d.sku === diamondId ? { ...d, ...updates } : d))
         )
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to update diamond.')
       }
     } catch (err) {
       console.warn('Failed to update diamond:', err)
+    }
+  }
+
+  const handleDeleteDiamond = async (diamondId: string, sku: string) => {
+    if (!window.confirm(`Are you sure you want to delete diamond ${sku}?\nIt will be hidden from the live storefront and default admin list.`)) {
+      return
+    }
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch(`/api/admin/diamonds/${diamondId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (res.ok) {
+        fetchAdminDiamonds()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to delete diamond.')
+      }
+    } catch (err) {
+      console.warn('Delete diamond failed:', err)
+    }
+  }
+
+  const handleRestoreDiamond = async (diamondId: string, sku?: string) => {
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch(`/api/admin/diamonds/${diamondId}/restore`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (res.ok) {
+        if (sku) console.info(`Diamond ${sku} restored successfully.`)
+        fetchAdminDiamonds()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to restore diamond.')
+      }
+    } catch (err) {
+      console.warn('Restore diamond failed:', err)
     }
   }
 
@@ -2458,7 +2507,7 @@ export default function AuthPages({
                       <button
                         type="button"
                         className="sync-api-btn"
-                        onClick={fetchAdminDiamonds}
+                        onClick={() => fetchAdminDiamonds()}
                         disabled={loadingAdminDiamonds}
                       >
                         {loadingAdminDiamonds ? 'Refreshing…' : '🔄 Refresh List'}
@@ -2510,13 +2559,18 @@ export default function AuthPages({
                     <select
                       className="diamonds-filter-select"
                       value={diamondFilterStatus}
-                      onChange={(e) => setDiamondFilterStatus(e.target.value)}
+                      onChange={(e) => {
+                        const newStatus = e.target.value
+                        setDiamondFilterStatus(newStatus)
+                        fetchAdminDiamonds(newStatus)
+                      }}
                       aria-label="Filter diamonds by status"
                     >
                       <option value="all">All Statuses</option>
                       <option value="published">Published (Live on Website)</option>
                       <option value="pending_review">Pending Review (Staged)</option>
                       <option value="hidden">Hidden</option>
+                      <option value="deleted">Deleted Stones</option>
                     </select>
                   </div>
 
@@ -2538,7 +2592,12 @@ export default function AuthPages({
                         {adminDiamonds
                           .filter((d) => {
                             if (diamondFilterCategory !== 'all' && d.category !== diamondFilterCategory) return false
-                            if (diamondFilterStatus !== 'all' && d.status !== diamondFilterStatus) return false
+                            if (diamondFilterStatus === 'deleted') {
+                              if (!d.deletedAt) return false
+                            } else {
+                              if (d.deletedAt) return false
+                              if (diamondFilterStatus !== 'all' && d.status !== diamondFilterStatus) return false
+                            }
                             if (diamondSearch) {
                               const s = diamondSearch.toLowerCase()
                               return (
@@ -2801,57 +2860,85 @@ export default function AuthPages({
                                 </td>
 
                                 <td>
-                                  <span className={`diamond-status-pill diamond-status-pill--${d.status}`}>
-                                    {d.status === 'published'
-                                      ? 'Published'
-                                      : d.status === 'pending_review'
-                                      ? 'Staged'
-                                      : 'Hidden'}
-                                  </span>
+                                  {d.deletedAt ? (
+                                    <span className="diamond-status-pill diamond-status-pill--deleted">
+                                      Deleted
+                                    </span>
+                                  ) : (
+                                    <span className={`diamond-status-pill diamond-status-pill--${d.status}`}>
+                                      {d.status === 'published'
+                                        ? 'Published'
+                                        : d.status === 'pending_review'
+                                        ? 'Staged'
+                                        : 'Hidden'}
+                                    </span>
+                                  )}
                                 </td>
 
                                 <td>
                                   <div className="diamond-row-actions">
-                                    <button
-                                      type="button"
-                                      className={`diamond-save-btn ${isSaved ? 'diamond-save-btn--success' : ''}`}
-                                      onClick={() =>
-                                        handleUpdateDiamond(d.id || d.sku, {
-                                          category: d.category,
-                                          customerPrice: d.customerPrice,
-                                          customerDiscountPrice: d.customerDiscountPrice,
-                                          customerDiscountPercent: d.customerDiscountPercent,
-                                          dealerPrice: d.dealerPrice,
-                                          dealerDiscountPrice: d.dealerDiscountPrice,
-                                          dealerDiscountPercent: d.dealerDiscountPercent,
-                                          status: d.status,
-                                        })
-                                      }
-                                    >
-                                      {isSaved ? 'Saved ✓' : 'Save'}
-                                    </button>
+                                    {d.deletedAt ? (
+                                      <button
+                                        type="button"
+                                        className="diamond-restore-btn"
+                                        onClick={() => handleRestoreDiamond(d.id || d.sku, d.sku)}
+                                        title={`Restore diamond ${d.sku} to active inventory`}
+                                      >
+                                        ♻ Restore
+                                      </button>
+                                    ) : (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className={`diamond-save-btn ${isSaved ? 'diamond-save-btn--success' : ''}`}
+                                          onClick={() =>
+                                            handleUpdateDiamond(d.id || d.sku, {
+                                              category: d.category,
+                                              customerPrice: d.customerPrice,
+                                              customerDiscountPrice: d.customerDiscountPrice,
+                                              customerDiscountPercent: d.customerDiscountPercent,
+                                              dealerPrice: d.dealerPrice,
+                                              dealerDiscountPrice: d.dealerDiscountPrice,
+                                              dealerDiscountPercent: d.dealerDiscountPercent,
+                                              status: d.status,
+                                            })
+                                          }
+                                        >
+                                          {isSaved ? 'Saved ✓' : 'Save'}
+                                        </button>
 
-                                    <button
-                                      type="button"
-                                      className="diamond-status-btn"
-                                      onClick={() => {
-                                        const nextStatus =
-                                          d.status === 'published' ? 'hidden' : 'published'
-                                        handleUpdateDiamond(d.id || d.sku, {
-                                          category: d.category,
-                                          customerPrice: d.customerPrice,
-                                          customerDiscountPrice: d.customerDiscountPrice,
-                                          customerDiscountPercent: d.customerDiscountPercent,
-                                          dealerPrice: d.dealerPrice,
-                                          dealerDiscountPrice: d.dealerDiscountPrice,
-                                          dealerDiscountPercent: d.dealerDiscountPercent,
-                                          status: nextStatus,
-                                        })
-                                      }}
-                                      title={d.status === 'published' ? 'Hide from store' : 'Publish live'}
-                                    >
-                                      {d.status === 'published' ? 'Hide' : 'Publish'}
-                                    </button>
+                                        <button
+                                          type="button"
+                                          className="diamond-status-btn"
+                                          onClick={() => {
+                                            const nextStatus =
+                                              d.status === 'published' ? 'hidden' : 'published'
+                                            handleUpdateDiamond(d.id || d.sku, {
+                                              category: d.category,
+                                              customerPrice: d.customerPrice,
+                                              customerDiscountPrice: d.customerDiscountPrice,
+                                              customerDiscountPercent: d.customerDiscountPercent,
+                                              dealerPrice: d.dealerPrice,
+                                              dealerDiscountPrice: d.dealerDiscountPrice,
+                                              dealerDiscountPercent: d.dealerDiscountPercent,
+                                              status: nextStatus,
+                                            })
+                                          }}
+                                          title={d.status === 'published' ? 'Hide from store' : 'Publish live'}
+                                        >
+                                          {d.status === 'published' ? 'Hide' : 'Publish'}
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          className="diamond-delete-btn"
+                                          onClick={() => handleDeleteDiamond(d.id || d.sku, d.sku)}
+                                          title={`Delete diamond ${d.sku}`}
+                                        >
+                                          🗑 Delete
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
