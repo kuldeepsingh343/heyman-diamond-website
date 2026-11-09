@@ -270,6 +270,11 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found.' })
 
+    // Block direct access and SPA fallback for dotfiles (.env, .git, .DS_Store, etc.)
+    if (url.pathname.startsWith('/.') || url.pathname.includes('/.')) {
+      return json(res, 404, { error: 'Not found.' })
+    }
+
     // ── Static Frontend Assets Gateway ───────────────────────────────────────
     const requestedPath = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)
     const assetPath = resolve(DIST_DIR, `.${requestedPath}`)

@@ -103,4 +103,13 @@ test('API smoke checks', async t => {
     })
     assert.equal(response.status, 503)
   })
+
+  await t.test('blocks dotfile requests and prevents SPA fallback', async () => {
+    for (const dotfile of ['/.env', '/.git/config', '/.DS_Store', '/admin/.env']) {
+      const response = await fetch(`http://127.0.0.1:${port}${dotfile}`)
+      assert.equal(response.status, 404, `${dotfile} should return 404`)
+      const body = await response.json()
+      assert.equal(body.error, 'Not found.')
+    }
+  })
 })

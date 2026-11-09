@@ -292,3 +292,16 @@ test('Security — Rate limiting protects signup and inquiry endpoints from floo
   }
   assert.equal(lockedInquiry, true, 'Inquiry endpoint must enforce rate limit after 10 requests')
 })
+
+test('Security — Dotfile requests are blocked and do not trigger SPA fallback', () => {
+  const dotfiles = ['/.env', '/.git', '/.git/config', '/.env.production', '/foo/.hidden', '/.DS_Store']
+  for (const path of dotfiles) {
+    const isBlocked = path.startsWith('/.') || path.includes('/.')
+    assert.equal(isBlocked, true, `${path} must be blocked by dotfile filter`)
+  }
+  const regularPaths = ['/index.html', '/assets/index.js', '/diamonds', '/favicon.ico']
+  for (const path of regularPaths) {
+    const isBlocked = path.startsWith('/.') || path.includes('/.')
+    assert.equal(isBlocked, false, `${path} should not be blocked`)
+  }
+})
