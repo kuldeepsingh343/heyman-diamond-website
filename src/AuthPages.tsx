@@ -719,7 +719,7 @@ export default function AuthPages({
         can_manage_inventory: false,
         can_manage_orders: true,
         can_review_kyc: true,
-        can_manage_reviews: true,
+        can_manage_reviews: false,
         can_manage_promotions: false,
         can_manage_users: false,
       })
@@ -729,7 +729,7 @@ export default function AuthPages({
         can_manage_inventory: true,
         can_manage_orders: true,
         can_review_kyc: false,
-        can_manage_reviews: false,
+        can_manage_reviews: true,
         can_manage_promotions: false,
         can_manage_users: false,
       })

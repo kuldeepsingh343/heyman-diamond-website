@@ -136,7 +136,7 @@ export function getDefaultPermissions(role) {
         can_manage_orders: true,
         can_review_kyc: true,
         can_manage_promotions: false,
-        can_manage_reviews: true,
+        can_manage_reviews: false,
         can_manage_users: false,
         can_manage_team: false,
       }
@@ -147,7 +147,7 @@ export function getDefaultPermissions(role) {
         can_manage_orders: true,
         can_review_kyc: false,
         can_manage_promotions: false,
-        can_manage_reviews: false,
+        can_manage_reviews: true,
         can_manage_users: false,
         can_manage_team: false,
       }
@@ -820,7 +820,7 @@ export async function handleCheckRegistered(req, res, url) {
     if (user.email_confirmed_at) {
       const adminRows = await db(`admin_users?user_id=eq.${encodeURIComponent(user.id)}`).catch(() => [])
       if (Array.isArray(adminRows) && adminRows.length > 0 && adminRows[0].is_active !== false) {
-        return json(res, 200, { registered: true, isAdmin: true })
+        return json(res, 200, { registered: true, isAdmin: true, isStaff: true })
       }
     }
 
@@ -831,6 +831,10 @@ export async function handleCheckRegistered(req, res, url) {
 
     return json(res, 200, { registered: false })
   } catch (err) {
+    const mem = memoryStaffUsers.find(s => s.email.toLowerCase() === email)
+    if (mem && mem.is_active !== false) {
+      return json(res, 200, { registered: true, isAdmin: true, isStaff: true })
+    }
     console.warn('Check registered lookup error:', err.message)
     return json(res, 200, { registered: false })
   }

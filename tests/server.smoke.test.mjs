@@ -10,6 +10,7 @@ test('API smoke checks', async t => {
   server = spawn(process.execPath, ['server/index.mjs'], {
     env: {
       ...process.env,
+      PORT: String(port),
       API_PORT: String(port),
       ALLOWED_ORIGIN: origin,
       SUPABASE_URL: '',

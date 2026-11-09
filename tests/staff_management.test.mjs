@@ -99,7 +99,7 @@ test('Staff Management — Super Admin can create accounts for sales managers an
   await handleCreateStaffUser(createMockReq({}, {
     fullName: 'Rajesh Sharma',
     email: salesEmail,
-    password: 'SecureSalesPassword2026!',
+    role: 'sales_manager',
     roleTitle: 'Sales & Dealer Relations Manager',
     permissions: {
       can_manage_orders: true,
@@ -124,7 +124,6 @@ test('Staff Management — Super Admin can create accounts for sales managers an
   await handleCreateStaffUser(createMockReq({}, {
     fullName: 'Duplicate Tester',
     email: salesEmail,
-    password: 'Password123!',
   }), dupRes, superAdmin)
   assert.equal(dupRes.statusCode, 409)
 })
@@ -136,7 +135,6 @@ test('Staff Management — Super Admin can update permissions and revoke staff a
   await handleCreateStaffUser(createMockReq({}, {
     fullName: 'Operations Agent',
     email,
-    password: 'Password123!',
     roleTitle: 'Inventory Clerk',
     permissions: {
       can_manage_inventory: true,

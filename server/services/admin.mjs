@@ -33,7 +33,8 @@ export function getMemoryStaffUser(id) {
 }
 
 export async function handleGetStaffUsers(req, res, admin) {
-  if (admin?.role !== 'super_admin' || (!admin?.permissions?.can_manage_users && !admin?.permissions?.can_manage_team)) {
+  const isSuper = admin?.role === 'super_admin' || admin?.isSuperAdmin || Boolean(admin?.permissions?.can_manage_users || admin?.permissions?.can_manage_team)
+  if (!isSuper) {
     return json(res, 403, { error: 'Super Administrator privilege required to view staff and user accounts.' })
   }
 
@@ -89,7 +90,8 @@ export async function handleGetStaffUsers(req, res, admin) {
 }
 
 export async function handleCreateStaffUser(req, res, admin) {
-  if (admin?.role !== 'super_admin' || (!admin?.permissions?.can_manage_users && !admin?.permissions?.can_manage_team)) {
+  const isSuper = admin?.role === 'super_admin' || admin?.isSuperAdmin || Boolean(admin?.permissions?.can_manage_users || admin?.permissions?.can_manage_team)
+  if (!isSuper) {
     return json(res, 403, { error: 'Super Administrator privilege required to create and invite staff accounts.' })
   }
 
@@ -244,7 +246,8 @@ export async function handleCreateStaffUser(req, res, admin) {
 }
 
 export async function handleUpdateStaffUser(req, res, admin, id) {
-  if (admin?.role !== 'super_admin' || (!admin?.permissions?.can_manage_users && !admin?.permissions?.can_manage_team)) {
+  const isSuper = admin?.role === 'super_admin' || admin?.isSuperAdmin || Boolean(admin?.permissions?.can_manage_users || admin?.permissions?.can_manage_team)
+  if (!isSuper) {
     return json(res, 403, { error: 'Super Administrator privilege required to modify staff roles and permissions.' })
   }
 
@@ -389,7 +392,8 @@ export async function handleUpdateStaffUser(req, res, admin, id) {
 }
 
 export async function handleDeleteStaffUser(req, res, admin, id) {
-  if (admin?.role !== 'super_admin' || (!admin?.permissions?.can_manage_users && !admin?.permissions?.can_manage_team)) {
+  const isSuper = admin?.role === 'super_admin' || admin?.isSuperAdmin || Boolean(admin?.permissions?.can_manage_users || admin?.permissions?.can_manage_team)
+  if (!isSuper) {
     return json(res, 403, { error: 'Super Administrator privilege required to deactivate staff accounts.' })
   }
 
