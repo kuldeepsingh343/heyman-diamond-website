@@ -153,46 +153,46 @@
   gap: 8px;
 }
 
-/* Shape Tile (Luxury Midnight Velvet Jewel Cushion Card) */
+/* Shape Tile (Clean Luxury White Jewel Card) */
 .shape-tile {
-  background: radial-gradient(circle at 50% 32%, #222d4a 0%, #161e34 70%, #0e1424 100%);
-  border: 1px solid rgba(212, 175, 55, 0.35);
-  border-radius: 10px;
-  padding: 8px 4px 6px;
+  background: #ffffff;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  border-radius: 12px;
+  padding: 9px 4px 7px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   position: relative;
-  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.24s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.24s ease,
-              background 0.24s ease;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.22s ease,
+              background 0.22s ease;
   font-family: inherit;
   outline: none;
   min-height: 82px;
-  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(16, 52, 34, 0.04);
 }
 
 /* Hover Micro-Interactions */
 .shape-tile:hover {
-  transform: translateY(-4px) scale(1.06);
+  transform: translateY(-4px) scale(1.05);
   border-color: #d4af37;
-  background: radial-gradient(circle at 50% 30%, #2b395c 0%, #1a243e 70%, #10172a 100%);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.45), 0 0 16px rgba(212, 175, 55, 0.35);
+  background: linear-gradient(180deg, #ffffff 0%, #fdfbf7 100%);
+  box-shadow: 0 8px 20px rgba(212, 175, 55, 0.24), 0 2px 6px rgba(16, 52, 34, 0.06);
 }
 
 .shape-tile:focus-visible {
   border-color: #d4af37;
-  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.6);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.5);
 }
 
 /* Active Tile State */
 .shape-tile--active {
   border: 2px solid #d4af37 !important;
-  background: radial-gradient(circle at 50% 30%, #2f3e66 0%, #1d2847 70%, #12192e 100%) !important;
-  box-shadow: 0 0 0 1px #d4af37, 0 8px 24px rgba(212, 175, 55, 0.45), 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+  background: #faf6ee !important;
+  box-shadow: 0 0 0 1px #d4af37, 0 6px 16px rgba(212, 175, 55, 0.28) !important;
   transform: translateY(-2px);
 }
 
@@ -206,12 +206,12 @@
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: #d4af37;
-  color: #10172a;
+  background: #103422;
+  color: #f7eed7;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* Diamond Stage & Image */
@@ -222,23 +222,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 
 .shape-real-img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-              filter 0.28s ease;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              filter 0.24s ease;
   user-select: none;
   pointer-events: none;
 }
 
 .shape-tile:hover .shape-real-img {
-  transform: scale(1.08);
-  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.75)) drop-shadow(0 0 8px rgba(212, 175, 55, 0.4));
+  transform: scale(1.10);
+  filter: drop-shadow(0 6px 14px rgba(212, 175, 55, 0.45));
 }
 
 /* Shimmer Sweep Animation */
@@ -251,7 +251,7 @@
   background: linear-gradient(
     115deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.45) 50%,
+    rgba(255, 255, 255, 0.6) 50%,
     rgba(255, 255, 255, 0) 100%
   );
   transform: skewX(-20deg);
@@ -266,20 +266,20 @@
 /* Subtle Diamond Sparkle Flare on Top Edge */
 .shape-sparkle-flare {
   position: absolute;
-  top: 3px;
-  right: 4px;
+  top: 2px;
+  right: 3px;
   width: 6px;
   height: 6px;
   background: radial-gradient(circle, #ffffff 20%, #d4af37 60%, transparent 100%);
   border-radius: 50%;
   opacity: 0;
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.22s ease, transform 0.22s ease;
   pointer-events: none;
 }
 
 .shape-tile:hover .shape-sparkle-flare {
   opacity: 0.9;
-  transform: scale(1.4);
+  transform: scale(1.3);
   box-shadow: 0 0 6px #ffffff, 0 0 10px #d4af37;
 }
 
@@ -287,26 +287,24 @@
 .shape-name {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: 10.5px;
-  font-weight: 500;
-  color: #f7eed7; /* Warm Champagne Gold White */
+  font-weight: 600;
+  color: #103422; /* Royal Emerald Green */
   text-align: center;
   line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 76px;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
   transition: color 0.2s ease;
 }
 
 .shape-tile:hover .shape-name {
-  color: #ffffff;
-  font-weight: 600;
-  text-shadow: 0 0 6px rgba(212, 175, 55, 0.4);
+  color: #8c6d1f; /* Warm Amber Gold */
 }
 
 .shape-tile--active .shape-name {
-  color: #f3e5ab;
+  color: #103422;
   font-weight: 700;
 }
 
@@ -316,8 +314,8 @@
 }
 
 .shape-tile-all .shape-name {
-  font-weight: 600;
-  color: #f7eed7;
+  font-weight: 700;
+  color: #103422;
 }
 
 /* ── Keyframes ── */
@@ -352,7 +350,7 @@
   }
   .shape-tile {
     min-height: 76px;
-    padding: 6px 3px 5px;
+    padding: 7px 3px 5px;
   }
   .shape-gem-stage {
     width: 42px;
