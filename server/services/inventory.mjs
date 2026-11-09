@@ -1199,6 +1199,11 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
 
 export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
   if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  const cleanId = String(diamondId || '').trim()
+  if (!cleanId || !/^[a-zA-Z0-9_-]+$/.test(cleanId)) {
+    return json(res, 400, { error: 'Invalid diamond identifier.' })
+  }
+  const safeId = encodeURIComponent(cleanId)
   const input = await bodyJson(req)
 
   const updates = {
@@ -1214,14 +1219,14 @@ export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
 
   if (supabaseReady()) {
     try {
-      await db(`diamonds_inventory?id=eq.${diamondId}`, {
+      await db(`diamonds_inventory?id=eq.${safeId}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify(updates),
       })
     } catch (err) {
       try {
-        await db(`diamonds_inventory?sku=eq.${diamondId}`, {
+        await db(`diamonds_inventory?sku=eq.${safeId}`, {
           method: 'PATCH',
           headers: { Prefer: 'return=representation' },
           body: JSON.stringify(updates),
@@ -1233,7 +1238,7 @@ export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
   }
 
   // Update in memoryInventory
-  const memItem = memoryInventory.find(i => i.id === diamondId || i.sku === diamondId)
+  const memItem = memoryInventory.find(i => i.id === cleanId || i.sku === cleanId)
   if (memItem) {
     if (updates.category) memItem.category = updates.category
     if (updates.customer_price !== undefined) memItem.price = updates.customer_price
@@ -1251,8 +1256,11 @@ export async function handleBatchPublishAdminDiamonds(req, res, admin) {
   if (supabaseReady()) {
     try {
       if (Array.isArray(input.ids) && input.ids.length > 0) {
-        for (const id of input.ids) {
-          await db(`diamonds_inventory?id=eq.${id}`, {
+        const validIds = input.ids
+          .map(id => String(id || '').trim())
+          .filter(id => /^[a-zA-Z0-9_-]+$/.test(id))
+        for (const id of validIds) {
+          await db(`diamonds_inventory?id=eq.${encodeURIComponent(id)}`, {
             method: 'PATCH',
             body: JSON.stringify({ status: 'published', updated_at: new Date().toISOString() }),
           })

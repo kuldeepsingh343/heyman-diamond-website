@@ -184,10 +184,14 @@ export async function handleUpdateReviewStatus(req, res, admin, id) {
   if (!['published', 'hidden'].includes(input.status)) return json(res, 400, { error: 'Status must be published or hidden.' })
 
   const reviewId = String(id || '').trim()
+  if (!reviewId || !/^[a-zA-Z0-9_-]+$/.test(reviewId)) {
+    return json(res, 400, { error: 'Invalid review identifier.' })
+  }
+  const safeId = encodeURIComponent(reviewId)
 
   if (supabaseReady() && /^[0-9a-f-]{36}$/i.test(reviewId)) {
     try {
-      await db(`reviews?id=eq.${reviewId}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: input.status, updated_at: new Date().toISOString() }) })
+      await db(`reviews?id=eq.${safeId}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: input.status, updated_at: new Date().toISOString() }) })
       await db('audit_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ actor_user_id: admin.user.id, action: 'review_status_changed', entity_type: 'review', entity_id: reviewId, metadata: { status: input.status } }) }).catch(() => {})
     } catch (err) {
       console.warn('DB review status update failed:', err.message)
@@ -208,19 +212,20 @@ export async function handleCreateReviewReply(req, res, admin) {
   const reviewId = String(input.reviewId || '').trim()
   const replyText = String(input.replyText || '').trim()
 
-  if (!reviewId || replyText.length < 1 || replyText.length > 3000) {
+  if (!reviewId || !/^[a-zA-Z0-9_-]+$/.test(reviewId) || replyText.length < 1 || replyText.length > 3000) {
     return json(res, 400, { error: 'Provide a valid review ID and a reply under 3,000 characters.' })
   }
+  const safeId = encodeURIComponent(reviewId)
 
   let dbSaved = false
   if (supabaseReady() && /^[0-9a-f-]{36}$/i.test(reviewId)) {
     try {
-      const reviewRows = await db(`reviews?id=eq.${reviewId}&select=id,customer_name,customer_email,user_id,status`)
+      const reviewRows = await db(`reviews?id=eq.${safeId}&select=id,customer_name,customer_email,user_id,status`)
       const review = reviewRows?.[0]
       if (review) {
-        const existingReplies = await db(`review_replies?review_id=eq.${reviewId}&select=id`)
+        const existingReplies = await db(`review_replies?review_id=eq.${safeId}&select=id`)
         if (Array.isArray(existingReplies) && existingReplies.length > 0) {
-          await db(`review_replies?review_id=eq.${reviewId}`, {
+          await db(`review_replies?review_id=eq.${safeId}`, {
             method: 'PATCH',
             headers: { Prefer: 'return=minimal' },
             body: JSON.stringify({ reply_text: replyText }),
@@ -265,18 +270,19 @@ export async function handleCreateReviewReply(req, res, admin) {
 export async function handleDeleteReview(req, res, admin, id) {
   if (!admin?.permissions?.can_manage_reviews) return json(res, 403, { error: 'Review-management permission required.', message: 'Review-management permission required.' })
   const reviewId = String(id || '').trim()
-  if (!reviewId) return json(res, 400, { error: 'Review ID required.' })
+  if (!reviewId || !/^[a-zA-Z0-9_-]+$/.test(reviewId)) return json(res, 400, { error: 'Invalid review identifier.' })
+  const safeId = encodeURIComponent(reviewId)
 
   let dbDeleted = false
   if (supabaseReady() && /^[0-9a-f-]{36}$/i.test(reviewId)) {
     try {
       // First delete associated replies if any
-      await db(`review_replies?review_id=eq.${reviewId}`, {
+      await db(`review_replies?review_id=eq.${safeId}`, {
         method: 'DELETE',
         headers: { Prefer: 'return=minimal' },
       }).catch(() => {})
 
-      await db(`reviews?id=eq.${reviewId}`, {
+      await db(`reviews?id=eq.${safeId}`, {
         method: 'DELETE',
         headers: { Prefer: 'return=minimal' },
       })

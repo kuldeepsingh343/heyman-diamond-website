@@ -116,15 +116,20 @@ export async function handleGetAdminQuotes(req, res, admin) {
 
 export async function handleUpdateQuoteStatus(req, res, admin, id) {
   if (!admin?.permissions?.can_manage_orders) return json(res, 403, { error: 'Order-management permission required.' })
+  const cleanId = String(id || '').trim()
+  if (!cleanId || !/^[a-zA-Z0-9_-]+$/.test(cleanId)) {
+    return json(res, 400, { error: 'Invalid quote request identifier.' })
+  }
   const input = await bodyJson(req)
   const allowed = ['new', 'under_review', 'counter_offered', 'accepted', 'declined', 'converted_to_order', 'closed']
   if (!allowed.includes(input.status)) return json(res, 400, { error: 'Invalid quote request status.' })
 
-  const rows = await db(`quote_requests?id=eq.${id}&select=id,quote_number,status`)
+  const safeId = encodeURIComponent(cleanId)
+  const rows = await db(`quote_requests?id=eq.${safeId}&select=id,quote_number,status`)
   if (!rows?.[0]) return json(res, 404, { error: 'Quote request not found.' })
 
-  await db(`quote_requests?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: input.status, updated_at: new Date().toISOString() }) })
-  await db('audit_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ actor_user_id: admin.user.id, action: 'quote_request_status_changed', entity_type: 'quote_request', entity_id: id, metadata: { status: input.status } }) })
+  await db(`quote_requests?id=eq.${safeId}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: input.status, updated_at: new Date().toISOString() }) })
+  await db('audit_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ actor_user_id: admin.user.id, action: 'quote_request_status_changed', entity_type: 'quote_request', entity_id: cleanId, metadata: { status: input.status } }) })
 
   return json(res, 200, { updated: true, status: input.status })
 }

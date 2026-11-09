@@ -15,13 +15,24 @@ import {
 
 import {
   handleCreateInquiry,
+  handleUpdateQuoteStatus,
 } from '../server/services/quotes.mjs'
 
 import {
   handleFlomizStatus,
   cleanFlomizBaseUrl,
   isAllowedFlomizUrl,
+  handleUpdateAdminDiamond,
 } from '../server/services/inventory.mjs'
+
+import {
+  handleUpdateDealerApplication,
+} from '../server/services/admin.mjs'
+
+import {
+  handleUpdateReviewStatus,
+  handleDeleteReview,
+} from '../server/services/reviews.mjs'
 
 import {
   sanitizeLink,
@@ -304,4 +315,39 @@ test('Security — Dotfile requests are blocked and do not trigger SPA fallback'
     const isBlocked = path.startsWith('/.') || path.includes('/.')
     assert.equal(isBlocked, false, `${path} should not be blocked`)
   }
+})
+
+test('Security — All admin parameterized endpoints reject PostgREST query injection in identifiers', async () => {
+  const fullAdmin = { user: { id: 'admin-test' }, permissions: { can_manage_orders: true, can_review_kyc: true, can_manage_reviews: true } }
+  const injectionId = '123&status=eq.hacked'
+
+  // Quotes
+  const quoteRes = createMockRes()
+  await handleUpdateQuoteStatus(createMockReq({}, { status: 'accepted' }), quoteRes, fullAdmin, injectionId)
+  assert.equal(quoteRes.statusCode, 400, 'Quote status update must reject malicious ID')
+  assert.equal(quoteRes.json?.error, 'Invalid quote request identifier.')
+
+  // Dealer applications
+  const dealerRes = createMockRes()
+  await handleUpdateDealerApplication(createMockReq({}, { status: 'approved' }), dealerRes, fullAdmin, injectionId)
+  assert.equal(dealerRes.statusCode, 400, 'Dealer application update must reject malicious ID')
+  assert.equal(dealerRes.json?.error, 'Invalid dealer application identifier.')
+
+  // Reviews update
+  const reviewUpdateRes = createMockRes()
+  await handleUpdateReviewStatus(createMockReq({}, { status: 'published' }), reviewUpdateRes, fullAdmin, injectionId)
+  assert.equal(reviewUpdateRes.statusCode, 400, 'Review status update must reject malicious ID')
+  assert.equal(reviewUpdateRes.json?.error, 'Invalid review identifier.')
+
+  // Reviews delete
+  const reviewDelRes = createMockRes()
+  await handleDeleteReview(createMockReq(), reviewDelRes, fullAdmin, injectionId)
+  assert.equal(reviewDelRes.statusCode, 400, 'Review delete must reject malicious ID')
+  assert.equal(reviewDelRes.json?.error, 'Invalid review identifier.')
+
+  // Diamond update
+  const diamondRes = createMockRes()
+  await handleUpdateAdminDiamond(createMockReq({}, { customerPrice: 500 }), diamondRes, fullAdmin, injectionId)
+  assert.equal(diamondRes.statusCode, 400, 'Diamond update must reject malicious ID')
+  assert.equal(diamondRes.json?.error, 'Invalid diamond identifier.')
 })
