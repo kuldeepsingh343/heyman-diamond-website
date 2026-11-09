@@ -22,6 +22,28 @@ try {
   // ignore
 }
 
+const ALLOWED_FLOMIZ_HOST_PATTERNS = [
+  /^([a-zA-Z0-9-]+\.)*flomiz\.com$/i,
+]
+
+export function isAllowedFlomizUrl(rawUrl) {
+  try {
+    let testUrl = String(rawUrl || '').trim()
+    if (!testUrl) return true
+    if (!/^https?:\/\//i.test(testUrl)) testUrl = `https://${testUrl}`
+    const parsed = new URL(testUrl)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false
+
+    if (process.env.NODE_ENV !== 'production' && (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1')) {
+      return true
+    }
+
+    return ALLOWED_FLOMIZ_HOST_PATTERNS.some(p => p.test(parsed.hostname))
+  } catch {
+    return false
+  }
+}
+
 export function cleanFlomizBaseUrl(rawUrl) {
   if (!rawUrl) return 'https://diamond.flomiz.com'
   let url = String(rawUrl).trim()
@@ -32,6 +54,12 @@ export function cleanFlomizBaseUrl(rawUrl) {
   } else if (!/^https?:\/\//i.test(url)) {
     url = `https://${url}`
   }
+
+  // SSRF defense: enforce allowed domain pattern
+  if (!isAllowedFlomizUrl(url)) {
+    return 'https://diamond.flomiz.com'
+  }
+
   return url.replace(/\/+$/, '')
 }
 
@@ -976,7 +1004,6 @@ export function handleFlomizStatus(req, res) {
     configured: isConfigured,
     baseUrl,
     keyConfigured: Boolean(apiKey),
-    keyPrefix: apiKey ? `${apiKey.slice(0, 10)}...` : null,
     cachedItems: flomizCache.items.length,
     lastSync: flomizCache.timestamp ? new Date(flomizCache.timestamp).toISOString() : null,
     status: isConfigured ? 'Ready to sync' : 'API key missing',
@@ -1338,6 +1365,14 @@ export async function handleTestFlomizConnection(req, res, admin) {
 
   // Accept URL and Key directly from body if tested on-the-fly
   const body = await bodyJson(req).catch(() => ({}))
+  if (body.baseUrl && !isAllowedFlomizUrl(body.baseUrl)) {
+    return json(res, 400, {
+      success: false,
+      code: 400,
+      error: 'Invalid Flomiz server URL.',
+      message: 'Only official *.flomiz.com endpoints are allowed.',
+    })
+  }
   const rawBaseUrl = body.baseUrl || getFlomizBaseUrl() || ''
   const baseUrl = cleanFlomizBaseUrl(rawBaseUrl)
   const apiKey = (body.apiKey || getFlomizApiKey() || '').trim()

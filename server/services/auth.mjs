@@ -29,31 +29,15 @@ export async function authenticatedUser(req) {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
       })
       if (response.ok) return await response.json()
-    } catch {
-      // fallback to decoding JWT if Supabase fetch failed or network transient
+    } catch (err) {
+      console.warn('Authentication token verification network error:', err.message)
     }
   }
 
-  // Gracefully decode standard JWT payload so valid admin sessions aren't rejected if token expiry is close or Supabase endpoint is slow
-  try {
-    const parts = token.split('.')
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'))
-      if (payload && (payload.email || payload.sub)) {
-        return {
-          id: payload.sub || payload.id || 'admin-jwt-fallback',
-          email: payload.email,
-          user_metadata: payload.user_metadata || {},
-          role: payload.role,
-        }
-      }
-    }
-  } catch {
-    // ignore decoding errors
-  }
-
+  // Cryptographic signature verification is strictly required. Unverified JWTs are rejected.
   return null
 }
+
 
 const ADMIN_EMAILS = [
   'heymandiamondllc@gmail.com',
@@ -193,13 +177,85 @@ export async function handleSignup(req, res) {
   })
 }
 
+// ── Rate Limiting & Brute Force Defense ─────────────────────────────────────
+const loginAttempts = new Map()
+const passwordResetAttempts = new Map()
+const resendAttempts = new Map()
+
+const MAX_LOGIN_ATTEMPTS = 5
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 minutes lockout
+const WINDOW_DURATION_MS = 15 * 60 * 1000
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for']
+  if (forwarded) return forwarded.split(',')[0].trim()
+  return req.socket?.remoteAddress || 'unknown-ip'
+}
+
+function checkRateLimit(store, key, maxAttempts, lockMs) {
+  const now = Date.now()
+  const record = store.get(key)
+  if (!record) return { allowed: true }
+
+  if (record.lockedUntil && now < record.lockedUntil) {
+    const remainingSec = Math.ceil((record.lockedUntil - now) / 1000)
+    return {
+      allowed: false,
+      retryAfter: remainingSec,
+      error: `Too many attempts. Access is temporarily locked. Please try again in ${Math.ceil(remainingSec / 60)} minutes.`,
+    }
+  }
+
+  if (now - record.firstAttempt > WINDOW_DURATION_MS) {
+    store.delete(key)
+    return { allowed: true }
+  }
+
+  if (record.count >= maxAttempts) {
+    record.lockedUntil = now + lockMs
+    const remainingSec = Math.ceil(lockMs / 1000)
+    return {
+      allowed: false,
+      retryAfter: remainingSec,
+      error: `Too many failed attempts. Access is temporarily locked. Please try again in ${Math.ceil(remainingSec / 60)} minutes.`,
+    }
+  }
+
+  return { allowed: true }
+}
+
+function recordAttempt(store, key, lockMs, maxAttempts) {
+  const now = Date.now()
+  const record = store.get(key)
+  if (!record || now - record.firstAttempt > WINDOW_DURATION_MS) {
+    store.set(key, { count: 1, firstAttempt: now, lockedUntil: null })
+  } else {
+    record.count += 1
+    if (record.count >= maxAttempts) {
+      record.lockedUntil = now + lockMs
+    }
+  }
+}
+
+function resetAttempts(store, key) {
+  store.delete(key)
+}
+
 export async function handleResendConfirmation(req, res) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Email confirmation is not configured yet.' })
+  const ip = getClientIp(req)
+  const rateLimit = checkRateLimit(resendAttempts, ip, 3, LOCKOUT_DURATION_MS)
+  if (!rateLimit.allowed) {
+    return json(res, 429, { error: rateLimit.error }, { 'Retry-After': String(rateLimit.retryAfter) })
+  }
+
   const input = await bodyJson(req)
   const email = String(input.email || '').trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return json(res, 400, { error: 'Enter a valid email address.' })
   }
+  recordAttempt(resendAttempts, ip, LOCKOUT_DURATION_MS, 3)
+
   const response = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
@@ -213,20 +269,48 @@ export async function handleResendConfirmation(req, res) {
 }
 
 export async function handleSignin(req, res) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Sign-in service is not configured yet.' })
+  const ip = getClientIp(req)
+
+  // Enforce brute-force rate limit by IP first
+  const ipLimit = checkRateLimit(loginAttempts, ip, MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MS)
+  if (!ipLimit.allowed) {
+    return json(res, 429, { error: ipLimit.error }, { 'Retry-After': String(ipLimit.retryAfter) })
+  }
+
   const input = await bodyJson(req)
   const email = String(input.email || '').trim().toLowerCase()
   const password = String(input.password || '')
+
+  if (email) {
+    const emailLimit = checkRateLimit(loginAttempts, `email:${email}`, MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MS)
+    if (!emailLimit.allowed) {
+      return json(res, 429, { error: emailLimit.error }, { 'Retry-After': String(emailLimit.retryAfter) })
+    }
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Sign-in service is not configured yet.' })
+
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password || password.length > 128) {
     return json(res, 400, { error: 'Enter a valid email and password.' })
   }
+
   const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   })
   const data = await response.json()
-  if (!response.ok) return json(res, response.status, { error: data.msg || data.message || 'Email or password is incorrect.' })
+  if (!response.ok) {
+    // Record failed login attempt against both IP and Email
+    recordAttempt(loginAttempts, ip, LOCKOUT_DURATION_MS, MAX_LOGIN_ATTEMPTS)
+    recordAttempt(loginAttempts, `email:${email}`, LOCKOUT_DURATION_MS, MAX_LOGIN_ATTEMPTS)
+    return json(res, response.status, { error: data.msg || data.message || 'Email or password is incorrect.' })
+  }
+
+  // Login successful: reset failure counts
+  resetAttempts(loginAttempts, ip)
+  resetAttempts(loginAttempts, `email:${email}`)
+
   const profiles = await db(`profiles?id=eq.${data.user.id}&select=account_type,dealer_status,full_name`)
   const adminRows = await db(`admin_users?user_id=eq.${data.user.id}`).catch(() => [])
   const isAdmin = (Array.isArray(adminRows) && adminRows.length > 0) || isStaffEmail(email)
@@ -240,74 +324,39 @@ export async function handleSignin(req, res) {
 }
 
 export async function handleForgotPassword(req, res) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Password reset is not configured yet.' })
+  const ip = getClientIp(req)
+
+  const ipLimit = checkRateLimit(passwordResetAttempts, ip, 3, LOCKOUT_DURATION_MS)
+  if (!ipLimit.allowed) {
+    return json(res, 429, { error: ipLimit.error }, { 'Retry-After': String(ipLimit.retryAfter) })
+  }
+
   const input = await bodyJson(req)
   const email = String(input.email || '').trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'Enter a valid email address.' })
 
-  let directResetUrl = null
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Password reset is not configured yet.' })
 
-  // 1. Verify account existence first if service role key is available, preventing silent failures on typos
-  if (supabaseReady()) {
-    try {
-      const existingUser = await findAuthUserByEmail(email)
-      if (!existingUser) {
-        return json(res, 404, {
-          error: `No registered account found for "${email}". Please check for typos or register a new account.`,
-        })
-      }
+  recordAttempt(passwordResetAttempts, ip, LOCKOUT_DURATION_MS, 3)
+  recordAttempt(passwordResetAttempts, `reset:${email}`, LOCKOUT_DURATION_MS, 3)
 
-      // Generate direct recovery action link (immune to email SMTP rate limits)
-      const linkRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'recovery',
-          email,
-          options: {
-            redirectTo: getAuthRedirectUrl(req),
-          },
-        }),
-      })
-      if (linkRes.ok) {
-        const linkData = await linkRes.json()
-        directResetUrl = linkData.action_link || linkData.properties?.action_link || null
-      }
-    } catch {
-      // Continue if admin lookup transiently fails
-    }
+  // Standard safe password recovery dispatch directly via GoTrue email
+  // Security rule: NEVER generate or expose direct recovery links in the HTTP response.
+  try {
+    await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, redirect_to: getAuthRedirectUrl(req) }),
+    })
+  } catch (err) {
+    console.warn('Password recover request warning:', err.message)
   }
 
-  // 2. Attempt standard email dispatch via Supabase GoTrue
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
-    method: 'POST',
-    headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, redirect_to: getAuthRedirectUrl(req) }),
+  // Return a generic response preventing email enumeration and ensuring zero token leakage
+  return json(res, 200, {
+    sent: true,
+    message: 'If an account exists for this email address, a password reset link has been dispatched to your inbox. Please check your email and spam folder.',
   })
-
-  // 3. Return success with directResetUrl if generated
-  if (response.ok) {
-    return json(res, 200, {
-      sent: true,
-      directResetUrl,
-      message: `Password reset link dispatched for ${email}. Check your email or use the direct reset link below.`,
-    })
-  }
-
-  // If email was throttled by rate limit (429) but directResetUrl is available, succeed smoothly!
-  if (directResetUrl) {
-    return json(res, 200, {
-      sent: true,
-      directResetUrl,
-      message: `Email sending is temporarily throttled by the mail server. You can reset your password immediately using the secure link below.`,
-    })
-  }
-
-  return json(res, response.status, { error: 'Unable to send a password reset email right now. Please try again shortly.' })
 }
 
 export async function handleResetPassword(req, res) {

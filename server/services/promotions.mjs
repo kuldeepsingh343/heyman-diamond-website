@@ -53,6 +53,18 @@ export async function handleGetAdminPromotions(req, res, admin) {
   return json(res, 200, { promotions: localPromotions })
 }
 
+export function sanitizeLink(link) {
+  if (!link) return '#collection'
+  const str = String(link).trim()
+  if (/^(javascript|data|vbscript):/i.test(str)) {
+    return '#collection'
+  }
+  if (/^([#/]|https?:\/\/)/i.test(str)) {
+    return str
+  }
+  return `#${str.replace(/[^a-zA-Z0-9_-]/g, '')}`
+}
+
 export async function handleCreatePromotion(req, res, admin) {
   if (!admin) return json(res, 403, { error: 'Admin authorization required.' })
   const input = await bodyJson(req)
@@ -65,7 +77,7 @@ export async function handleCreatePromotion(req, res, admin) {
     media_type: input.media_type === 'video' ? 'video' : 'image',
     media_url: String(input.media_url || '').trim(),
     cta_text: String(input.cta_text || 'Explore Offer').trim(),
-    cta_link: String(input.cta_link || '#collection').trim(),
+    cta_link: sanitizeLink(input.cta_link),
     discount_kind: input.discount_kind || 'percentage',
     discount_value: Number(input.discount_value) || 0,
     active: input.active !== false,
@@ -104,7 +116,7 @@ export async function handleUpdatePromotion(req, res, id, admin) {
     ...(input.media_type !== undefined && { media_type: input.media_type === 'video' ? 'video' : 'image' }),
     ...(input.media_url !== undefined && { media_url: String(input.media_url).trim() }),
     ...(input.cta_text !== undefined && { cta_text: String(input.cta_text).trim() }),
-    ...(input.cta_link !== undefined && { cta_link: String(input.cta_link).trim() }),
+    ...(input.cta_link !== undefined && { cta_link: sanitizeLink(input.cta_link) }),
     ...(input.active !== undefined && { active: Boolean(input.active) }),
     ...(input.discount_value !== undefined && { discount_value: Number(input.discount_value) }),
     updated_at: new Date().toISOString(),

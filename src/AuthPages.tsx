@@ -223,7 +223,6 @@ export default function AuthPages({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [forgotSubmitted, setForgotSubmitted] = useState(false)
   const [resetSubmitted, setResetSubmitted] = useState(false)
-  const [directResetUrl, setDirectResetUrl] = useState<string | null>(null)
   const [recoveryToken, setRecoveryToken] = useState<string>(() => {
     if (typeof window === 'undefined') return ''
     const authStatus = parseAuthStatusFromHash()
@@ -1263,9 +1262,6 @@ export default function AuthPages({
       const data = isJson ? await res.json().catch(() => ({})) : {}
       if (!res.ok) {
         throw new Error(data.error || 'Failed to send reset link. Please try again.')
-      }
-      if (data.directResetUrl) {
-        setDirectResetUrl(data.directResetUrl)
       }
       setStatus({
         text: data.message || 'If this email has an account, a password reset link has been sent.',
@@ -2970,31 +2966,6 @@ export default function AuthPages({
               <div className="auth-status auth-status--success" role="status">
                 {status.text || 'A password reset link has been dispatched.'}
               </div>
-              {directResetUrl && (
-                <div style={{ marginTop: '20px', padding: '16px', background: '#fdfbf7', border: '1px solid #cbb279', borderRadius: '8px' }}>
-                  <p style={{ margin: '0 0 12px', color: '#1a1a12', fontWeight: 600, fontSize: '14px' }}>
-                    ⚡ Instant 1-Click Password Reset:
-                  </p>
-                  <a
-                    href={directResetUrl}
-                    className="button-primary"
-                    style={{
-                      display: 'inline-block',
-                      width: '100%',
-                      textAlign: 'center',
-                      boxSizing: 'border-box',
-                      background: '#a58a50',
-                      color: '#ffffff',
-                      textDecoration: 'none',
-                      fontWeight: 600,
-                      padding: '12px 20px',
-                      borderRadius: '6px'
-                    }}
-                  >
-                    Click Here to Set New Password Now →
-                  </a>
-                </div>
-              )}
               <p style={{ marginTop: '16px', color: '#555', fontSize: '14px', lineHeight: '1.5' }}>
                 Please check your inbox (and spam folder) for the reset link and follow the instructions to choose a new password.
               </p>
