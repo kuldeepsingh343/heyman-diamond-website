@@ -246,6 +246,8 @@ test('Security — Content-Security-Policy is enforced in SECURITY_HEADERS', () 
   assert.ok(CSP_HEADER.includes("default-src 'self'"), 'CSP must define default-src')
   assert.ok(CSP_HEADER.includes("object-src 'none'"), 'CSP must disallow plugins/objects')
   assert.ok(CSP_HEADER.includes("frame-ancestors 'self'"), 'CSP must restrict framing')
+  assert.ok(CSP_HEADER.includes("script-src 'self'"), 'CSP must restrict script-src to self')
+  assert.ok(!CSP_HEADER.includes("script-src 'self' 'unsafe-inline'"), 'CSP script-src must not allow unsafe-inline')
 })
 
 test('Security — Promotion routes reject malicious identifier injection', async () => {
