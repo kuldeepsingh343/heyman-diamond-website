@@ -7,6 +7,7 @@ import {
   json,
   bodyJson,
   getAuthRedirectUrl,
+  getClientIp,
 } from './shared.mjs'
 
 export async function findAuthUserByEmail(email) {
@@ -194,12 +195,6 @@ const MAX_LOGIN_ATTEMPTS = 5
 const MAX_SIGNUP_ATTEMPTS = 10
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 minutes lockout
 const WINDOW_DURATION_MS = 15 * 60 * 1000
-
-function getClientIp(req) {
-  const forwarded = req.headers['x-forwarded-for']
-  if (forwarded) return forwarded.split(',')[0].trim()
-  return req.socket?.remoteAddress || 'unknown-ip'
-}
 
 function checkRateLimit(store, key, maxAttempts, lockMs) {
   const now = Date.now()

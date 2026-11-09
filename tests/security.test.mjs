@@ -43,6 +43,7 @@ import {
 import {
   SECURITY_HEADERS,
   CSP_HEADER,
+  getClientIp,
 } from '../server/services/shared.mjs'
 
 // Mock globalThis.fetch for auth endpoints
@@ -350,4 +351,42 @@ test('Security — All admin parameterized endpoints reject PostgREST query inje
   await handleUpdateAdminDiamond(createMockReq({}, { customerPrice: 500 }), diamondRes, fullAdmin, injectionId)
   assert.equal(diamondRes.statusCode, 400, 'Diamond update must reject malicious ID')
   assert.equal(diamondRes.json?.error, 'Invalid diamond identifier.')
+})
+
+test('Security — getClientIp prevents X-Forwarded-For spoofing behind reverse proxy', () => {
+  // Attacker prepends fake IP to X-Forwarded-For, reverse proxy appends real IP
+  const reqSpoofed = {
+    headers: {
+      'x-forwarded-for': '1.2.3.4, 203.0.113.195',
+    },
+    socket: { remoteAddress: '10.0.0.1' },
+  }
+  assert.equal(getClientIp(reqSpoofed), '203.0.113.195', 'Must use proxy-verified rightmost IP, not spoofed first IP')
+
+  // Cloudflare CF-Connecting-IP takes precedence
+  const reqCloudflare = {
+    headers: {
+      'cf-connecting-ip': '198.51.100.42',
+      'x-forwarded-for': '1.2.3.4, 10.0.0.1',
+    },
+    socket: { remoteAddress: '10.0.0.1' },
+  }
+  assert.equal(getClientIp(reqCloudflare), '198.51.100.42', 'Must prioritize Cloudflare edge-verified IP')
+
+  // X-Real-IP takes precedence over X-Forwarded-For
+  const reqRealIp = {
+    headers: {
+      'x-real-ip': '198.51.100.55',
+      'x-forwarded-for': '1.2.3.4',
+    },
+    socket: { remoteAddress: '10.0.0.1' },
+  }
+  assert.equal(getClientIp(reqRealIp), '198.51.100.55', 'Must prioritize X-Real-IP')
+
+  // Direct socket connection
+  const reqDirect = {
+    headers: {},
+    socket: { remoteAddress: '192.0.2.1' },
+  }
+  assert.equal(getClientIp(reqDirect), '192.0.2.1', 'Must fallback to socket remote address')
 })

@@ -49,6 +49,30 @@ export function getCorsHeaders(req) {
   }
 }
 
+export function getClientIp(req) {
+  // Cloudflare CF-Connecting-IP is set by the edge and cannot be spoofed by clients
+  const cfIp = req?.headers?.['cf-connecting-ip']
+  if (cfIp && typeof cfIp === 'string') return cfIp.trim()
+
+  // Trusted reverse proxy X-Real-IP
+  const realIp = req?.headers?.['x-real-ip']
+  if (realIp && typeof realIp === 'string') return realIp.trim()
+
+  // Reverse proxy X-Forwarded-For:
+  // Proxies (e.g. Render, AWS ALB, Nginx) append the verified connecting client IP to the end.
+  // The first IP can be spoofed by a malicious client injecting an X-Forwarded-For header.
+  // We extract the rightmost entry to ensure we rate-limit the actual caller.
+  const forwarded = req?.headers?.['x-forwarded-for']
+  if (forwarded && typeof forwarded === 'string') {
+    const parts = forwarded.split(',').map(s => s.trim()).filter(Boolean)
+    if (parts.length > 0) {
+      return parts[parts.length - 1]
+    }
+  }
+
+  return req?.socket?.remoteAddress || 'unknown-ip'
+}
+
 export function getAuthRedirectUrl(req) {
   if (process.env.AUTH_REDIRECT_URL) {
     return process.env.AUTH_REDIRECT_URL.replace(/\/$/, '')
