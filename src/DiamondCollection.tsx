@@ -346,10 +346,10 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
             ))}
           </div>
 
-          {/* ── Interactive 3D Diamond Shapes Filter ── */}
+          {/* ── Interactive Diamond Shapes Filter (Real Diamond Photos) ── */}
           <DiamondShapeFilter
             selectedShape={selectedShape}
-            onSelectShape={shape => setSelectedShape(shape)}
+            onSelectShape={(shape: string) => setSelectedShape(shape)}
             selectedCategoryName={
               selectedCategory === 'all'
                 ? 'All Diamond Collections'
