@@ -85,6 +85,13 @@ export async function handleSignup(req, res) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !supabaseReady()) {
     return json(res, 503, { error: 'Account service is not configured yet.' })
   }
+  const ip = getClientIp(req)
+  const rateStatus = checkRateLimit(signupAttempts, ip, MAX_SIGNUP_ATTEMPTS, LOCKOUT_DURATION_MS)
+  if (!rateStatus.allowed) {
+    return json(res, 429, { error: rateStatus.error }, { 'Retry-After': String(rateStatus.retryAfter) })
+  }
+  recordAttempt(signupAttempts, ip, LOCKOUT_DURATION_MS, MAX_SIGNUP_ATTEMPTS)
+
   const input = await bodyJson(req)
   const accountType = input.accountType === 'dealer' ? 'dealer' : 'customer'
   const fullName = String(input.fullName || '').trim()
@@ -179,10 +186,12 @@ export async function handleSignup(req, res) {
 
 // ── Rate Limiting & Brute Force Defense ─────────────────────────────────────
 const loginAttempts = new Map()
+const signupAttempts = new Map()
 const passwordResetAttempts = new Map()
 const resendAttempts = new Map()
 
 const MAX_LOGIN_ATTEMPTS = 5
+const MAX_SIGNUP_ATTEMPTS = 10
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 minutes lockout
 const WINDOW_DURATION_MS = 15 * 60 * 1000
 

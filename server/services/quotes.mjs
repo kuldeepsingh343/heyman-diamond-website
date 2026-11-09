@@ -1,7 +1,20 @@
 import { db, json, bodyJson, supabaseReady } from './shared.mjs'
 import { authenticatedUser } from './auth.mjs'
 
+const inquiryRate = new Map()
+const INQUIRY_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+const MAX_INQUIRIES_PER_HOUR = 10
+
 export async function handleCreateInquiry(req, res) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket?.remoteAddress || 'unknown-ip'
+  const now = Date.now()
+  const history = (inquiryRate.get(ip) || []).filter(t => now - t < INQUIRY_WINDOW_MS)
+  if (history.length >= MAX_INQUIRIES_PER_HOUR) {
+    return json(res, 429, { error: 'Too many inquiries submitted from this connection. Please try again later.' })
+  }
+  history.push(now)
+  inquiryRate.set(ip, history)
+
   const input = await bodyJson(req)
   if (!supabaseReady()) return json(res, 503, { error: 'Inquiry service is not configured yet.' })
   const name = String(input.name || '').trim()

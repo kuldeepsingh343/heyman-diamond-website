@@ -9,8 +9,13 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'mock-service-role-key'
 import {
   authenticatedUser,
   handleSignin,
+  handleSignup,
   handleForgotPassword,
 } from '../server/services/auth.mjs'
+
+import {
+  handleCreateInquiry,
+} from '../server/services/quotes.mjs'
 
 import {
   handleFlomizStatus,
@@ -49,6 +54,33 @@ globalThis.fetch = async (url, options = {}) => {
       ok: true,
       status: 200,
       json: async () => ({}),
+    }
+  }
+
+  // Mock admin users lookup
+  if (urlStr.includes('/auth/v1/admin/users')) {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ users: [] }),
+    }
+  }
+
+  // Mock signup -> 200 ok
+  if (urlStr.includes('/auth/v1/signup')) {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ user: { id: 'test-user-id' } }),
+    }
+  }
+
+  // Mock rest db calls
+  if (urlStr.includes('/rest/v1/')) {
+    return {
+      ok: true,
+      status: 201,
+      text: async () => JSON.stringify([{ id: 'mock-row-id' }]),
     }
   }
 
@@ -216,4 +248,47 @@ test('Security — Promotion routes reject malicious identifier injection', asyn
   const delRes = createMockRes()
   await handleDeletePromotion(createMockReq(), delRes, '123;DROP TABLE;', admin)
   assert.equal(delRes.statusCode, 400, 'Must reject malicious deletion ID')
+})
+
+test('Security — Rate limiting protects signup and inquiry endpoints from flooding', async () => {
+  // Test signup rate limit
+  const signupReq = () => createMockReq({ 'x-forwarded-for': '198.51.100.42' }, {
+    fullName: 'Rate Tester',
+    email: 'ratetest@example.com',
+    password: 'Password123!',
+    phone: '555-0100',
+    address: '123 Test St',
+    gender: 'prefer_not_to_say',
+    accountType: 'customer',
+  })
+
+  let lockedSignup = false
+  for (let i = 0; i < 12; i++) {
+    const res = createMockRes()
+    await handleSignup(signupReq(), res)
+    if (res.statusCode === 429) {
+      lockedSignup = true
+      assert.ok(res.headers['Retry-After'])
+      break
+    }
+  }
+  assert.equal(lockedSignup, true, 'Signup endpoint must enforce rate limit after 10 requests')
+
+  // Test inquiry rate limit
+  const inquiryReq = () => createMockReq({ 'x-forwarded-for': '198.51.100.99' }, {
+    name: 'Spam Bot',
+    email: 'spambot@example.com',
+    message: 'Hello diamond spam test',
+  })
+
+  let lockedInquiry = false
+  for (let i = 0; i < 12; i++) {
+    const res = createMockRes()
+    await handleCreateInquiry(inquiryReq(), res)
+    if (res.statusCode === 429) {
+      lockedInquiry = true
+      break
+    }
+  }
+  assert.equal(lockedInquiry, true, 'Inquiry endpoint must enforce rate limit after 10 requests')
 })
