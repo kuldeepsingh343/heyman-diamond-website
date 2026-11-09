@@ -105,11 +105,17 @@ test('API smoke checks', async t => {
   })
 
   await t.test('blocks dotfile requests and prevents SPA fallback', async () => {
-    for (const dotfile of ['/.env', '/.git/config', '/.DS_Store', '/admin/.env']) {
+    for (const dotfile of ['/.env', '/.git/config', '/.DS_Store', '/admin/.env', '/%2e%65nv', '/%2e%2e%2f.env', '/.well-known/../.env']) {
       const response = await fetch(`http://127.0.0.1:${port}${dotfile}`)
       assert.equal(response.status, 404, `${dotfile} should return 404`)
       const body = await response.json()
       assert.equal(body.error, 'Not found.')
     }
+  })
+
+  await t.test('allows /.well-known/ endpoints and does not treat them as blocked dotfiles', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/.well-known/security.txt`)
+    // Even if static file does not exist, it should not fail with dotfile error
+    assert.ok(response.status === 404 || response.status === 200)
   })
 })

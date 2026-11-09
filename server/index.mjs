@@ -270,8 +270,25 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found.' })
 
+    // Safely decode pathname to detect encoded bypass attempts (%2e = ., %2f = /)
+    let decodedPath = ''
+    try {
+      decodedPath = decodeURIComponent(url.pathname)
+    } catch {
+      return json(res, 400, { error: 'Malformed URL encoding.' })
+    }
+
+    // Block path traversal attempts (..) unconditionally
+    if (url.pathname.includes('..') || decodedPath.includes('..')) {
+      return json(res, 404, { error: 'Not found.' })
+    }
+
+    // Allow standard RFC 8615 /.well-known/ endpoints (e.g. ACME certificates, security.txt)
+    const isWellKnown = url.pathname.startsWith('/.well-known/') || decodedPath.startsWith('/.well-known/')
+
     // Block direct access and SPA fallback for dotfiles (.env, .git, .DS_Store, etc.)
-    if (url.pathname.startsWith('/.') || url.pathname.includes('/.')) {
+    const hasDotfile = url.pathname.startsWith('/.') || url.pathname.includes('/.') || decodedPath.startsWith('/.') || decodedPath.includes('/.')
+    if (hasDotfile && !isWellKnown) {
       return json(res, 404, { error: 'Not found.' })
     }
 

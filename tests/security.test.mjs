@@ -305,16 +305,54 @@ test('Security — Rate limiting protects signup and inquiry endpoints from floo
   assert.equal(lockedInquiry, true, 'Inquiry endpoint must enforce rate limit after 10 requests')
 })
 
-test('Security — Dotfile requests are blocked and do not trigger SPA fallback', () => {
-  const dotfiles = ['/.env', '/.git', '/.git/config', '/.env.production', '/foo/.hidden', '/.DS_Store']
-  for (const path of dotfiles) {
-    const isBlocked = path.startsWith('/.') || path.includes('/.')
-    assert.equal(isBlocked, true, `${path} must be blocked by dotfile filter`)
+test('Security — Dotfile requests and encoded bypasses are blocked, while /.well-known/ is preserved', () => {
+  function checkBlock(pathname) {
+    let decodedPath = ''
+    try {
+      decodedPath = decodeURIComponent(pathname)
+    } catch {
+      return { blocked: true, status: 400 }
+    }
+    if (pathname.includes('..') || decodedPath.includes('..')) {
+      return { blocked: true, status: 404 }
+    }
+    const isWellKnown = pathname.startsWith('/.well-known/') || decodedPath.startsWith('/.well-known/')
+    const hasDotfile = pathname.startsWith('/.') || pathname.includes('/.') || decodedPath.startsWith('/.') || decodedPath.includes('/.')
+    if (hasDotfile && !isWellKnown) {
+      return { blocked: true, status: 404 }
+    }
+    return { blocked: false, status: 200 }
   }
-  const regularPaths = ['/index.html', '/assets/index.js', '/diamonds', '/favicon.ico']
-  for (const path of regularPaths) {
-    const isBlocked = path.startsWith('/.') || path.includes('/.')
-    assert.equal(isBlocked, false, `${path} should not be blocked`)
+
+  const blockedTargets = [
+    '/.env',
+    '/.git',
+    '/.git/config',
+    '/.env.production',
+    '/foo/.hidden',
+    '/.DS_Store',
+    '/%2e%65nv',
+    '/%2Egit',
+    '/..%2f.env',
+    '/assets/..%2fpackage.json',
+    '/.well-known/../.env',
+  ]
+  for (const path of blockedTargets) {
+    const res = checkBlock(path)
+    assert.equal(res.blocked, true, `${path} must be blocked`)
+  }
+
+  const allowedTargets = [
+    '/index.html',
+    '/assets/index.js',
+    '/diamonds',
+    '/favicon.ico',
+    '/.well-known/security.txt',
+    '/.well-known/acme-challenge/test-token',
+  ]
+  for (const path of allowedTargets) {
+    const res = checkBlock(path)
+    assert.equal(res.blocked, false, `${path} must be permitted`)
   }
 })
 
