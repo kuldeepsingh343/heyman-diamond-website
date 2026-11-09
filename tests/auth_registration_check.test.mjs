@@ -62,3 +62,4 @@ test('Auth Registration Check — handleGetProfile reports registration status',
     assert.equal(payload.error, 'Please sign in to view your profile.')
   })
 })
+

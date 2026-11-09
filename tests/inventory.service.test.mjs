@@ -97,9 +97,30 @@ test('Inventory Service — 4Cs Filtering and Search', () => {
 
 test('Inventory Service — Downloadable CSV Template', () => {
   const template = generateInventoryTemplate()
-  assert.equal(template.includes('SKU,Shape,Carat,Color,Clarity'), true)
+  assert.equal(template.includes('SKU,Category,Shape,Carat,Color,Clarity'), true)
+  assert.equal(template.includes('Loose Fancy Diamonds'), true)
+  assert.equal(template.includes('Round Melee Diamonds'), true)
   assert.equal(template.includes('Round'), true)
   assert.equal(template.includes('LG624918231'), true)
+})
+
+test('Inventory Service — Multi-Category Spreadsheet Parsing and Normalization', () => {
+  const multiCatCsv = `
+SKU,Category,Shape,Carat,Color,Clarity,Price,Wholesale Price
+HMD-CAT-1,Round Melee Diamonds,Round,0.05,F,VS,50,35
+HMD-CAT-2,Loose Fancy Diamonds,Oval,1.50,E,VVS2,1800,1300
+HMD-CAT-3,Matched Pairs,Pear,2.00,D,VVS1,2500,1900
+HMD-CAT-4,Certified Diamonds,Princess,1.20,G,VS1,1200,900
+HMD-CAT-5,Solitaire Non-Certified Diamonds,Cushion,2.20,Fancy Yellow,VS2,2100,1600
+`.trim()
+
+  const result = parseDiamondSpreadsheet(multiCatCsv, 'all')
+  assert.equal(result.items.length, 5)
+  assert.equal(result.items[0].category, 'Round Melee Diamonds')
+  assert.equal(result.items[1].category, 'Loose Fancy Diamonds')
+  assert.equal(result.items[2].category, 'Matched Pairs')
+  assert.equal(result.items[3].category, 'Certified Diamonds')
+  assert.equal(result.items[4].category, 'Solitaire Non-Certified Diamonds')
 })
 
 test('Inventory Service — Flomiz Product Normalization', () => {

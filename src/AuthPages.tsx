@@ -268,7 +268,7 @@ export default function AuthPages({
   const [diamondFilterCategory, setDiamondFilterCategory] = useState('all')
   const [diamondFilterStatus, setDiamondFilterStatus] = useState('all')
   const [diamondSearch, setDiamondSearch] = useState('')
-  const [uploadCategory, setUploadCategory] = useState('Round Melee Diamonds')
+  const [uploadCategory, setUploadCategory] = useState('all')
   const [syncingFlomiz, setSyncingFlomiz] = useState(false)
   const [flomizSyncMsg, setFlomizSyncMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
   const [savedDiamondId, setSavedDiamondId] = useState<string | null>(null)
@@ -2413,7 +2413,7 @@ export default function AuthPages({
                   <div className="inventory-option-card">
                     <span className="option-tag">Option 2 · Bulk File</span>
                     <h4>Excel / CSV Upload Portal</h4>
-                    <p>Upload your own diamond inventory sheet (Round Melee, Loose Fancy, Matched Pairs, or Color Diamonds).</p>
+                    <p>Upload your own diamond inventory sheet. Use &quot;All Categories&quot; to auto-assign categories per row from your spreadsheet, or select a specific category below.</p>
                     <a href="/api/inventory/template" download="heyman_diamond_template.csv" className="template-download-link">
                       ⬇ Download Standard CSV Template
                     </a>
@@ -2425,6 +2425,7 @@ export default function AuthPages({
                         value={uploadCategory}
                         onChange={(e) => setUploadCategory(e.target.value)}
                       >
+                        <option value="all">All Categories (From Spreadsheet Category Column)</option>
                         <option value="Round Melee Diamonds">Round Melee Diamonds (Melees / Sieves)</option>
                         <option value="Loose Fancy Diamonds">Loose Fancy Diamonds (Fancy Shapes)</option>
                         <option value="Solitaire Non-Certified Diamonds">Solitaire Non-Certified Diamonds (Pink, Yellow, Blue, Green &amp; White)</option>

@@ -451,9 +451,33 @@ export function parseCSV(text, delimiter = ',') {
 }
 
 /**
+ * Normalizes user-entered category strings to official catalog categories.
+ */
+export function normalizeCategoryName(raw) {
+  if (!raw || typeof raw !== 'string') return null
+  const cleaned = raw.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (cleaned.includes('melee') || cleaned.includes('sieve')) {
+    return 'Round Melee Diamonds'
+  }
+  if (cleaned.includes('loosefancy') || cleaned.includes('fancy')) {
+    return 'Loose Fancy Diamonds'
+  }
+  if (cleaned.includes('solitairenon') || cleaned.includes('noncertified') || cleaned.includes('solitaire') || cleaned.includes('color')) {
+    return 'Solitaire Non-Certified Diamonds'
+  }
+  if (cleaned.includes('pair') || cleaned.includes('matched')) {
+    return 'Matched Pairs'
+  }
+  if (cleaned.includes('certified') || cleaned.includes('solitaire')) {
+    return 'Certified Diamonds'
+  }
+  return raw.trim()
+}
+
+/**
  * Normalizes diamond spreadsheet rows into structured inventory records.
  */
-export function parseDiamondSpreadsheet(fileContent) {
+export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
   const rows = parseCSV(fileContent)
   if (!rows || rows.length < 2) {
     throw new Error('Spreadsheet must contain a header row and at least one diamond row.')
@@ -517,7 +541,15 @@ export function parseDiamondSpreadsheet(fileContent) {
     const wholesalePrice = parseFloat(getVal('wholesalePrice')) || (price > 0 ? Math.round(price * 0.75) : 0)
     const sku = getVal('sku') || `HMD-UPL-${Date.now().toString().slice(-6)}-${rowIndex}`
     const rawCat = getVal('category')
-    const category = rawCat ? String(rawCat).trim() : 'Loose Fancy Diamonds'
+    const normalizedCat = normalizeCategoryName(rawCat)
+    let category = normalizedCat
+    if (!category) {
+      if (defaultCategory && defaultCategory !== 'all' && defaultCategory !== 'All Categories') {
+        category = normalizeCategoryName(defaultCategory) || defaultCategory
+      } else {
+        category = 'Loose Fancy Diamonds'
+      }
+    }
 
     validItems.push({
       sku,
@@ -547,11 +579,12 @@ export function parseDiamondSpreadsheet(fileContent) {
 }
 
 /**
- * Returns a downloadable CSV template with standard diamond columns.
+ * Returns a downloadable CSV template with standard diamond columns, including Category.
  */
 export function generateInventoryTemplate() {
   const headers = [
     'SKU',
+    'Category',
     'Shape',
     'Carat',
     'Color',
@@ -570,6 +603,7 @@ export function generateInventoryTemplate() {
   ]
   const sample1 = [
     'HMD-001',
+    'Loose Fancy Diamonds',
     'Round',
     '1.50',
     'E',
@@ -588,6 +622,7 @@ export function generateInventoryTemplate() {
   ]
   const sample2 = [
     'HMD-002',
+    'Certified Diamonds',
     'Oval',
     '2.01',
     'F',
@@ -604,7 +639,71 @@ export function generateInventoryTemplate() {
     '',
     '',
   ]
-  return [headers.join(','), sample1.join(','), sample2.join(',')].join('\n')
+  const sample3 = [
+    'HMD-003',
+    'Round Melee Diamonds',
+    'Round',
+    '0.05',
+    'F-G',
+    'VS-SI',
+    'Very Good',
+    'Very Good',
+    'Good',
+    'None',
+    'None',
+    'N/A',
+    '45',
+    '32',
+    '2.4 mm',
+    '',
+    '',
+  ]
+  const sample4 = [
+    'HMD-004',
+    'Matched Pairs',
+    'Pear',
+    '1.00',
+    'E',
+    'VVS1',
+    'Excellent',
+    'Excellent',
+    'Excellent',
+    'None',
+    'IGI',
+    'LG629100122',
+    '1400',
+    '1050',
+    '7.80 x 5.20 x 3.25 mm',
+    '',
+    '',
+  ]
+  const sample5 = [
+    'HMD-005',
+    'Solitaire Non-Certified Diamonds',
+    'Cushion',
+    '2.50',
+    'Fancy Vivid Pink',
+    'VVS2',
+    'Excellent',
+    'Excellent',
+    'Excellent',
+    'None',
+    'None',
+    'N/A',
+    '3200',
+    '2400',
+    '8.10 x 7.95 x 5.10 mm',
+    '',
+    '',
+  ]
+  return [
+    headers.join(','),
+    sample1.join(','),
+    sample2.join(','),
+    sample3.join(','),
+    sample4.join(','),
+    sample5.join(','),
+  ].join('\n')
 }
 
 /**
@@ -1024,7 +1123,8 @@ export async function handleUploadInventory(req, res, admin) {
       return json(res, 400, { error: 'Spreadsheet content (CSV or TSV string) is required.' })
     }
 
-    const result = parseDiamondSpreadsheet(content)
+    const defaultCat = input.defaultCategory || 'all'
+    const result = parseDiamondSpreadsheet(content, defaultCat)
 
     if (result.items.length === 0) {
       return json(res, 400, {
@@ -1050,7 +1150,7 @@ export async function handleUploadInventory(req, res, admin) {
       try {
         const dbRows = result.items.map(item => ({
           sku: item.sku,
-          category: item.category || input.defaultCategory || 'Loose Fancy Diamonds',
+          category: item.category || (defaultCat !== 'all' ? defaultCat : 'Loose Fancy Diamonds'),
           shape: item.shape,
           carat: item.carat,
           color: item.color,
