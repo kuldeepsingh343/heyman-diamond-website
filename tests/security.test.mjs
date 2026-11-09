@@ -22,6 +22,11 @@ import {
   sanitizeLink,
 } from '../server/services/promotions.mjs'
 
+import {
+  SECURITY_HEADERS,
+  CSP_HEADER,
+} from '../server/services/shared.mjs'
+
 // Mock globalThis.fetch for auth endpoints
 const originalFetch = globalThis.fetch
 globalThis.fetch = async (url, options = {}) => {
@@ -187,4 +192,12 @@ test('Security — Promotion sanitizeLink neutralizes javascript XSS payloads', 
   assert.equal(sanitizeLink('#collection'), '#collection')
   assert.equal(sanitizeLink('/catalog'), '/catalog')
   assert.equal(sanitizeLink('https://heymandiamond.com/about'), 'https://heymandiamond.com/about')
+})
+
+test('Security — Content-Security-Policy is enforced in SECURITY_HEADERS', () => {
+  assert.ok(SECURITY_HEADERS['Content-Security-Policy'], 'Content-Security-Policy header must be defined')
+  assert.equal(SECURITY_HEADERS['Content-Security-Policy'], CSP_HEADER)
+  assert.ok(CSP_HEADER.includes("default-src 'self'"), 'CSP must define default-src')
+  assert.ok(CSP_HEADER.includes("object-src 'none'"), 'CSP must disallow plugins/objects')
+  assert.ok(CSP_HEADER.includes("frame-ancestors 'self'"), 'CSP must restrict framing')
 })

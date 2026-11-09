@@ -80,12 +80,27 @@ export function getAuthRedirectUrl(req) {
 
 export const headers = getCorsHeaders()
 
+export const CSP_HEADER = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+  "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:",
+  "img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co",
+  "media-src 'self' blob: https:",
+  "connect-src 'self' https://*.supabase.co https://*.flomiz.com https://heymandiamond.com https://*.heymandiamond.com http://localhost:*",
+  "frame-ancestors 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
 export const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'SAMEORIGIN',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'Content-Security-Policy': CSP_HEADER,
 }
 
 export function json(res, status, body, responseHeaders = {}) {
