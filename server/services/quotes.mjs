@@ -1,5 +1,6 @@
 import { db, json, bodyJson, supabaseReady, getClientIp } from './shared.mjs'
 import { authenticatedUser } from './auth.mjs'
+import { getEffectiveDiamondPrice } from './inventory.mjs'
 
 const inquiryRate = new Map()
 const INQUIRY_WINDOW_MS = 60 * 60 * 1000 // 1 hour
@@ -84,20 +85,40 @@ export async function handleCreateQuote(req, res) {
   const quote = quoteRows?.[0]
   if (!quote?.id) return json(res, 500, { error: 'Unable to record your quote request.' })
 
-  const itemPayloads = items.map(item => ({
-    quote_request_id: quote.id,
-    flomiz_sku: String(item.sku || '').slice(0, 80),
-    product_name: String(item.name || item.shape || 'Lab-Grown Diamond').slice(0, 160),
-    product_snapshot: {
-      submitted_snapshot: item,
-      disclaimer: 'Client-supplied reference snapshot. Authoritative stone specifications, availability, and pricing require independent verification prior to sale.',
-    },
-    quantity: Math.max(1, Math.min(100, Number(item.quantity) || 1)),
-    current_unit_price: null,
-    requested_unit_price: item.requestedPrice && !isNaN(Number(item.requestedPrice)) && Number(item.requestedPrice) > 0
-      ? Number(item.requestedPrice)
-      : (Number(item.price) || Number(item.customerPrice) || Number(item.wholesalePrice) || 1),
-  }))
+  // Check if user is an approved wholesale dealer to snapshot correct audience rate
+  let isApprovedDealer = false
+  if (customer?.id && supabaseReady()) {
+    try {
+      const profileRows = await db(`profiles?id=eq.${encodeURIComponent(customer.id)}&select=account_type,dealer_status`)
+      if (Array.isArray(profileRows) && profileRows.length > 0) {
+        isApprovedDealer = profileRows[0].account_type === 'dealer' && profileRows[0].dealer_status === 'approved'
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const itemPayloads = []
+  for (const item of items) {
+    const sku = String(item.sku || '').slice(0, 80)
+    const effectivePrice = await getEffectiveDiamondPrice(sku, isApprovedDealer)
+    itemPayloads.push({
+      quote_request_id: quote.id,
+      flomiz_sku: sku,
+      product_name: String(item.name || item.shape || 'Lab-Grown Diamond').slice(0, 160),
+      product_snapshot: {
+        submitted_snapshot: item,
+        server_effective_unit_price: effectivePrice,
+        audience: isApprovedDealer ? 'dealer' : 'customer',
+        disclaimer: 'Authoritative stone specifications and server-verified pricing snapshot.',
+      },
+      quantity: Math.max(1, Math.min(100, Number(item.quantity) || 1)),
+      current_unit_price: effectivePrice > 0 ? effectivePrice : (Number(item.price) || 0),
+      requested_unit_price: item.requestedPrice && !isNaN(Number(item.requestedPrice)) && Number(item.requestedPrice) > 0
+        ? Number(item.requestedPrice)
+        : (effectivePrice > 0 ? effectivePrice : 1),
+    })
+  }
 
   await db('quote_request_items', {
     method: 'POST',

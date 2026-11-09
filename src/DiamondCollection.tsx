@@ -20,6 +20,9 @@ export interface PublicDiamondItem {
   lab?: string
   certificateNumber?: string
   price: number
+  listPrice?: number
+  discountPrice?: number | null
+  discountPercent?: number | null
   customerPrice?: number
   wholesalePrice?: number
   dealerPrice?: number
@@ -538,22 +541,40 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
 
                   {/* Dual-Tier Pricing Display */}
                   <div className="card-pricing-block">
-                    {/* 1. Customer Price (Always Visible to All) */}
-                    <div className="customer-price-box">
-                      <span className="price-label">Customer Price</span>
-                      <div className="price-value">
-                        ${displayCustomerPrice.toLocaleString()}
+                    {/* 1. Customer Price (Visible for non-dealers or when retail price is available) */}
+                    {!isApprovedDealer && (
+                      <div className="customer-price-box">
+                        <span className="price-label">Customer Price</span>
+                        {item.discountPrice && item.discountPercent && item.listPrice && item.listPrice > item.discountPrice ? (
+                          <div className="discount-price-display">
+                            <span className="price-list-struck">${item.listPrice.toLocaleString()}</span>
+                            <span className="price-value price-value--discounted">${item.discountPrice.toLocaleString()}</span>
+                            <span className="discount-tag-badge">{Math.round(item.discountPercent)}% OFF</span>
+                          </div>
+                        ) : (
+                          <div className="price-value">
+                            ${displayCustomerPrice.toLocaleString()}
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    )}
 
                     {/* 2. Diamond Dealer Price (Strictly Gated for Approved Dealers) */}
                     <div className="dealer-price-box">
                       {isApprovedDealer ? (
                         <div className="dealer-price-unlocked">
                           <span className="dealer-label">💎 Dealer Wholesale Rate</span>
-                          <div className="dealer-price-value">
-                            ${displayDealerPrice.toLocaleString()}
-                          </div>
+                          {item.discountPrice && item.discountPercent && item.listPrice && item.listPrice > item.discountPrice ? (
+                            <div className="discount-price-display">
+                              <span className="price-list-struck">${item.listPrice.toLocaleString()}</span>
+                              <span className="dealer-price-value dealer-price-value--discounted">${item.discountPrice.toLocaleString()}</span>
+                              <span className="discount-tag-badge discount-tag-badge--dealer">{Math.round(item.discountPercent)}% OFF</span>
+                            </div>
+                          ) : (
+                            <div className="dealer-price-value">
+                              ${displayDealerPrice.toLocaleString()}
+                            </div>
+                          )}
                           <small className="dealer-discount-badge">Approved Trade Partner Rate</small>
                         </div>
                       ) : isPendingDealer ? (
@@ -708,18 +729,36 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                 </div>
 
                 <div className="media-modal-pricing">
-                  <div className="modal-price-box">
-                    <span className="modal-price-label">Customer Price</span>
-                    <span className="modal-price-value">
-                      ${(activeMediaDiamond.customerPrice || activeMediaDiamond.price || 0).toLocaleString()}
-                    </span>
-                  </div>
+                  {!isApprovedDealer && (
+                    <div className="modal-price-box">
+                      <span className="modal-price-label">Customer Price</span>
+                      {activeMediaDiamond.discountPrice && activeMediaDiamond.discountPercent && activeMediaDiamond.listPrice && activeMediaDiamond.listPrice > activeMediaDiamond.discountPrice ? (
+                        <div className="modal-discount-wrap">
+                          <span className="modal-price-struck">${activeMediaDiamond.listPrice.toLocaleString()}</span>
+                          <span className="modal-price-value modal-price-value--discounted">${activeMediaDiamond.discountPrice.toLocaleString()}</span>
+                          <span className="discount-tag-badge">{Math.round(activeMediaDiamond.discountPercent)}% OFF</span>
+                        </div>
+                      ) : (
+                        <span className="modal-price-value">
+                          ${(activeMediaDiamond.customerPrice || activeMediaDiamond.price || 0).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {isApprovedDealer && (
                     <div className="modal-price-box modal-price-box--dealer">
                       <span className="modal-price-label">💎 Dealer Wholesale Rate</span>
-                      <span className="modal-price-value modal-price-value--dealer">
-                        ${(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || 0).toLocaleString()}
-                      </span>
+                      {activeMediaDiamond.discountPrice && activeMediaDiamond.discountPercent && activeMediaDiamond.listPrice && activeMediaDiamond.listPrice > activeMediaDiamond.discountPrice ? (
+                        <div className="modal-discount-wrap">
+                          <span className="modal-price-struck">${activeMediaDiamond.listPrice.toLocaleString()}</span>
+                          <span className="modal-price-value modal-price-value--dealer modal-price-value--discounted">${activeMediaDiamond.discountPrice.toLocaleString()}</span>
+                          <span className="discount-tag-badge discount-tag-badge--dealer">{Math.round(activeMediaDiamond.discountPercent)}% OFF</span>
+                        </div>
+                      ) : (
+                        <span className="modal-price-value modal-price-value--dealer">
+                          ${(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || activeMediaDiamond.price || 0).toLocaleString()}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

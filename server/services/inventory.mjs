@@ -1,6 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { json, bodyJson, db, supabaseReady } from './shared.mjs'
+import {
+  computeDiscount,
+  processDiamondPricingUpdates,
+  roundMoney,
+  roundPercent,
+} from './pricing.mjs'
 
 // ── Flomiz Stock Pull API Configuration ─────────────────────────────────────
 const FLOMIZ_CONFIG_FILE = path.resolve(process.cwd(), '.flomiz_config.json')
@@ -101,7 +107,13 @@ let memoryInventory = [
     lab: 'IGI',
     certificateNumber: 'LG624918231',
     price: 1850,
+    customerPrice: 1850,
+    customerDiscountPrice: 1480,
+    customerDiscountPercent: 20,
     wholesalePrice: 1350,
+    dealerPrice: 1350,
+    dealerDiscountPrice: 1080,
+    dealerDiscountPercent: 20,
     measurements: '7.38 x 7.42 x 4.55 mm',
     imageUrl: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=85',
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-diamond-rotating-on-a-black-background-41584-large.mp4',
@@ -500,7 +512,11 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
     lab: ['lab', 'certlab', 'gradinglab', 'laboratory'],
     certificateNumber: ['certificatenumber', 'certnumber', 'certno', 'cert', 'reportnumber', 'reportno', 'reportnum'],
     price: ['price', 'customerprice', 'retailprice', 'priceusd', 'amount', 'totalprice', 'saleprice'],
+    customerDiscountPrice: ['customerdiscountprice', 'discountprice', 'customerdiscount', 'retaildiscountprice'],
+    customerDiscountPercent: ['customerdiscountpercent', 'discountpercent', 'discountpct', 'customerdiscountpct'],
     wholesalePrice: ['wholesaleprice', 'dealerprice', 'tradeprice', 'b2bprice', 'cost'],
+    dealerDiscountPrice: ['dealerdiscountprice', 'wholesalediscountprice', 'dealerdiscount', 'b2bdiscountprice'],
+    dealerDiscountPercent: ['dealerdiscountpercent', 'wholesalediscountpercent', 'dealerdiscountpct', 'b2bdiscountpct'],
     measurements: ['measurements', 'dimensions', 'measurement', 'size_mm'],
     imageUrl: ['imageurl', 'image', 'picture', 'photo', 'photourl'],
     videoUrl: ['videourl', 'video', '360video', 'movie'],
@@ -540,6 +556,38 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
     const price = parseFloat(getVal('price')) || 0
     const wholesalePrice = parseFloat(getVal('wholesalePrice')) || (price > 0 ? Math.round(price * 0.75) : 0)
     const sku = getVal('sku') || `HMD-UPL-${Date.now().toString().slice(-6)}-${rowIndex}`
+
+    let customerDiscountPrice = null
+    let customerDiscountPercent = null
+    let dealerDiscountPrice = null
+    let dealerDiscountPercent = null
+
+    const rawCustDiscPrice = getVal('customerDiscountPrice')
+    const rawCustDiscPct = getVal('customerDiscountPercent')
+    if ((rawCustDiscPrice && String(rawCustDiscPrice).trim() !== '') || (rawCustDiscPct && String(rawCustDiscPct).trim() !== '')) {
+      try {
+        const disc = computeDiscount(price, rawCustDiscPrice, rawCustDiscPct)
+        customerDiscountPrice = disc.discountPrice
+        customerDiscountPercent = disc.discountPercent
+      } catch (err) {
+        skippedRows.push({ row: rowIndex + 1, sku, reason: `Customer discount validation failed: ${err.message}` })
+        continue
+      }
+    }
+
+    const rawDealDiscPrice = getVal('dealerDiscountPrice')
+    const rawDealDiscPct = getVal('dealerDiscountPercent')
+    if ((rawDealDiscPrice && String(rawDealDiscPrice).trim() !== '') || (rawDealDiscPct && String(rawDealDiscPct).trim() !== '')) {
+      try {
+        const disc = computeDiscount(wholesalePrice, rawDealDiscPrice, rawDealDiscPct)
+        dealerDiscountPrice = disc.discountPrice
+        dealerDiscountPercent = disc.discountPercent
+      } catch (err) {
+        skippedRows.push({ row: rowIndex + 1, sku, reason: `Dealer discount validation failed: ${err.message}` })
+        continue
+      }
+    }
+
     const rawCat = getVal('category')
     const normalizedCat = normalizeCategoryName(rawCat)
     let category = normalizedCat
@@ -565,7 +613,13 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
       lab: (getVal('lab') || 'IGI').toUpperCase(),
       certificateNumber: getVal('certificateNumber') || 'N/A',
       price,
+      customerPrice: price,
+      customerDiscountPrice,
+      customerDiscountPercent,
       wholesalePrice,
+      dealerPrice: wholesalePrice,
+      dealerDiscountPrice,
+      dealerDiscountPercent,
       measurements: getVal('measurements') || 'N/A',
       imageUrl: getVal('imageUrl') || null,
       videoUrl: getVal('videoUrl') || null,
@@ -596,7 +650,11 @@ export function generateInventoryTemplate() {
     'Lab',
     'Certificate Number',
     'Price (USD)',
+    'Customer Discount Price',
+    'Customer Discount %',
     'Wholesale Price (USD)',
+    'Dealer Discount Price',
+    'Dealer Discount %',
     'Measurements',
     'Image URL',
     'Video URL',
@@ -615,7 +673,11 @@ export function generateInventoryTemplate() {
     'IGI',
     'LG624918231',
     '1850',
+    '1480',
+    '20',
     '1350',
+    '1080',
+    '20',
     '7.35 x 7.39 x 4.52 mm',
     'https://example.com/images/hmd-001.jpg',
     'https://example.com/videos/hmd-001.mp4',
@@ -634,6 +696,11 @@ export function generateInventoryTemplate() {
     'IGI',
     'LG628104928',
     '2650',
+    '',
+    '',
+    '1950',
+    '',
+    '',
     '1950',
     '10.12 x 7.15 x 4.48 mm',
     '',
@@ -989,31 +1056,47 @@ export async function handleGetCatalog(req, res, url, user = null) {
         }
         const rows = await db(dbQuery)
         if (Array.isArray(rows) && rows.length > 0) {
-          activeItems = rows.map(r => ({
-            id: r.id,
-            sku: r.sku,
-            category: r.category === 'Color Non-Certified Diamonds' ? 'Solitaire Non-Certified Diamonds' : (r.category || 'Certified Diamonds'),
-            shape: r.shape,
-            carat: parseFloat(r.carat) || 0,
-            color: r.color,
-            clarity: r.clarity,
-            cut: r.cut,
-            polish: r.polish,
-            symmetry: r.symmetry,
-            fluorescence: r.fluorescence,
-            lab: r.lab,
-            certificateNumber: r.certificate_number,
-            price: parseFloat(r.customer_price) || 0,
-            customerPrice: parseFloat(r.customer_price) || 0,
-            wholesalePrice: parseFloat(r.dealer_price) || 0,
-            dealerPrice: parseFloat(r.dealer_price) || 0,
-            measurements: r.measurements,
-            imageUrl: r.image_url,
-            videoUrl: r.video_url,
-            status: r.status,
-            source: r.source,
-            updatedAt: r.updated_at,
-          }))
+          activeItems = rows.map(r => {
+            const customerListPrice = parseFloat(r.customer_price) || 0
+            const customerDiscPrice = r.customer_discount_price != null ? parseFloat(r.customer_discount_price) : null
+            const customerDiscPct = r.customer_discount_percent != null ? parseFloat(r.customer_discount_percent) : null
+            const customerEffectivePrice = customerDiscPrice != null ? customerDiscPrice : customerListPrice
+
+            const dealerListPrice = parseFloat(r.dealer_price) || 0
+            const dealerDiscPrice = r.dealer_discount_price != null ? parseFloat(r.dealer_discount_price) : null
+            const dealerDiscPct = r.dealer_discount_percent != null ? parseFloat(r.dealer_discount_percent) : null
+            const dealerEffectivePrice = dealerDiscPrice != null ? dealerDiscPrice : dealerListPrice
+
+            return {
+              id: r.id,
+              sku: r.sku,
+              category: r.category === 'Color Non-Certified Diamonds' ? 'Solitaire Non-Certified Diamonds' : (r.category || 'Certified Diamonds'),
+              shape: r.shape,
+              carat: parseFloat(r.carat) || 0,
+              color: r.color,
+              clarity: r.clarity,
+              cut: r.cut,
+              polish: r.polish,
+              symmetry: r.symmetry,
+              fluorescence: r.fluorescence,
+              lab: r.lab,
+              certificateNumber: r.certificate_number,
+              customerPrice: customerListPrice,
+              customerDiscountPrice: customerDiscPrice,
+              customerDiscountPercent: customerDiscPct,
+              customerEffectivePrice,
+              dealerPrice: dealerListPrice,
+              dealerDiscountPrice: dealerDiscPrice,
+              dealerDiscountPercent: dealerDiscPct,
+              dealerEffectivePrice,
+              measurements: r.measurements,
+              imageUrl: r.image_url,
+              videoUrl: r.video_url,
+              status: r.status,
+              source: r.source,
+              updatedAt: r.updated_at,
+            }
+          })
         }
       } catch (dbErr) {
         console.warn('DB diamonds fetch fallback to memory:', dbErr.message)
@@ -1022,7 +1105,31 @@ export async function handleGetCatalog(req, res, url, user = null) {
 
     // 2. Fallback to memory inventory if DB returned 0 items
     if (activeItems.length === 0) {
-      activeItems = memoryInventory.filter(item => item.status === 'published' || item.status === 'available')
+      activeItems = memoryInventory
+        .filter(item => item.status === 'published' || item.status === 'available')
+        .map(item => {
+          const customerListPrice = parseFloat(item.customerPrice ?? item.price) || 0
+          const customerDiscPrice = item.customerDiscountPrice != null ? parseFloat(item.customerDiscountPrice) : null
+          const customerDiscPct = item.customerDiscountPercent != null ? parseFloat(item.customerDiscountPercent) : null
+          const customerEffectivePrice = customerDiscPrice != null ? customerDiscPrice : customerListPrice
+
+          const dealerListPrice = parseFloat(item.dealerPrice ?? item.wholesalePrice) || 0
+          const dealerDiscPrice = item.dealerDiscountPrice != null ? parseFloat(item.dealerDiscountPrice) : null
+          const dealerDiscPct = item.dealerDiscountPercent != null ? parseFloat(item.dealerDiscountPercent) : null
+          const dealerEffectivePrice = dealerDiscPrice != null ? dealerDiscPrice : dealerListPrice
+
+          return {
+            ...item,
+            customerPrice: customerListPrice,
+            customerDiscountPrice: customerDiscPrice,
+            customerDiscountPercent: customerDiscPct,
+            customerEffectivePrice,
+            dealerPrice: dealerListPrice,
+            dealerDiscountPrice: dealerDiscPrice,
+            dealerDiscountPercent: dealerDiscPct,
+            dealerEffectivePrice,
+          }
+        })
       if (categoryParam && categoryParam !== 'all') {
         const isNonCert = categoryParam === 'Solitaire Non-Certified Diamonds' || categoryParam === 'Color Non-Certified Diamonds'
         activeItems = activeItems.filter(item => {
@@ -1067,12 +1174,44 @@ export async function handleGetCatalog(req, res, url, user = null) {
       isDealerPending = accountType === 'dealer' && dealerStatus !== 'approved'
     }
 
-    // 5. Strictly protect wholesale pricing from guests & retail customers
+    // 5. Strictly isolate retail and dealer pricing per audience
     const sanitized = filtered.map(item => {
       const copy = { ...item }
-      if (!isApprovedDealer) {
+      if (isApprovedDealer) {
+        // Approved Dealer View: dealer list price, discount price, discount percent
+        copy.price = copy.dealerEffectivePrice
+        copy.listPrice = copy.dealerPrice
+        copy.discountPrice = copy.dealerDiscountPrice
+        copy.discountPercent = copy.dealerDiscountPercent
+        copy.wholesalePrice = copy.dealerPrice
+        copy.dealerPrice = copy.dealerPrice
+
+        // Strictly purge retail customer prices & discounts
+        delete copy.customerPrice
+        delete copy.customer_price
+        delete copy.customerDiscountPrice
+        delete copy.customer_discount_price
+        delete copy.customerDiscountPercent
+        delete copy.customer_discount_percent
+        delete copy.customerEffectivePrice
+        delete copy.dealerEffectivePrice
+      } else {
+        // Retail Customer & Anonymous Visitor View: customer list price, discount price, discount percent
+        copy.price = copy.customerEffectivePrice
+        copy.listPrice = copy.customerPrice
+        copy.discountPrice = copy.customerDiscountPrice
+        copy.discountPercent = copy.customerDiscountPercent
+
+        // Strictly purge wholesale dealer prices & discounts
         delete copy.wholesalePrice
         delete copy.dealerPrice
+        delete copy.dealer_price
+        delete copy.dealerDiscountPrice
+        delete copy.dealer_discount_price
+        delete copy.dealerDiscountPercent
+        delete copy.dealer_discount_percent
+        delete copy.customerEffectivePrice
+        delete copy.dealerEffectivePrice
       }
       return copy
     })
@@ -1139,9 +1278,20 @@ export async function handleUploadInventory(req, res, admin) {
     if (mode === 'replace') {
       memoryInventory = result.items
     } else {
-      // Append mode: update matching SKUs or add new ones
+      // Append mode: update matching SKUs or add new ones without overwriting manual discounts
       const existingSkuMap = new Map(memoryInventory.map(item => [item.sku, item]))
       for (const item of result.items) {
+        const existing = existingSkuMap.get(item.sku)
+        if (existing) {
+          if (item.customerDiscountPrice === null && item.customerDiscountPercent === null) {
+            item.customerDiscountPrice = existing.customerDiscountPrice ?? null
+            item.customerDiscountPercent = existing.customerDiscountPercent ?? null
+          }
+          if (item.dealerDiscountPrice === null && item.dealerDiscountPercent === null) {
+            item.dealerDiscountPrice = existing.dealerDiscountPrice ?? null
+            item.dealerDiscountPercent = existing.dealerDiscountPercent ?? null
+          }
+        }
         existingSkuMap.set(item.sku, item)
       }
       memoryInventory = Array.from(existingSkuMap.values())
@@ -1165,7 +1315,11 @@ export async function handleUploadInventory(req, res, admin) {
           lab: item.lab,
           certificate_number: item.certificateNumber || 'N/A',
           customer_price: item.price || 0,
+          customer_discount_price: item.customerDiscountPrice || null,
+          customer_discount_percent: item.customerDiscountPercent || null,
           dealer_price: item.wholesalePrice || 0,
+          dealer_discount_price: item.dealerDiscountPrice || null,
+          dealer_discount_percent: item.dealerDiscountPercent || null,
           measurements: item.measurements || 'N/A',
           image_url: item.imageUrl || null,
           video_url: item.videoUrl || null,
@@ -1235,32 +1389,50 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
       }
       const rows = await db(query)
       if (Array.isArray(rows)) {
-        items = rows.map(r => ({
-          id: r.id,
-          sku: r.sku,
-          category: r.category || 'Certified Diamonds',
-          shape: r.shape,
-          carat: parseFloat(r.carat) || 0,
-          color: r.color,
-          clarity: r.clarity,
-          cut: r.cut,
-          polish: r.polish,
-          symmetry: r.symmetry,
-          fluorescence: r.fluorescence,
-          lab: r.lab,
-          certificateNumber: r.certificate_number,
-          customerPrice: parseFloat(r.customer_price) || 0,
-          dealerPrice: parseFloat(r.dealer_price) || 0,
-          price: parseFloat(r.customer_price) || 0,
-          wholesalePrice: parseFloat(r.dealer_price) || 0,
-          measurements: r.measurements,
-          imageUrl: r.image_url,
-          videoUrl: r.video_url,
-          status: r.status,
-          source: r.source,
-          updatedAt: r.updated_at,
-          createdAt: r.created_at,
-        }))
+        items = rows.map(r => {
+          const customerListPrice = parseFloat(r.customer_price) || 0
+          const customerDiscPrice = r.customer_discount_price != null ? parseFloat(r.customer_discount_price) : null
+          const customerDiscPct = r.customer_discount_percent != null ? parseFloat(r.customer_discount_percent) : null
+          const customerEffectivePrice = customerDiscPrice != null ? customerDiscPrice : customerListPrice
+
+          const dealerListPrice = parseFloat(r.dealer_price) || 0
+          const dealerDiscPrice = r.dealer_discount_price != null ? parseFloat(r.dealer_discount_price) : null
+          const dealerDiscPct = r.dealer_discount_percent != null ? parseFloat(r.dealer_discount_percent) : null
+          const dealerEffectivePrice = dealerDiscPrice != null ? dealerDiscPrice : dealerListPrice
+
+          return {
+            id: r.id,
+            sku: r.sku,
+            category: r.category || 'Certified Diamonds',
+            shape: r.shape,
+            carat: parseFloat(r.carat) || 0,
+            color: r.color,
+            clarity: r.clarity,
+            cut: r.cut,
+            polish: r.polish,
+            symmetry: r.symmetry,
+            fluorescence: r.fluorescence,
+            lab: r.lab,
+            certificateNumber: r.certificate_number,
+            customerPrice: customerListPrice,
+            customerDiscountPrice: customerDiscPrice,
+            customerDiscountPercent: customerDiscPct,
+            customerEffectivePrice,
+            dealerPrice: dealerListPrice,
+            dealerDiscountPrice: dealerDiscPrice,
+            dealerDiscountPercent: dealerDiscPct,
+            dealerEffectivePrice,
+            price: customerListPrice,
+            wholesalePrice: dealerListPrice,
+            measurements: r.measurements,
+            imageUrl: r.image_url,
+            videoUrl: r.video_url,
+            status: r.status,
+            source: r.source,
+            updatedAt: r.updated_at,
+            createdAt: r.created_at,
+          }
+        })
       }
     } catch (err) {
       console.warn('Failed to load admin diamonds from DB:', err.message)
@@ -1269,14 +1441,34 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
 
   // Fallback to memoryInventory if DB has no rows
   if (items.length === 0 && memoryInventory.length > 0) {
-    items = memoryInventory.map(item => ({
-      ...item,
-      category: item.category || 'Certified Diamonds',
-      customerPrice: item.price,
-      dealerPrice: item.wholesalePrice,
-      status: item.status || 'published',
-      source: item.source || 'excel_upload',
-    }))
+    items = memoryInventory.map(item => {
+      const customerListPrice = parseFloat(item.customerPrice ?? item.price) || 0
+      const customerDiscPrice = item.customerDiscountPrice != null ? parseFloat(item.customerDiscountPrice) : null
+      const customerDiscPct = item.customerDiscountPercent != null ? parseFloat(item.customerDiscountPercent) : null
+      const customerEffectivePrice = customerDiscPrice != null ? customerDiscPrice : customerListPrice
+
+      const dealerListPrice = parseFloat(item.dealerPrice ?? item.wholesalePrice) || 0
+      const dealerDiscPrice = item.dealerDiscountPrice != null ? parseFloat(item.dealerDiscountPrice) : null
+      const dealerDiscPct = item.dealerDiscountPercent != null ? parseFloat(item.dealerDiscountPercent) : null
+      const dealerEffectivePrice = dealerDiscPrice != null ? dealerDiscPrice : dealerListPrice
+
+      return {
+        ...item,
+        category: item.category || 'Certified Diamonds',
+        customerPrice: customerListPrice,
+        customerDiscountPrice: customerDiscPrice,
+        customerDiscountPercent: customerDiscPct,
+        customerEffectivePrice,
+        dealerPrice: dealerListPrice,
+        dealerDiscountPrice: dealerDiscPrice,
+        dealerDiscountPercent: dealerDiscPct,
+        dealerEffectivePrice,
+        price: customerListPrice,
+        wholesalePrice: dealerListPrice,
+        status: item.status || 'published',
+        source: item.source || 'excel_upload',
+      }
+    })
   }
 
   // Filter in memory for search
@@ -1302,6 +1494,9 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
 
 export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
   if (!admin) return json(res, 401, { error: 'Admin authorization required.' })
+  if (admin.permissions && admin.permissions.can_manage_inventory === false) {
+    return json(res, 403, { error: 'Inventory management permission required.' })
+  }
   const cleanId = String(diamondId || '').trim()
   if (!cleanId || !/^[a-zA-Z0-9_-]+$/.test(cleanId)) {
     return json(res, 400, { error: 'Invalid diamond identifier.' })
@@ -1309,15 +1504,37 @@ export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
   const safeId = encodeURIComponent(cleanId)
   const input = await bodyJson(req)
 
+  // Find existing diamond record to get baseline prices and capture before/after audit data
+  let existing = null
+  if (supabaseReady()) {
+    try {
+      const rows = await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})&limit=1`)
+      if (Array.isArray(rows) && rows.length > 0) existing = rows[0]
+    } catch {
+      // ignore
+    }
+  }
+  if (!existing) {
+    existing = memoryInventory.find(i => i.id === cleanId || i.sku === cleanId)
+  }
+
+  if (!existing) {
+    return json(res, 404, { error: 'Diamond item not found.' })
+  }
+
+  let pricingUpdates = {}
+  try {
+    pricingUpdates = processDiamondPricingUpdates(existing, input)
+  } catch (err) {
+    return json(res, 400, { error: err.message })
+  }
+
   const updates = {
+    ...pricingUpdates,
     updated_at: new Date().toISOString(),
   }
 
   if (input.category !== undefined) updates.category = String(input.category).trim()
-  if (input.customerPrice !== undefined) updates.customer_price = parseFloat(input.customerPrice) || 0
-  if (input.dealerPrice !== undefined) updates.dealer_price = parseFloat(input.dealerPrice) || 0
-  if (input.price !== undefined) updates.customer_price = parseFloat(input.price) || 0
-  if (input.wholesalePrice !== undefined) updates.dealer_price = parseFloat(input.wholesalePrice) || 0
   if (input.status !== undefined) updates.status = input.status
 
   if (supabaseReady()) {
@@ -1344,9 +1561,64 @@ export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
   const memItem = memoryInventory.find(i => i.id === cleanId || i.sku === cleanId)
   if (memItem) {
     if (updates.category) memItem.category = updates.category
-    if (updates.customer_price !== undefined) memItem.price = updates.customer_price
-    if (updates.dealer_price !== undefined) memItem.wholesalePrice = updates.dealer_price
     if (updates.status) memItem.status = updates.status
+    if (updates.customer_price !== undefined) {
+      memItem.customerPrice = updates.customer_price
+      memItem.price = updates.customer_price
+    }
+    if (updates.customer_discount_price !== undefined) {
+      memItem.customerDiscountPrice = updates.customer_discount_price
+    }
+    if (updates.customer_discount_percent !== undefined) {
+      memItem.customerDiscountPercent = updates.customer_discount_percent
+    }
+    if (updates.dealer_price !== undefined) {
+      memItem.dealerPrice = updates.dealer_price
+      memItem.wholesalePrice = updates.dealer_price
+    }
+    if (updates.dealer_discount_price !== undefined) {
+      memItem.dealerDiscountPrice = updates.dealer_discount_price
+    }
+    if (updates.dealer_discount_percent !== undefined) {
+      memItem.dealerDiscountPercent = updates.dealer_discount_percent
+    }
+  }
+
+  // Audit log price & inventory update
+  if (supabaseReady()) {
+    try {
+      await db('audit_log', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          actor_user_id: admin?.user?.id || 'admin',
+          action: 'diamond_price_updated',
+          entity_type: 'diamond',
+          entity_id: cleanId,
+          metadata: {
+            sku: existing.sku,
+            before: {
+              customer_price: existing.customer_price ?? existing.customerPrice ?? existing.price,
+              customer_discount_price: existing.customer_discount_price ?? existing.customerDiscountPrice ?? null,
+              customer_discount_percent: existing.customer_discount_percent ?? existing.customerDiscountPercent ?? null,
+              dealer_price: existing.dealer_price ?? existing.dealerPrice ?? existing.wholesalePrice,
+              dealer_discount_price: existing.dealer_discount_price ?? existing.dealerDiscountPrice ?? null,
+              dealer_discount_percent: existing.dealer_discount_percent ?? existing.dealerDiscountPercent ?? null,
+            },
+            after: {
+              customer_price: updates.customer_price,
+              customer_discount_price: updates.customer_discount_price,
+              customer_discount_percent: updates.customer_discount_percent,
+              dealer_price: updates.dealer_price,
+              dealer_discount_price: updates.dealer_discount_price,
+              dealer_discount_percent: updates.dealer_discount_percent,
+            },
+          },
+        }),
+      })
+    } catch (auditErr) {
+      console.warn('Audit log write error:', auditErr.message)
+    }
   }
 
   return json(res, 200, { success: true, message: 'Diamond updated successfully.' })
@@ -1613,4 +1885,55 @@ export async function handleUpdateFlomizConfig(req, res, admin) {
     apiKeyConfigured: Boolean(getFlomizApiKey()),
     keyPrefix: getFlomizApiKey() ? `${getFlomizApiKey().slice(0, 10)}...` : null,
   })
+}
+
+/**
+ * Returns the authoritative server-side effective price for a stone, respecting
+ * audience discounts (customer vs approved dealer).
+ */
+export async function getEffectiveDiamondPrice(sku, isApprovedDealer = false) {
+  const cleanSku = String(sku || '').trim()
+  if (!cleanSku) return 0
+
+  let item = null
+  if (supabaseReady()) {
+    try {
+      const rows = await db(`diamonds_inventory?sku=eq.${encodeURIComponent(cleanSku)}&select=customer_price,customer_discount_price,dealer_price,dealer_discount_price&limit=1`)
+      if (Array.isArray(rows) && rows.length > 0) {
+        item = rows[0]
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!item) {
+    const mem = memoryInventory.find(m => m.sku === cleanSku || m.id === cleanSku)
+    if (mem) {
+      item = {
+        customer_price: mem.customerPrice ?? mem.price,
+        customer_discount_price: mem.customerDiscountPrice ?? null,
+        dealer_price: mem.dealerPrice ?? mem.wholesalePrice,
+        dealer_discount_price: mem.dealerDiscountPrice ?? null,
+      }
+    }
+  }
+
+  if (!item) return 0
+
+  if (isApprovedDealer) {
+    if (item.dealer_discount_price !== null && item.dealer_discount_price !== undefined) {
+      return Number(item.dealer_discount_price)
+    }
+    return Number(item.dealer_price) || 0
+  }
+
+  if (item.customer_discount_price !== null && item.customer_discount_price !== undefined) {
+    return Number(item.customer_discount_price)
+  }
+  return Number(item.customer_price) || 0
+}
+
+export function getInventoryItemBySku(sku) {
+  return memoryInventory.find(m => m.sku === sku || m.id === sku) || null
 }

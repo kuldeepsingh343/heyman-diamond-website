@@ -592,6 +592,60 @@
   font-family: 'DM Sans', sans-serif;
 }
 
+.discount-price-display {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.price-list-struck {
+  font-size: 14px;
+  text-decoration: line-through;
+  color: #8c887e;
+  font-weight: 500;
+}
+
+.price-value--discounted {
+  color: #b33927;
+  font-weight: 800;
+}
+
+.dealer-price-value--discounted {
+  color: #176038;
+  font-weight: 800;
+}
+
+.discount-tag-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: #fde8e4;
+  color: #b33927;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
+.discount-tag-badge--dealer {
+  background: #d1ebd8;
+  color: #176038;
+}
+
+.modal-discount-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.modal-price-struck {
+  font-size: 16px;
+  text-decoration: line-through;
+  color: #8c887e;
+}
+
 /* Dealer Wholesale Price */
 .dealer-price-box {
   padding-top: 8px;
