@@ -1,4 +1,5 @@
 import { db, json, bodyJson, supabaseReady, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from './shared.mjs'
+import { ROLE_TITLES, getDefaultPermissions, resolvePermissions } from './auth.mjs'
 
 // In-memory staff storage for development and offline/mock operation
 export const memoryStaffUsers = [
@@ -13,6 +14,7 @@ export const memoryStaffUsers = [
     is_active: true,
     status: 'active',
     created_at: new Date('2026-10-01T00:00:00Z').toISOString(),
+    updated_at: new Date('2026-10-01T00:00:00Z').toISOString(),
     permissions: {
       can_manage_inventory: true,
       can_manage_orders: true,
@@ -31,8 +33,8 @@ export function getMemoryStaffUser(id) {
 }
 
 export async function handleGetStaffUsers(req, res, admin) {
-  if (!admin?.permissions?.can_manage_team && !admin?.isSuperAdmin) {
-    return json(res, 403, { error: 'Super Administrator privilege required to view team and staff accounts.' })
+  if (admin?.role !== 'super_admin' || (!admin?.permissions?.can_manage_users && !admin?.permissions?.can_manage_team)) {
+    return json(res, 403, { error: 'Super Administrator privilege required to view staff and user accounts.' })
   }
 
   let dbStaff = []
@@ -48,23 +50,20 @@ export async function handleGetStaffUsers(req, res, admin) {
             if (profileRows?.[0]?.full_name) fullName = profileRows[0].full_name
           } catch {}
 
+          const resolved = resolvePermissions(row)
           dbStaff.push({
             id: row.user_id,
             user_id: row.user_id,
             email,
             full_name: fullName,
-            role_title: row.role_title || 'Operations Staff',
-            is_super_admin: Boolean(row.can_manage_team),
-            status: 'active',
+            role: resolved.role,
+            role_title: resolved.role_title,
+            is_super_admin: resolved.role === 'super_admin',
+            is_active: row.is_active !== false,
+            status: row.is_active !== false ? 'active' : 'inactive',
             created_at: row.created_at,
-            permissions: {
-              can_manage_inventory: row.can_manage_inventory !== false,
-              can_manage_orders: Boolean(row.can_manage_orders),
-              can_review_kyc: Boolean(row.can_review_kyc),
-              can_manage_reviews: Boolean(row.can_manage_reviews),
-              can_manage_promotions: Boolean(row.can_manage_promotions),
-              can_manage_team: Boolean(row.can_manage_team),
-            },
+            updated_at: row.updated_at,
+            permissions: resolved.permissions,
           })
         }
       }
@@ -73,33 +72,31 @@ export async function handleGetStaffUsers(req, res, admin) {
     }
   }
 
-  // Merge database staff with memory staff ensuring no duplicates
   const map = new Map()
   for (const s of memoryStaffUsers) {
-    map.set(s.email.toLowerCase(), s)
+    map.set(s.id, {
+      ...s,
+      is_active: s.is_active !== false,
+      status: s.is_active !== false ? 'active' : 'inactive',
+    })
   }
   for (const s of dbStaff) {
-    if (s.email) {
-      map.set(s.email.toLowerCase(), s)
-    } else {
-      map.set(s.id, s)
-    }
+    map.set(s.id, s)
   }
 
-  return json(res, 200, { staff: Array.from(map.values()) })
+  const staffList = Array.from(map.values())
+  return json(res, 200, { users: staffList, staff: staffList })
 }
 
 export async function handleCreateStaffUser(req, res, admin) {
-  if (!admin?.permissions?.can_manage_team && !admin?.isSuperAdmin) {
-    return json(res, 403, { error: 'Super Administrator privilege required to create staff accounts.' })
+  if (admin?.role !== 'super_admin' || (!admin?.permissions?.can_manage_users && !admin?.permissions?.can_manage_team)) {
+    return json(res, 403, { error: 'Super Administrator privilege required to create and invite staff accounts.' })
   }
 
   const input = await bodyJson(req).catch(() => ({}))
   const fullName = String(input.fullName || input.full_name || '').trim()
   const email = String(input.email || '').trim().toLowerCase()
-  const password = String(input.password || '').trim()
-  const roleTitle = String(input.roleTitle || input.role_title || 'Operations Manager').trim()
-  const perms = input.permissions || {}
+  const requestedRole = String(input.role || '').trim()
 
   if (fullName.length < 2 || fullName.length > 100) {
     return json(res, 400, { error: 'Please enter a valid staff full name (2–100 characters).' })
@@ -107,117 +104,121 @@ export async function handleCreateStaffUser(req, res, admin) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return json(res, 400, { error: 'Please provide a valid email address.' })
   }
-  if (password.length < 8) {
-    return json(res, 400, { error: 'Staff account password must be at least 8 characters long.' })
+
+  // Reject super_admin role assignment via API
+  if (requestedRole === 'super_admin') {
+    return json(res, 400, { error: 'Super Administrator privilege cannot be granted via the API. Super admins must be designated via database migration.' })
+  }
+
+  const allowedRoles = ['admin', 'sales_manager', 'operations_manager']
+  const role = allowedRoles.includes(requestedRole) ? requestedRole : 'operations_manager'
+  const roleTitle = input.roleTitle || input.role_title || ROLE_TITLES[role]
+
+  // Reject client-sent passwords in live mode — invitations send a set-password link via Supabase Auth
+  if (input.password && (!SUPABASE_URL || !SUPABASE_URL.includes('mock')) && supabaseReady()) {
+    return json(res, 400, { error: 'Passwords cannot be set manually. Staff invitations send a secure set-password link via email.' })
   }
 
   // Check if staff already exists in memory
-  if (memoryStaffUsers.some(s => s.email.toLowerCase() === email)) {
+  if (memoryStaffUsers.some(s => s.email.toLowerCase() === email && s.is_active !== false)) {
     return json(res, 409, { error: 'A staff account with this email address already exists.' })
   }
 
-  const newStaffItem = {
-    id: `staff-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    user_id: `staff-${Date.now()}`,
-    email,
-    full_name: fullName,
-    role_title: roleTitle,
-    is_super_admin: Boolean(perms.can_manage_team),
-    status: 'active',
-    created_at: new Date().toISOString(),
-    permissions: {
-      can_manage_inventory: perms.can_manage_inventory !== false,
-      can_manage_orders: Boolean(perms.can_manage_orders),
-      can_review_kyc: Boolean(perms.can_review_kyc),
-      can_manage_reviews: Boolean(perms.can_manage_reviews),
-      can_manage_promotions: Boolean(perms.can_manage_promotions),
-      can_manage_team: Boolean(perms.can_manage_team),
-    },
+  // Compute permissions
+  const defaults = getDefaultPermissions(role)
+  const customPerms = input.permissions || {}
+  const perms = {
+    can_manage_inventory: customPerms.can_manage_inventory !== undefined ? Boolean(customPerms.can_manage_inventory) : defaults.can_manage_inventory,
+    can_manage_orders: customPerms.can_manage_orders !== undefined ? Boolean(customPerms.can_manage_orders) : defaults.can_manage_orders,
+    can_review_kyc: customPerms.can_review_kyc !== undefined ? Boolean(customPerms.can_review_kyc) : defaults.can_review_kyc,
+    can_manage_reviews: customPerms.can_manage_reviews !== undefined ? Boolean(customPerms.can_manage_reviews) : defaults.can_manage_reviews,
+    can_manage_promotions: customPerms.can_manage_promotions !== undefined ? Boolean(customPerms.can_manage_promotions) : defaults.can_manage_promotions,
+    can_manage_users: false, // strictly false for non-super_admin
+    can_manage_team: false,
   }
 
+  let userId = `staff-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
   let dbSaved = false
-  if (supabaseReady() && SUPABASE_SERVICE_ROLE_KEY) {
+
+  if (supabaseReady() && SUPABASE_SERVICE_ROLE_KEY && SUPABASE_URL && !SUPABASE_URL.includes('mock')) {
     try {
-      // 1. Create or retrieve auth user via Supabase Admin API
-      let userId = ''
-      const adminUsersRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`, {
-        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-      })
-      if (adminUsersRes.ok) {
-        const adminData = await adminUsersRes.json()
-        const existing = (adminData.users || []).find(u => String(u.email || '').toLowerCase() === email)
-        if (existing) {
-          userId = existing.id
-        }
-      }
-
-      if (!userId) {
-        const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
-          method: 'POST',
-          headers: {
-            apikey: SUPABASE_SERVICE_ROLE_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            password,
-            email_confirm: true,
-            user_metadata: {
-              full_name: fullName,
-              account_type: 'admin',
-              role_title: roleTitle,
-            },
-          }),
-        })
-        if (createRes.ok) {
-          const createData = await createRes.json()
-          userId = createData.id || createData.user?.id
-        }
-      }
-
-      if (userId) {
-        newStaffItem.id = userId
-        newStaffItem.user_id = userId
-
-        // 2. Insert profile record
-        await db('profiles', {
-          method: 'POST',
-          headers: { Prefer: 'resolution=merge-duplicates' },
-          body: JSON.stringify({
-            id: userId,
+      // Dispatch invitation email via Supabase Admin API
+      const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          data: {
             full_name: fullName,
-            account_type: 'admin',
-            dealer_status: 'not_applied',
-            updated_at: new Date().toISOString(),
-          }),
-        }).catch(() => {})
-
-        // 3. Upsert admin_users record with granular permissions
-        await db('admin_users', {
-          method: 'POST',
-          headers: { Prefer: 'resolution=merge-duplicates' },
-          body: JSON.stringify({
-            user_id: userId,
-            role_title: roleTitle,
-            can_manage_inventory: Boolean(perms.can_manage_inventory),
-            can_manage_orders: Boolean(perms.can_manage_orders),
-            can_review_kyc: Boolean(perms.can_review_kyc),
-            can_manage_reviews: Boolean(perms.can_manage_reviews),
-            can_manage_promotions: Boolean(perms.can_manage_promotions),
-            can_manage_team: Boolean(perms.can_manage_team),
-            created_at: new Date().toISOString(),
-          }),
-        }).catch(() => {})
-
-        dbSaved = true
+          },
+        }),
+      })
+      const inviteData = await inviteRes.json().catch(() => ({}))
+      if (!inviteRes.ok) {
+        return json(res, inviteRes.status || 400, { error: inviteData.msg || inviteData.message || 'Failed to dispatch staff invitation email.' })
       }
+      userId = inviteData.id || inviteData.user?.id || userId
+
+      // Insert profile record
+      await db('profiles', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify({
+          id: userId,
+          full_name: fullName,
+          account_type: 'admin',
+          dealer_status: 'not_applied',
+          updated_at: new Date().toISOString(),
+        }),
+      }).catch(() => {})
+
+      // Insert admin_users record
+      await db('admin_users', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify({
+          user_id: userId,
+          role,
+          role_title: roleTitle,
+          is_active: true,
+          created_by: admin.user.id,
+          can_manage_inventory: perms.can_manage_inventory,
+          can_manage_orders: perms.can_manage_orders,
+          can_review_kyc: perms.can_review_kyc,
+          can_manage_reviews: perms.can_manage_reviews,
+          can_manage_promotions: perms.can_manage_promotions,
+          can_manage_users: false,
+          can_manage_team: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+      }).catch(() => {})
+
+      dbSaved = true
     } catch (err) {
-      console.warn('DB create staff user failed, stored in memory:', err.message)
+      console.warn('DB invite staff user failed:', err.message)
     }
   }
 
-  // Save to memory store
+  const newStaffItem = {
+    id: userId,
+    user_id: userId,
+    email,
+    full_name: fullName,
+    role,
+    role_title: roleTitle,
+    is_super_admin: false,
+    is_active: true,
+    status: 'active',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    permissions: perms,
+  }
+
   memoryStaffUsers.push(newStaffItem)
 
   // Write audit log
@@ -226,24 +227,25 @@ export async function handleCreateStaffUser(req, res, admin) {
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
       actor_user_id: admin.user.id,
-      action: 'staff_account_created',
+      action: 'admin_user_invited',
       entity_type: 'admin_user',
-      entity_id: newStaffItem.id,
-      metadata: { email, roleTitle, permissions: newStaffItem.permissions },
+      entity_id: userId,
+      metadata: { email, fullName, role, permissions: perms },
     }),
   }).catch(() => {})
 
   return json(res, 201, {
     success: true,
-    message: `Account for ${fullName} (${roleTitle}) created successfully.`,
+    message: `Invitation successfully sent to ${email} for role ${ROLE_TITLES[role]}.`,
+    user: newStaffItem,
     staff: newStaffItem,
     dbSaved,
   })
 }
 
 export async function handleUpdateStaffUser(req, res, admin, id) {
-  if (!admin?.permissions?.can_manage_team && !admin?.isSuperAdmin) {
-    return json(res, 403, { error: 'Super Administrator privilege required to modify staff permissions.' })
+  if (admin?.role !== 'super_admin' || (!admin?.permissions?.can_manage_users && !admin?.permissions?.can_manage_team)) {
+    return json(res, 403, { error: 'Super Administrator privilege required to modify staff roles and permissions.' })
   }
 
   const cleanId = String(id || '').trim()
@@ -252,20 +254,74 @@ export async function handleUpdateStaffUser(req, res, admin, id) {
   }
 
   const input = await bodyJson(req).catch(() => ({}))
-  const roleTitle = input.roleTitle !== undefined ? String(input.roleTitle).trim() : undefined
-  const perms = input.permissions
-  const status = input.status
 
-  // Prevent Super Admin from locking themselves out of team management
-  if ((cleanId === admin.user.id || cleanId === 'staff-superadmin-1') && perms && perms.can_manage_team === false) {
-    return json(res, 400, { error: 'Cannot revoke Super Administrator privilege from your own account.' })
+  // Self modification prevention
+  if (cleanId === admin.user.id || cleanId === 'staff-superadmin-1') {
+    if (input.is_active === false || input.status === 'inactive') {
+      return json(res, 400, { error: 'You cannot deactivate your own account.' })
+    }
+    if (input.role && input.role !== 'super_admin') {
+      return json(res, 400, { error: 'You cannot demote or change your own role.' })
+    }
+    if (input.permissions && (input.permissions.can_manage_users === false || input.permissions.can_manage_team === false)) {
+      return json(res, 400, { error: 'You cannot revoke Super Administrator privileges from your own account.' })
+    }
   }
 
-  // Update in memory store
+  // Reject promotion to super_admin via API
+  if (input.role === 'super_admin') {
+    return json(res, 400, { error: 'Super Administrator privilege cannot be granted via the API. Super admins must be designated via database migration.' })
+  }
+
+  // Protection for the last remaining active super_admin
+  let targetIsSuperAdmin = false
+  if (supabaseReady()) {
+    try {
+      const rows = await db(`admin_users?user_id=eq.${encodeURIComponent(cleanId)}`)
+      if (rows?.[0]?.role === 'super_admin' || rows?.[0]?.can_manage_users || rows?.[0]?.can_manage_team) {
+        targetIsSuperAdmin = true
+      }
+    } catch {}
+  } else {
+    const mem = memoryStaffUsers.find(s => s.id === cleanId || s.user_id === cleanId)
+    if (mem?.role === 'super_admin' || mem?.is_super_admin) {
+      targetIsSuperAdmin = true
+    }
+  }
+
+  if (targetIsSuperAdmin) {
+    const deactivating = input.is_active === false || input.status === 'inactive'
+    const demoting = input.role && input.role !== 'super_admin'
+    if (deactivating || demoting) {
+      let activeSuperCount = 0
+      if (supabaseReady()) {
+        try {
+          const supers = await db('admin_users?role=eq.super_admin&is_active=eq.true')
+          activeSuperCount = Array.isArray(supers) ? supers.length : 0
+        } catch {}
+      } else {
+        activeSuperCount = memoryStaffUsers.filter(s => (s.role === 'super_admin' || s.is_super_admin) && s.is_active !== false).length
+      }
+      if (activeSuperCount <= 1) {
+        return json(res, 400, { error: 'Cannot deactivate or demote the last remaining active Super Administrator.' })
+      }
+    }
+  }
+
+  const roleTitle = input.roleTitle !== undefined ? String(input.roleTitle).trim() : (input.role ? ROLE_TITLES[input.role] : undefined)
+  const role = input.role && ['admin', 'sales_manager', 'operations_manager'].includes(input.role) ? input.role : undefined
+  const perms = input.permissions
+  const isActive = input.is_active !== undefined ? Boolean(input.is_active) : (input.status ? input.status === 'active' : undefined)
+
+  // Update memory store
   const mem = memoryStaffUsers.find(s => s.id === cleanId || s.user_id === cleanId)
   if (mem) {
     if (roleTitle) mem.role_title = roleTitle
-    if (status) mem.status = status
+    if (role) mem.role = role
+    if (isActive !== undefined) {
+      mem.is_active = isActive
+      mem.status = isActive ? 'active' : 'inactive'
+    }
     if (perms) {
       mem.permissions = {
         ...mem.permissions,
@@ -274,23 +330,30 @@ export async function handleUpdateStaffUser(req, res, admin, id) {
         ...(perms.can_review_kyc !== undefined && { can_review_kyc: Boolean(perms.can_review_kyc) }),
         ...(perms.can_manage_reviews !== undefined && { can_manage_reviews: Boolean(perms.can_manage_reviews) }),
         ...(perms.can_manage_promotions !== undefined && { can_manage_promotions: Boolean(perms.can_manage_promotions) }),
-        ...(perms.can_manage_team !== undefined && { can_manage_team: Boolean(perms.can_manage_team) }),
+        can_manage_users: mem.role === 'super_admin',
+        can_manage_team: mem.role === 'super_admin',
       }
-      mem.is_super_admin = Boolean(mem.permissions.can_manage_team)
+      mem.is_super_admin = mem.role === 'super_admin'
     }
+    mem.updated_at = new Date().toISOString()
   }
 
   if (supabaseReady() && /^[0-9a-f-]{36}$/i.test(cleanId)) {
     try {
-      const dbUpdates = {}
+      const dbUpdates = { updated_at: new Date().toISOString() }
       if (roleTitle) dbUpdates.role_title = roleTitle
+      if (role) dbUpdates.role = role
+      if (isActive !== undefined) dbUpdates.is_active = isActive
       if (perms) {
         if (perms.can_manage_inventory !== undefined) dbUpdates.can_manage_inventory = Boolean(perms.can_manage_inventory)
         if (perms.can_manage_orders !== undefined) dbUpdates.can_manage_orders = Boolean(perms.can_manage_orders)
         if (perms.can_review_kyc !== undefined) dbUpdates.can_review_kyc = Boolean(perms.can_review_kyc)
         if (perms.can_manage_reviews !== undefined) dbUpdates.can_manage_reviews = Boolean(perms.can_manage_reviews)
         if (perms.can_manage_promotions !== undefined) dbUpdates.can_manage_promotions = Boolean(perms.can_manage_promotions)
-        if (perms.can_manage_team !== undefined) dbUpdates.can_manage_team = Boolean(perms.can_manage_team)
+        if (!targetIsSuperAdmin) {
+          dbUpdates.can_manage_users = false
+          dbUpdates.can_manage_team = false
+        }
       }
 
       await db(`admin_users?user_id=eq.${encodeURIComponent(cleanId)}`, {
@@ -309,10 +372,10 @@ export async function handleUpdateStaffUser(req, res, admin, id) {
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
       actor_user_id: admin.user.id,
-      action: 'staff_permissions_updated',
+      action: 'admin_user_updated',
       entity_type: 'admin_user',
       entity_id: cleanId,
-      metadata: { roleTitle, perms, status },
+      metadata: { role, roleTitle, perms, isActive },
     }),
   }).catch(() => {})
 
@@ -320,13 +383,14 @@ export async function handleUpdateStaffUser(req, res, admin, id) {
     success: true,
     updated: true,
     message: 'Staff account and permissions updated successfully.',
-    staff: mem || { id: cleanId, role_title: roleTitle, permissions: perms },
+    user: mem || { id: cleanId, role, role_title: roleTitle, permissions: perms, is_active: isActive },
+    staff: mem || { id: cleanId, role, role_title: roleTitle, permissions: perms, is_active: isActive },
   })
 }
 
 export async function handleDeleteStaffUser(req, res, admin, id) {
-  if (!admin?.permissions?.can_manage_team && !admin?.isSuperAdmin) {
-    return json(res, 403, { error: 'Super Administrator privilege required to revoke staff accounts.' })
+  if (admin?.role !== 'super_admin' || (!admin?.permissions?.can_manage_users && !admin?.permissions?.can_manage_team)) {
+    return json(res, 403, { error: 'Super Administrator privilege required to deactivate staff accounts.' })
   }
 
   const cleanId = String(id || '').trim()
@@ -335,38 +399,68 @@ export async function handleDeleteStaffUser(req, res, admin, id) {
   }
 
   if (cleanId === admin.user.id || cleanId === 'staff-superadmin-1') {
-    return json(res, 400, { error: 'Cannot revoke permissions from the primary Super Administrator account.' })
+    return json(res, 400, { error: 'You cannot deactivate your own account.' })
   }
 
-  // Remove from memory
-  const idx = memoryStaffUsers.findIndex(s => s.id === cleanId || s.user_id === cleanId)
-  if (idx !== -1) {
-    memoryStaffUsers.splice(idx, 1)
-  }
-
-  if (supabaseReady() && /^[0-9a-f-]{36}$/i.test(cleanId)) {
+  // Protection for the last remaining active super_admin
+  let targetIsSuperAdmin = false
+  if (supabaseReady()) {
     try {
-      await db(`admin_users?user_id=eq.${encodeURIComponent(cleanId)}`, {
-        method: 'DELETE',
-        headers: { Prefer: 'return=minimal' },
-      })
-      await db(`profiles?id=eq.${encodeURIComponent(cleanId)}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ account_type: 'customer', updated_at: new Date().toISOString() }),
-      })
-    } catch (err) {
-      console.warn('DB delete staff user failed:', err.message)
+      const rows = await db(`admin_users?user_id=eq.${encodeURIComponent(cleanId)}`)
+      if (rows?.[0]?.role === 'super_admin' || rows?.[0]?.can_manage_users || rows?.[0]?.can_manage_team) {
+        targetIsSuperAdmin = true
+      }
+    } catch {}
+  } else {
+    const mem = memoryStaffUsers.find(s => s.id === cleanId || s.user_id === cleanId)
+    if (mem?.role === 'super_admin' || mem?.is_super_admin) {
+      targetIsSuperAdmin = true
     }
   }
 
-  // Audit log
+  if (targetIsSuperAdmin) {
+    let activeSuperCount = 0
+    if (supabaseReady()) {
+      try {
+        const supers = await db('admin_users?role=eq.super_admin&is_active=eq.true')
+        activeSuperCount = Array.isArray(supers) ? supers.length : 0
+      } catch {}
+    } else {
+      activeSuperCount = memoryStaffUsers.filter(s => (s.role === 'super_admin' || s.is_super_admin) && s.is_active !== false).length
+    }
+    if (activeSuperCount <= 1) {
+      return json(res, 400, { error: 'Cannot deactivate the last remaining active Super Administrator.' })
+    }
+  }
+
+  // Soft delete in memory
+  const mem = memoryStaffUsers.find(s => s.id === cleanId || s.user_id === cleanId)
+  if (mem) {
+    mem.is_active = false
+    mem.status = 'inactive'
+    mem.updated_at = new Date().toISOString()
+  }
+
+  // Soft delete in database (set is_active = false)
+  if (supabaseReady() && /^[0-9a-f-]{36}$/i.test(cleanId)) {
+    try {
+      await db(`admin_users?user_id=eq.${encodeURIComponent(cleanId)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ is_active: false, updated_at: new Date().toISOString() }),
+      })
+    } catch (err) {
+      console.warn('DB soft delete staff user failed:', err.message)
+    }
+  }
+
+  // Write audit log
   await db('audit_log', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
       actor_user_id: admin.user.id,
-      action: 'staff_account_revoked',
+      action: 'admin_user_deactivated',
       entity_type: 'admin_user',
       entity_id: cleanId,
     }),
@@ -374,8 +468,9 @@ export async function handleDeleteStaffUser(req, res, admin, id) {
 
   return json(res, 200, {
     success: true,
+    deactivated: true,
     deleted: true,
-    message: 'Staff operational access revoked successfully.',
+    message: 'Staff operational access deactivated successfully.',
   })
 }
 

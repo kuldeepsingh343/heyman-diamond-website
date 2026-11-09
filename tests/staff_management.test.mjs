@@ -48,7 +48,8 @@ function createMockReq(headers = {}, body = null) {
 }
 
 const superAdmin = {
-  user: { id: 'super-admin-1', email: 'kuldeepsingh343@gmail.com' },
+  user: { id: 'staff-superadmin-1', email: 'superadmin.test@internal.test' },
+  role: 'super_admin',
   isSuperAdmin: true,
   permissions: {
     can_manage_inventory: true,
@@ -56,6 +57,7 @@ const superAdmin = {
     can_review_kyc: true,
     can_manage_reviews: true,
     can_manage_promotions: true,
+    can_manage_users: true,
     can_manage_team: true,
     role_title: 'Super Administrator',
   },
@@ -63,9 +65,11 @@ const superAdmin = {
 
 const regularAdmin = {
   user: { id: 'sales-manager-1', email: 'sales@example.com' },
+  role: 'sales_manager',
   isSuperAdmin: false,
   permissions: {
     can_manage_orders: true,
+    can_manage_users: false,
     can_manage_team: false,
     role_title: 'Sales Manager',
   },
@@ -80,7 +84,7 @@ test('Staff Management — Only Super Admin can view staff accounts', async () =
   await handleGetStaffUsers(createMockReq(), allowedRes, superAdmin)
   assert.equal(allowedRes.statusCode, 200, 'Super admin must be allowed')
   assert.ok(Array.isArray(allowedRes.json?.staff), 'Must return staff array')
-  assert.ok(allowedRes.json?.staff.some(s => s.email === 'kuldeepsingh343@gmail.com'))
+  assert.ok(allowedRes.json?.staff.some(s => s.id === 'staff-superadmin-1' || s.email === 'superadmin.test@internal.test'))
 })
 
 test('Staff Management — Super Admin can create accounts for sales managers and operational staff with granular permissions', async () => {

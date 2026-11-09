@@ -157,6 +157,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/inventory/upload') {
       const admin = await requireAdmin(req)
+      if (!admin) return json(res, 401, { error: 'Admin authentication required.' })
+      if (!admin.permissions?.can_manage_inventory) {
+        return json(res, 403, { error: 'Inventory management permission required.' })
+      }
       return await handleUploadInventory(req, res, admin)
     }
 
@@ -190,103 +194,122 @@ const server = createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/admin/')) {
       const admin = await requireAdmin(req)
       if (!admin) return json(res, 401, { error: 'Sign in with an authorized administrator account.', message: 'Sign in with an authorized administrator account.' })
-      const p = admin.permissions
+      const p = admin.permissions || {}
 
       // Admin Inventory Upload
       if (req.method === 'POST' && url.pathname === '/api/admin/inventory/upload') {
+        if (!p.can_manage_inventory) return json(res, 403, { error: 'Inventory management permission required.' })
         return await handleUploadInventory(req, res, admin)
       }
 
       // Admin Diamonds Inventory & Price Management
-      if (req.method === 'GET' && url.pathname === '/api/admin/diamonds') {
-        return await handleGetAdminDiamonds(req, res, admin, url)
-      }
-      if (req.method === 'PATCH' && url.pathname === '/api/admin/diamonds/batch-publish') {
-        return await handleBatchPublishAdminDiamonds(req, res, admin)
-      }
-      if (req.method === 'PATCH' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
-        const id = url.pathname.split('/').pop()
-        return await handleUpdateAdminDiamond(req, res, admin, id)
-      }
-      if (req.method === 'POST' && url.pathname === '/api/admin/diamonds/sync-flomiz') {
-        return await handleSyncFlomizToStaging(req, res, admin)
-      }
-      if (req.method === 'POST' && url.pathname === '/api/admin/flomiz/test') {
-        return await handleTestFlomizConnection(req, res, admin)
-      }
-      if (req.method === 'POST' && url.pathname === '/api/admin/flomiz/config') {
-        return await handleUpdateFlomizConfig(req, res, admin)
+      if (url.pathname.startsWith('/api/admin/diamonds') || url.pathname.startsWith('/api/admin/flomiz')) {
+        if (!p.can_manage_inventory) return json(res, 403, { error: 'Inventory management permission required.' })
+        if (req.method === 'GET' && url.pathname === '/api/admin/diamonds') {
+          return await handleGetAdminDiamonds(req, res, admin, url)
+        }
+        if (req.method === 'PATCH' && url.pathname === '/api/admin/diamonds/batch-publish') {
+          return await handleBatchPublishAdminDiamonds(req, res, admin)
+        }
+        if (req.method === 'PATCH' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+          const id = url.pathname.split('/').pop()
+          return await handleUpdateAdminDiamond(req, res, admin, id)
+        }
+        if (req.method === 'POST' && url.pathname === '/api/admin/diamonds/sync-flomiz') {
+          return await handleSyncFlomizToStaging(req, res, admin)
+        }
+        if (req.method === 'POST' && url.pathname === '/api/admin/flomiz/test') {
+          return await handleTestFlomizConnection(req, res, admin)
+        }
+        if (req.method === 'POST' && url.pathname === '/api/admin/flomiz/config') {
+          return await handleUpdateFlomizConfig(req, res, admin)
+        }
       }
 
-      // Admin Quotes
-      if (req.method === 'GET' && url.pathname === '/api/admin/quotes') {
-        return await handleGetAdminQuotes(req, res, admin)
-      }
-      if (req.method === 'PATCH' && /^\/api\/admin\/quotes\/[0-9a-f-]+$/i.test(url.pathname)) {
-        const id = url.pathname.split('/').pop()
-        return await handleUpdateQuoteStatus(req, res, admin, id)
+      // Admin Quotes & Orders
+      if (url.pathname.startsWith('/api/admin/quotes') || url.pathname.startsWith('/api/admin/orders')) {
+        if (!p.can_manage_orders) return json(res, 403, { error: 'Order and quote management permission required.' })
+        if (req.method === 'GET' && url.pathname === '/api/admin/quotes') {
+          return await handleGetAdminQuotes(req, res, admin)
+        }
+        if (req.method === 'PATCH' && /^\/api\/admin\/quotes\/[0-9a-f-]+$/i.test(url.pathname)) {
+          const id = url.pathname.split('/').pop()
+          return await handleUpdateQuoteStatus(req, res, admin, id)
+        }
+        if (req.method === 'GET' && url.pathname === '/api/admin/orders') {
+          return await handleGetOrders(req, res, admin)
+        }
       }
 
       // Admin Reviews
-      if (req.method === 'GET' && url.pathname === '/api/admin/reviews') {
-        return await handleGetAdminReviews(req, res, admin)
-      }
-      if (req.method === 'PATCH' && /^\/api\/admin\/reviews\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
-        const id = url.pathname.split('/').pop()
-        return await handleUpdateReviewStatus(req, res, admin, id)
-      }
-      if (req.method === 'DELETE' && /^\/api\/admin\/reviews\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
-        const id = url.pathname.split('/').pop()
-        return await handleDeleteReview(req, res, admin, id)
-      }
-      if (req.method === 'POST' && url.pathname === '/api/admin/review-replies') {
-        return await handleCreateReviewReply(req, res, admin)
+      if (url.pathname.startsWith('/api/admin/reviews') || url.pathname.startsWith('/api/admin/review-replies')) {
+        if (!p.can_manage_reviews) return json(res, 403, { error: 'Review management permission required.' })
+        if (req.method === 'GET' && url.pathname === '/api/admin/reviews') {
+          return await handleGetAdminReviews(req, res, admin)
+        }
+        if (req.method === 'PATCH' && /^\/api\/admin\/reviews\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+          const id = url.pathname.split('/').pop()
+          return await handleUpdateReviewStatus(req, res, admin, id)
+        }
+        if (req.method === 'DELETE' && /^\/api\/admin\/reviews\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+          const id = url.pathname.split('/').pop()
+          return await handleDeleteReview(req, res, admin, id)
+        }
+        if (req.method === 'POST' && url.pathname === '/api/admin/review-replies') {
+          return await handleCreateReviewReply(req, res, admin)
+        }
       }
 
       // Admin Dealer Applications
-      if (req.method === 'GET' && url.pathname === '/api/admin/dealer-applications') {
-        return await handleGetDealerApplications(req, res, admin)
-      }
-      if (req.method === 'PATCH' && /^\/api\/admin\/dealer-applications\/[0-9a-f-]+$/i.test(url.pathname)) {
-        const id = url.pathname.split('/').pop()
-        return await handleUpdateDealerApplication(req, res, admin, id)
-      }
-
-      // Admin Orders
-      if (req.method === 'GET' && url.pathname === '/api/admin/orders') {
-        return await handleGetOrders(req, res, admin)
+      if (url.pathname.startsWith('/api/admin/dealer-applications')) {
+        if (!p.can_review_kyc) return json(res, 403, { error: 'Dealer application review permission required.' })
+        if (req.method === 'GET' && url.pathname === '/api/admin/dealer-applications') {
+          return await handleGetDealerApplications(req, res, admin)
+        }
+        if (req.method === 'PATCH' && /^\/api\/admin\/dealer-applications\/[0-9a-f-]+$/i.test(url.pathname)) {
+          const id = url.pathname.split('/').pop()
+          return await handleUpdateDealerApplication(req, res, admin, id)
+        }
       }
 
       // Admin Promotions / Offers & Schemes
-      if (req.method === 'GET' && url.pathname === '/api/admin/promotions') {
-        return await handleGetAdminPromotions(req, res, admin)
-      }
-      if (req.method === 'POST' && url.pathname === '/api/admin/promotions') {
-        return await handleCreatePromotion(req, res, admin)
-      }
-      if ((req.method === 'PUT' || req.method === 'PATCH') && /^\/api\/admin\/promotions\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
-        const id = url.pathname.split('/').pop()
-        return await handleUpdatePromotion(req, res, id, admin)
-      }
-      if (req.method === 'DELETE' && /^\/api\/admin\/promotions\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
-        const id = url.pathname.split('/').pop()
-        return await handleDeletePromotion(req, res, id, admin)
+      if (url.pathname.startsWith('/api/admin/promotions')) {
+        if (!p.can_manage_promotions) return json(res, 403, { error: 'Promotions management permission required.' })
+        if (req.method === 'GET' && url.pathname === '/api/admin/promotions') {
+          return await handleGetAdminPromotions(req, res, admin)
+        }
+        if (req.method === 'POST' && url.pathname === '/api/admin/promotions') {
+          return await handleCreatePromotion(req, res, admin)
+        }
+        if ((req.method === 'PUT' || req.method === 'PATCH') && /^\/api\/admin\/promotions\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+          const id = url.pathname.split('/').pop()
+          return await handleUpdatePromotion(req, res, id, admin)
+        }
+        if (req.method === 'DELETE' && /^\/api\/admin\/promotions\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+          const id = url.pathname.split('/').pop()
+          return await handleDeletePromotion(req, res, id, admin)
+        }
       }
 
-      // Admin Staff & Role Management
-      if (req.method === 'GET' && url.pathname === '/api/admin/staff') {
-        return await handleGetStaffUsers(req, res, admin)
-      }
-      if (req.method === 'POST' && url.pathname === '/api/admin/staff') {
-        return await handleCreateStaffUser(req, res, admin)
-      }
-      if (req.method === 'PATCH' && /^\/api\/admin\/staff\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
-        const id = url.pathname.split('/').pop()
-        return await handleUpdateStaffUser(req, res, admin, id)
-      }
-      if (req.method === 'DELETE' && /^\/api\/admin\/staff\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
-        const id = url.pathname.split('/').pop()
-        return await handleDeleteStaffUser(req, res, admin, id)
+      // Admin Users & Staff Role Management (Super Admin only)
+      if (url.pathname.startsWith('/api/admin/users') || url.pathname.startsWith('/api/admin/staff')) {
+        if (admin.role !== 'super_admin' || (!p.can_manage_users && !p.can_manage_team)) {
+          return json(res, 403, { error: 'Super Administrator privilege required to manage operational staff accounts.' })
+        }
+        if (req.method === 'GET' && (url.pathname === '/api/admin/users' || url.pathname === '/api/admin/staff')) {
+          return await handleGetStaffUsers(req, res, admin)
+        }
+        if (req.method === 'POST' && (url.pathname === '/api/admin/users' || url.pathname === '/api/admin/staff')) {
+          return await handleCreateStaffUser(req, res, admin)
+        }
+        if (req.method === 'PATCH' && (/^\/api\/admin\/users\/[a-zA-Z0-9_-]+$/i.test(url.pathname) || /^\/api\/admin\/staff\/[a-zA-Z0-9_-]+$/i.test(url.pathname))) {
+          const id = url.pathname.split('/').pop()
+          return await handleUpdateStaffUser(req, res, admin, id)
+        }
+        if (req.method === 'DELETE' && (/^\/api\/admin\/users\/[a-zA-Z0-9_-]+$/i.test(url.pathname) || /^\/api\/admin\/staff\/[a-zA-Z0-9_-]+$/i.test(url.pathname))) {
+          const id = url.pathname.split('/').pop()
+          return await handleDeleteStaffUser(req, res, admin, id)
+        }
       }
 
       return json(res, 404, { error: 'Admin endpoint not found.' })
