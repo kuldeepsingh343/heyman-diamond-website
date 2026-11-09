@@ -7,32 +7,161 @@
   margin: 0 auto;
 }
 
+/* ── Diamond Collection Category Cards (Compact Luxury Layout) ── */
+.diamond-collection-section .category-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+  margin-top: 20px;
+}
+
 /* Category card buttons */
 .category-card-button {
   background: #ffffff;
   border: 1px solid rgba(212, 175, 55, 0.22);
-  border-radius: 16px;
+  border-radius: 12px;
   text-align: left;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: transform 0.28s var(--ease), box-shadow 0.28s var(--ease), border-color 0.28s ease;
+  transition: transform 0.24s var(--ease), box-shadow 0.24s var(--ease), border-color 0.24s ease;
   font-family: inherit;
   color: inherit;
   padding: 0;
-  box-shadow: 0 4px 16px rgba(41, 40, 32, 0.04);
+  box-shadow: 0 2px 10px rgba(41, 40, 32, 0.04);
 }
 
 .category-card-button:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 32px rgba(179, 147, 82, 0.16);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(179, 147, 82, 0.16);
   border-color: rgba(212, 175, 55, 0.5);
 }
 
 .category-card-button--active {
   border-color: var(--gold);
-  box-shadow: 0 0 0 2px var(--gold), 0 12px 30px rgba(179, 147, 82, 0.2);
+  box-shadow: 0 0 0 2px var(--gold), 0 8px 20px rgba(179, 147, 82, 0.2);
+}
+
+/* Compact Image & Badge */
+.diamond-collection-section .category-image-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 11;
+  max-height: 145px;
+  overflow: hidden;
+  background: #eee9df;
+}
+
+.diamond-collection-section .category-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 350ms ease;
+}
+
+.diamond-collection-section .category-card-button:hover .category-image {
+  transform: scale(1.04);
+}
+
+.diamond-collection-section .category-number {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  background: rgba(251, 250, 247, 0.95);
+  color: #75633d;
+  font-size: 9.5px;
+  font-weight: 700;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* Compact Text Content */
+.diamond-collection-section .category-copy {
+  flex: 1;
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.diamond-collection-section .category-copy h3 {
+  margin: 0 0 5px;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #103422;
+}
+
+.diamond-collection-section .category-copy p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.diamond-collection-section .category-copy .text-link {
+  color: #8b7445;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: auto;
+  transition: color 0.18s ease;
+}
+
+.diamond-collection-section .category-card-button:hover .text-link {
+  color: #103422;
+}
+
+/* Responsive Scaling for Category Cards */
+@media (max-width: 1140px) {
+  .diamond-collection-section .category-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .diamond-collection-section .category-image-wrap {
+    aspect-ratio: 16 / 10;
+    max-height: 160px;
+  }
+}
+
+@media (max-width: 720px) {
+  .diamond-collection-section .category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .diamond-collection-section .category-copy {
+    padding: 10px 10px 12px;
+  }
+  .diamond-collection-section .category-copy h3 {
+    font-size: 14px;
+  }
+  .diamond-collection-section .category-copy p {
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+}
+
+@media (max-width: 440px) {
+  .diamond-collection-section .category-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .diamond-collection-section .category-image-wrap {
+    aspect-ratio: 16 / 9;
+  }
 }
 
 /* Toast banner for cart add */
