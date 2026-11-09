@@ -7,3 +7,4 @@ alter table public.diamonds_inventory
 
 create index if not exists idx_diamonds_inventory_deleted_at
   on public.diamonds_inventory (deleted_at);
+

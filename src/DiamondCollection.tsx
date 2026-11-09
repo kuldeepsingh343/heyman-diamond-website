@@ -96,11 +96,48 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const [addedSku, setAddedSku] = useState<string | null>(null)
   const [activeMediaDiamond, setActiveMediaDiamond] = useState<PublicDiamondItem | null>(null)
   const [mediaTab, setMediaTab] = useState<'video' | 'photo'>('video')
+  const [diamondGallery, setDiamondGallery] = useState<{
+    id: string
+    diamond_id: string
+    type: 'image' | 'video'
+    storage_path: string
+    public_url: string
+    sort_order: number
+    is_primary: boolean
+    alt_text?: string
+  }[]>([])
+  const [activeGalleryIndex, setActiveGalleryIndex] = useState(0)
 
   const isApprovedDealer =
     currentUser?.account_type === 'dealer' && currentUser?.dealer_status === 'approved'
   const isPendingDealer =
     currentUser?.account_type === 'dealer' && currentUser?.dealer_status !== 'approved'
+
+  const closeMediaModal = () => {
+    setActiveMediaDiamond(null)
+    setDiamondGallery([])
+    setActiveGalleryIndex(0)
+  }
+
+  // Fetch gallery media when active diamond modal opens
+  useEffect(() => {
+    if (!activeMediaDiamond) return
+    let active = true
+    const stoneId = activeMediaDiamond.id || activeMediaDiamond.sku
+    fetch(`/api/diamonds/${encodeURIComponent(stoneId)}/media`)
+      .then(r => r.ok ? r.json() : { items: [] })
+      .then(data => {
+        if (!active) return
+        const list: typeof diamondGallery = Array.isArray(data.items) ? data.items : []
+        setDiamondGallery(list)
+        const primaryIdx = list.findIndex(m => m.is_primary)
+        setActiveGalleryIndex(primaryIdx >= 0 ? primaryIdx : 0)
+      })
+      .catch(() => {
+        if (active) setDiamondGallery([])
+      })
+    return () => { active = false }
+  }, [activeMediaDiamond])
 
   // Fetch live inventory
   useEffect(() => {
@@ -627,7 +664,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
       {activeMediaDiamond && (
         <div
           className="diamond-media-modal-backdrop"
-          onClick={() => setActiveMediaDiamond(null)}
+          onClick={closeMediaModal}
           role="dialog"
           aria-label="Diamond Media Viewer"
         >
@@ -638,7 +675,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
             <button
               type="button"
               className="media-modal-close"
-              onClick={() => setActiveMediaDiamond(null)}
+              onClick={closeMediaModal}
               aria-label="Close viewer"
             >
               ✕
@@ -647,7 +684,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
             <div className="media-modal-grid">
               {/* Left: Media Display Pane */}
               <div className="media-modal-viewer">
-                {activeMediaDiamond.videoUrl && (
+                {diamondGallery.length === 0 && activeMediaDiamond.videoUrl && (
                   <div className="media-modal-tabs">
                     <button
                       type="button"
@@ -667,7 +704,26 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                 )}
 
                 <div className="media-display-area">
-                  {mediaTab === 'video' && activeMediaDiamond.videoUrl ? (
+                  {diamondGallery.length > 0 ? (
+                    diamondGallery[activeGalleryIndex]?.type === 'video' ? (
+                      <video
+                        key={diamondGallery[activeGalleryIndex].id}
+                        src={diamondGallery[activeGalleryIndex].public_url}
+                        controls
+                        autoPlay
+                        loop
+                        playsInline
+                        className="media-modal-video"
+                      />
+                    ) : (
+                      <img
+                        key={diamondGallery[activeGalleryIndex]?.id}
+                        src={diamondGallery[activeGalleryIndex]?.public_url}
+                        alt={diamondGallery[activeGalleryIndex]?.alt_text || `${activeMediaDiamond.shape} Diamond`}
+                        className="media-modal-img"
+                      />
+                    )
+                  ) : mediaTab === 'video' && activeMediaDiamond.videoUrl ? (
                     <video
                       src={activeMediaDiamond.videoUrl}
                       controls
@@ -684,6 +740,27 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                     />
                   )}
                 </div>
+
+                {diamondGallery.length > 1 && (
+                  <div className="media-modal-gallery-strip" role="tablist" aria-label="Stone views">
+                    {diamondGallery.map((item, idx) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`media-gallery-thumb-btn ${activeGalleryIndex === idx ? 'media-gallery-thumb-btn--active' : ''}`}
+                        onClick={() => setActiveGalleryIndex(idx)}
+                        title={item.alt_text || (item.type === 'video' ? '360° Video' : 'Photo')}
+                      >
+                        {item.type === 'video' ? (
+                          <div className="thumb-video-badge">▶ 360°</div>
+                        ) : (
+                          <img src={item.public_url} alt="" loading="lazy" />
+                        )}
+                        {item.is_primary && <span className="thumb-primary-tag">★</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Right: Stone Profile & Direct Quote Actions */}

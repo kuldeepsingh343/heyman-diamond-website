@@ -171,3 +171,4 @@ export function processDiamondPricingUpdates(currentItem, input) {
 
   return updates
 }
+

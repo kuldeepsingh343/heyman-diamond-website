@@ -48,3 +48,4 @@ export function calculateDiscountFromPercent(
   const discPrice = listPrice > 0 ? Math.round((listPrice * (100 - pct) / 100) * 100) / 100 : 0
   return { discountPrice: discPrice, discountPercent: pct, error: null }
 }
+

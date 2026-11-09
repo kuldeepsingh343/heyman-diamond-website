@@ -36,3 +36,4 @@ alter table public.diamonds_inventory
       dealer_discount_percent < 100
     )
   );
+

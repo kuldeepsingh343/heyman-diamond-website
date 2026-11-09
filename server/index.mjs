@@ -85,6 +85,15 @@ import {
   handleDeleteStaffUser,
 } from './services/admin.mjs'
 
+import {
+  handleGetMediaUploadUrl,
+  handleConfirmMediaUpload,
+  handleGetDiamondMedia,
+  handleUpdateMediaItem,
+  handleDeleteMediaItem,
+  handleMockMediaUpload,
+} from './services/media.mjs'
+
 const server = createServer(async (req, res) => {
   const requestOrigin = req.headers.origin
   const host = req.headers.host
@@ -150,6 +159,11 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && (url.pathname === '/api/catalog' || url.pathname === '/api/inventory')) {
       const user = await authenticatedUser(req).catch(() => null)
       return await handleGetCatalog(req, res, url, user)
+    }
+    if (req.method === 'GET' && /^\/api\/diamonds\/[a-zA-Z0-9_-]+\/media$/i.test(url.pathname)) {
+      const parts = url.pathname.split('/')
+      const id = parts[parts.length - 2]
+      return await handleGetDiamondMedia(req, res, id)
     }
     if (req.method === 'GET' && (url.pathname === '/api/flomiz/status' || url.pathname === '/api/inventory/flomiz/status')) {
       return handleFlomizStatus(req, res)
@@ -225,6 +239,31 @@ const server = createServer(async (req, res) => {
           const parts = url.pathname.split('/')
           const id = parts[parts.length - 2]
           return await handleRestoreAdminDiamond(req, res, admin, id)
+        }
+        if (req.method === 'POST' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+\/media\/upload-url$/i.test(url.pathname)) {
+          const parts = url.pathname.split('/')
+          const id = parts[parts.length - 3]
+          return await handleGetMediaUploadUrl(req, res, admin, id)
+        }
+        if ((req.method === 'POST' || req.method === 'PUT') && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+\/media\/mock-upload$/i.test(url.pathname)) {
+          return await handleMockMediaUpload(req, res, admin)
+        }
+        if (req.method === 'POST' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+\/media\/confirm$/i.test(url.pathname)) {
+          const parts = url.pathname.split('/')
+          const id = parts[parts.length - 3]
+          return await handleConfirmMediaUpload(req, res, admin, id)
+        }
+        if (req.method === 'PATCH' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+\/media\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+          const parts = url.pathname.split('/')
+          const mediaId = parts[parts.length - 1]
+          const id = parts[parts.length - 3]
+          return await handleUpdateMediaItem(req, res, admin, id, mediaId)
+        }
+        if (req.method === 'DELETE' && /^\/api\/admin\/diamonds\/[a-zA-Z0-9_-]+\/media\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+          const parts = url.pathname.split('/')
+          const mediaId = parts[parts.length - 1]
+          const id = parts[parts.length - 3]
+          return await handleDeleteMediaItem(req, res, admin, id, mediaId)
         }
         if (req.method === 'POST' && url.pathname === '/api/admin/diamonds/sync-flomiz') {
           return await handleSyncFlomizToStaging(req, res, admin)

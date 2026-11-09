@@ -93,6 +93,18 @@ export interface DiamondItem {
   videoUrl?: string | null
 }
 
+export interface DiamondMediaItem {
+  id: string
+  diamond_id: string
+  type: 'image' | 'video'
+  storage_path: string
+  public_url: string
+  sort_order: number
+  is_primary: boolean
+  alt_text?: string
+  created_at?: string
+}
+
 export interface CartItem extends DiamondItem {
   quantity: number
 }
@@ -140,6 +152,18 @@ export interface AdminDiamond {
   source?: string
   imageUrl?: string | null
   videoUrl?: string | null
+}
+
+export interface DiamondMediaItem {
+  id: string
+  diamond_id: string
+  type: 'image' | 'video'
+  storage_path: string
+  public_url: string
+  sort_order: number
+  is_primary: boolean
+  alt_text?: string
+  created_at?: string
 }
 
 function getInitialStatus(): { text: string; kind: 'info' | 'error' | 'success' } {
@@ -282,6 +306,12 @@ export default function AuthPages({
   const [flomizApiKeyInput, setFlomizApiKeyInput] = useState('')
   const [testingFlomiz, setTestingFlomiz] = useState(false)
   const [flomizTestResult, setFlomizTestResult] = useState<{ success: boolean; code?: number; message: string; error?: string; endpoint?: string } | null>(null)
+  const [mediaModalDiamond, setMediaModalDiamond] = useState<AdminDiamond | null>(null)
+  const [diamondMediaList, setDiamondMediaList] = useState<DiamondMediaItem[]>([])
+  const [loadingMediaList, setLoadingMediaList] = useState(false)
+  const [uploadingMedia, setUploadingMedia] = useState(false)
+  const [mediaManagerMsg, setMediaManagerMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+  const [mediaAltDraft, setMediaAltDraft] = useState<Record<string, string>>({})
 
   // ── Offers & Schemes state (Admin / Owner portal) ───────────────────────
   const [promotions, setPromotions] = useState<PromotionOffer[]>([])
@@ -931,6 +961,272 @@ export default function AuthPages({
       }
     } catch (err) {
       console.warn('Restore diamond failed:', err)
+    }
+  }
+
+  const fetchDiamondMediaList = async (diamondId: string) => {
+    setLoadingMediaList(true)
+    setMediaManagerMsg(null)
+    try {
+      const res = await fetch(`/api/diamonds/${encodeURIComponent(diamondId)}/media`)
+      if (res.ok) {
+        const data = await res.json()
+        const items: DiamondMediaItem[] = Array.isArray(data.items) ? data.items : []
+        setDiamondMediaList(items)
+        const drafts: Record<string, string> = {}
+        items.forEach(m => {
+          drafts[m.id] = m.alt_text || ''
+        })
+        setMediaAltDraft(drafts)
+      } else {
+        setMediaManagerMsg({ text: 'Unable to load media items.', kind: 'error' })
+      }
+    } catch {
+      setMediaManagerMsg({ text: 'Unable to load media items.', kind: 'error' })
+    } finally {
+      setLoadingMediaList(false)
+    }
+  }
+
+  const handleOpenMediaModal = (diamond: AdminDiamond) => {
+    setMediaModalDiamond(diamond)
+    fetchDiamondMediaList(diamond.id || diamond.sku)
+  }
+
+  const handleCloseMediaModal = () => {
+    setMediaModalDiamond(null)
+    setDiamondMediaList([])
+    setMediaManagerMsg(null)
+  }
+
+  const handleUploadMediaFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !mediaModalDiamond) return
+
+    const fileName = file.name
+    const extMatch = fileName.match(/\.([a-zA-Z0-9]+)$/)
+    const ext = extMatch ? extMatch[1].toLowerCase() : ''
+    const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext)
+    const isVideo = ['mp4', 'webm'].includes(ext)
+
+    if (!isImage && !isVideo) {
+      setMediaManagerMsg({
+        text: `Disallowed file format ".${ext}". Only JPG, PNG, WEBP (images) and MP4, WEBM (videos) are allowed.`,
+        kind: 'error',
+      })
+      e.target.value = ''
+      return
+    }
+
+    const type: 'image' | 'video' = isImage ? 'image' : 'video'
+    const maxBytes = isImage ? 5 * 1024 * 1024 : 50 * 1024 * 1024
+    if (file.size > maxBytes) {
+      setMediaManagerMsg({
+        text: `File exceeds maximum allowed size (${isImage ? '5 MB for images' : '50 MB for videos'}).`,
+        kind: 'error',
+      })
+      e.target.value = ''
+      return
+    }
+
+    const currentImages = diamondMediaList.filter(m => m.type === 'image').length
+    const currentVideos = diamondMediaList.filter(m => m.type === 'video').length
+    if (isImage && currentImages >= 10) {
+      setMediaManagerMsg({ text: 'Maximum limit of 10 photos reached for this diamond.', kind: 'error' })
+      e.target.value = ''
+      return
+    }
+    if (isVideo && currentVideos >= 3) {
+      setMediaManagerMsg({ text: 'Maximum limit of 3 videos reached for this diamond.', kind: 'error' })
+      e.target.value = ''
+      return
+    }
+
+    setUploadingMedia(true)
+    setMediaManagerMsg(null)
+    const token = localStorage.getItem('hmd_access_token')
+    const diamondId = mediaModalDiamond.id || mediaModalDiamond.sku
+
+    try {
+      const initRes = await fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}/media/upload-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type,
+          fileName: file.name,
+          fileSize: file.size,
+        }),
+      })
+      const initData = await initRes.json()
+      if (!initRes.ok) {
+        throw new Error(initData.error || 'Failed to initialize media upload.')
+      }
+
+      // Read first 32 bytes for magic bytes validation
+      const slice = file.slice(0, 32)
+      const headerBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result as string
+          const b64 = result.includes(',') ? result.split(',')[1] : result
+          resolve(b64)
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(slice)
+      })
+
+      // Direct upload
+      const uploadHeaders: Record<string, string> = {
+        'Content-Type': file.type || (isImage ? 'image/jpeg' : 'video/mp4'),
+      }
+      if (initData.token) uploadHeaders['Authorization'] = `Bearer ${initData.token}`
+
+      await fetch(initData.uploadUrl, {
+        method: 'PUT',
+        headers: uploadHeaders,
+        body: file,
+      }).catch(err => {
+        console.warn('Storage upload note:', err)
+      })
+
+      // Confirm upload with server
+      const confirmRes = await fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}/media/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          storagePath: initData.storagePath,
+          type,
+          altText: file.name.replace(/\.[^/.]+$/, ''),
+          headerBase64,
+          isPrimary: diamondMediaList.length === 0,
+        }),
+      })
+      const confirmData = await confirmRes.json()
+      if (!confirmRes.ok) {
+        throw new Error(confirmData.error || 'Server rejected uploaded media.')
+      }
+
+      setMediaManagerMsg({ text: 'Media uploaded and verified successfully!', kind: 'success' })
+      await fetchDiamondMediaList(diamondId)
+      fetchAdminDiamonds()
+    } catch (err) {
+      setMediaManagerMsg({
+        text: err instanceof Error ? err.message : 'Upload failed.',
+        kind: 'error',
+      })
+    } finally {
+      setUploadingMedia(false)
+      e.target.value = ''
+    }
+  }
+
+  const handleSetPrimaryMedia = async (mediaId: string) => {
+    if (!mediaModalDiamond) return
+    const token = localStorage.getItem('hmd_access_token')
+    const diamondId = mediaModalDiamond.id || mediaModalDiamond.sku
+    try {
+      const res = await fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}/media/${encodeURIComponent(mediaId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isPrimary: true }),
+      })
+      if (res.ok) {
+        setDiamondMediaList(prev => prev.map(m => ({ ...m, is_primary: m.id === mediaId })))
+        fetchAdminDiamonds()
+      }
+    } catch (err) {
+      console.warn('Set primary failed:', err)
+    }
+  }
+
+  const handleSaveMediaAlt = async (mediaId: string) => {
+    if (!mediaModalDiamond) return
+    const token = localStorage.getItem('hmd_access_token')
+    const diamondId = mediaModalDiamond.id || mediaModalDiamond.sku
+    const altText = mediaAltDraft[mediaId] ?? ''
+    try {
+      const res = await fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}/media/${encodeURIComponent(mediaId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ altText }),
+      })
+      if (res.ok) {
+        setDiamondMediaList(prev => prev.map(m => m.id === mediaId ? { ...m, alt_text: altText } : m))
+        setMediaManagerMsg({ text: 'Caption saved.', kind: 'success' })
+        setTimeout(() => setMediaManagerMsg(null), 2500)
+      }
+    } catch (err) {
+      console.warn('Save alt text failed:', err)
+    }
+  }
+
+  const handleReorderMedia = async (mediaId: string, direction: 'up' | 'down') => {
+    if (!mediaModalDiamond) return
+    const idx = diamondMediaList.findIndex(m => m.id === mediaId)
+    if (idx < 0) return
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (targetIdx < 0 || targetIdx >= diamondMediaList.length) return
+
+    const itemA = diamondMediaList[idx]
+    const itemB = diamondMediaList[targetIdx]
+    const token = localStorage.getItem('hmd_access_token')
+    const diamondId = mediaModalDiamond.id || mediaModalDiamond.sku
+
+    const orderA = itemB.sort_order ?? targetIdx
+    const orderB = itemA.sort_order ?? idx
+
+    try {
+      await Promise.all([
+        fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}/media/${encodeURIComponent(itemA.id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ sortOrder: orderA }),
+        }),
+        fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}/media/${encodeURIComponent(itemB.id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ sortOrder: orderB }),
+        }),
+      ])
+      await fetchDiamondMediaList(diamondId)
+    } catch (err) {
+      console.warn('Reorder failed:', err)
+    }
+  }
+
+  const handleDeleteMediaItem = async (mediaId: string) => {
+    if (!mediaModalDiamond) return
+    if (!window.confirm('Are you sure you want to delete this media item? It will be removed from storage.')) return
+    const token = localStorage.getItem('hmd_access_token')
+    const diamondId = mediaModalDiamond.id || mediaModalDiamond.sku
+    try {
+      const res = await fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}/media/${encodeURIComponent(mediaId)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        setDiamondMediaList(prev => prev.filter(m => m.id !== mediaId))
+        setMediaManagerMsg({ text: 'Media deleted.', kind: 'success' })
+        setTimeout(() => setMediaManagerMsg(null), 2500)
+        fetchAdminDiamonds()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to delete media.')
+      }
+    } catch (err) {
+      console.warn('Delete media failed:', err)
     }
   }
 
@@ -2931,6 +3227,15 @@ export default function AuthPages({
 
                                         <button
                                           type="button"
+                                          className="diamond-media-btn"
+                                          onClick={() => handleOpenMediaModal(d)}
+                                          title={`Manage photos and videos for diamond ${d.sku}`}
+                                        >
+                                          📷 Media
+                                        </button>
+
+                                        <button
+                                          type="button"
                                           className="diamond-delete-btn"
                                           onClick={() => handleDeleteDiamond(d.id || d.sku, d.sku)}
                                           title={`Delete diamond ${d.sku}`}
@@ -2946,6 +3251,167 @@ export default function AuthPages({
                           })}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Diamond Media Gallery Manager Modal ── */}
+              {mediaModalDiamond && (
+                <div
+                  className="diamond-media-modal-backdrop"
+                  onClick={handleCloseMediaModal}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Media Manager"
+                >
+                  <div className="diamond-media-manager-card" onClick={(e) => e.stopPropagation()}>
+                    <div className="diamond-media-manager-header">
+                      <div>
+                        <h3>📷 Media Gallery Manager</h3>
+                        <p>
+                          Diamond SKU: <strong>{mediaModalDiamond.sku}</strong> · {mediaModalDiamond.carat}ct {mediaModalDiamond.shape} ({mediaModalDiamond.color} {mediaModalDiamond.clarity})
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="diamond-media-modal-close"
+                        onClick={handleCloseMediaModal}
+                        aria-label="Close"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {mediaManagerMsg && (
+                      <div className={`diamond-media-alert diamond-media-alert--${mediaManagerMsg.kind}`}>
+                        {mediaManagerMsg.text}
+                      </div>
+                    )}
+
+                    {/* Upload Section */}
+                    <div className="diamond-media-upload-section">
+                      <h4>Upload Image or Video</h4>
+                      <p className="diamond-media-upload-hint">
+                        Allowed formats: <strong>JPEG, PNG, WEBP</strong> (max 5 MB, up to 10 photos) and <strong>MP4, WEBM</strong> (max 50 MB, up to 3 360° videos). SVGs and scripts are strictly rejected.
+                      </p>
+                      <div className="diamond-media-upload-actions">
+                        <label className={`diamond-media-upload-label ${uploadingMedia ? 'diamond-media-upload-label--busy' : ''}`}>
+                          <input
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.webp,.mp4,.webm"
+                            onChange={handleUploadMediaFile}
+                            disabled={uploadingMedia}
+                            style={{ display: 'none' }}
+                          />
+                          {uploadingMedia ? '⏳ Uploading & Verifying…' : '＋ Choose File to Upload'}
+                        </label>
+                        <span className="diamond-media-counts-badge">
+                          Photos: {diamondMediaList.filter(m => m.type === 'image').length}/10 · Videos: {diamondMediaList.filter(m => m.type === 'video').length}/3
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Media Items Grid */}
+                    <div className="diamond-media-list-section">
+                      <h4>Gallery Items ({diamondMediaList.length})</h4>
+                      {loadingMediaList ? (
+                        <p className="diamond-media-loading">Loading media items…</p>
+                      ) : diamondMediaList.length === 0 ? (
+                        <div className="diamond-media-empty">
+                          <p>No extra media items attached yet for this stone.</p>
+                          <small>Upload high-resolution photos or 360° rotation videos above to showcase this diamond.</small>
+                        </div>
+                      ) : (
+                        <div className="diamond-media-grid">
+                          {diamondMediaList.map((item, index) => (
+                            <div
+                              key={item.id}
+                              className={`diamond-media-card ${item.is_primary ? 'diamond-media-card--primary' : ''}`}
+                            >
+                              <div className="diamond-media-card-preview">
+                                {item.type === 'video' ? (
+                                  <video src={item.public_url} controls playsInline preload="metadata" />
+                                ) : (
+                                  <img src={item.public_url} alt={item.alt_text || ''} loading="lazy" />
+                                )}
+                                <span className={`diamond-media-type-tag diamond-media-type-tag--${item.type}`}>
+                                  {item.type === 'video' ? '▶ Video' : '📷 Photo'}
+                                </span>
+                                {item.is_primary && (
+                                  <span className="diamond-media-primary-badge">★ Primary</span>
+                                )}
+                              </div>
+
+                              <div className="diamond-media-card-body">
+                                <div className="diamond-media-alt-wrap">
+                                  <label>Alt Text / Caption:</label>
+                                  <div className="diamond-media-alt-input-row">
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. Table reflection, 360 rotation"
+                                      value={mediaAltDraft[item.id] ?? (item.alt_text || '')}
+                                      onChange={(e) =>
+                                        setMediaAltDraft(prev => ({ ...prev, [item.id]: e.target.value }))
+                                      }
+                                    />
+                                    <button
+                                      type="button"
+                                      className="diamond-media-alt-save-btn"
+                                      onClick={() => handleSaveMediaAlt(item.id)}
+                                      title="Save Alt Text"
+                                    >
+                                      ✓
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="diamond-media-card-actions">
+                                  <div className="diamond-media-reorder-group">
+                                    <button
+                                      type="button"
+                                      disabled={index === 0}
+                                      onClick={() => handleReorderMedia(item.id, 'up')}
+                                      title="Move Up"
+                                      className="diamond-media-arrow-btn"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={index === diamondMediaList.length - 1}
+                                      onClick={() => handleReorderMedia(item.id, 'down')}
+                                      title="Move Down"
+                                      className="diamond-media-arrow-btn"
+                                    >
+                                      ▼
+                                    </button>
+                                  </div>
+
+                                  {!item.is_primary && (
+                                    <button
+                                      type="button"
+                                      className="diamond-media-set-primary-btn"
+                                      onClick={() => handleSetPrimaryMedia(item.id)}
+                                    >
+                                      Set Primary
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    className="diamond-media-delete-btn"
+                                    onClick={() => handleDeleteMediaItem(item.id)}
+                                    title="Delete this media"
+                                  >
+                                    🗑
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
