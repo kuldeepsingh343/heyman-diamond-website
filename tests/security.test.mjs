@@ -20,6 +20,8 @@ import {
 
 import {
   sanitizeLink,
+  handleUpdatePromotion,
+  handleDeletePromotion,
 } from '../server/services/promotions.mjs'
 
 import {
@@ -200,4 +202,18 @@ test('Security — Content-Security-Policy is enforced in SECURITY_HEADERS', () 
   assert.ok(CSP_HEADER.includes("default-src 'self'"), 'CSP must define default-src')
   assert.ok(CSP_HEADER.includes("object-src 'none'"), 'CSP must disallow plugins/objects')
   assert.ok(CSP_HEADER.includes("frame-ancestors 'self'"), 'CSP must restrict framing')
+})
+
+test('Security — Promotion routes reject malicious identifier injection', async () => {
+  const admin = { user: { id: 'admin-1' }, permissions: { can_manage_promotions: true } }
+  const mockReq = createMockReq({}, { name: 'Test' })
+  const mockRes = createMockRes()
+
+  await handleUpdatePromotion(mockReq, mockRes, '123&active=eq.true', admin)
+  assert.equal(mockRes.statusCode, 400, 'Must reject ID containing injection characters')
+  assert.equal(mockRes.json?.error, 'Invalid promotion identifier.')
+
+  const delRes = createMockRes()
+  await handleDeletePromotion(createMockReq(), delRes, '123;DROP TABLE;', admin)
+  assert.equal(delRes.statusCode, 400, 'Must reject malicious deletion ID')
 })

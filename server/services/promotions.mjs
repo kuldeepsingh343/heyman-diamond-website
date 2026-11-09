@@ -109,6 +109,10 @@ export async function handleCreatePromotion(req, res, admin) {
 
 export async function handleUpdatePromotion(req, res, id, admin) {
   if (!admin) return json(res, 403, { error: 'Admin authorization required.' })
+  const cleanId = String(id || '').trim()
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(cleanId)) {
+    return json(res, 400, { error: 'Invalid promotion identifier.' })
+  }
   const input = await bodyJson(req)
   const updateData = {
     ...(input.name !== undefined && { name: String(input.name).trim() }),
@@ -124,7 +128,7 @@ export async function handleUpdatePromotion(req, res, id, admin) {
 
   if (supabaseReady()) {
     try {
-      const updated = await db(`promotions?id=eq.${id}`, {
+      const updated = await db(`promotions?id=eq.${encodeURIComponent(cleanId)}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify(updateData),
@@ -138,7 +142,7 @@ export async function handleUpdatePromotion(req, res, id, admin) {
     }
   }
 
-  const idx = localPromotions.findIndex(p => p.id === id)
+  const idx = localPromotions.findIndex(p => p.id === cleanId)
   if (idx !== -1) {
     localPromotions[idx] = { ...localPromotions[idx], ...updateData }
     return json(res, 200, { success: true, promotion: localPromotions[idx] })
@@ -148,9 +152,13 @@ export async function handleUpdatePromotion(req, res, id, admin) {
 
 export async function handleDeletePromotion(req, res, id, admin) {
   if (!admin) return json(res, 403, { error: 'Admin authorization required.' })
+  const cleanId = String(id || '').trim()
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(cleanId)) {
+    return json(res, 400, { error: 'Invalid promotion identifier.' })
+  }
   if (supabaseReady()) {
     try {
-      await db(`promotions?id=eq.${id}`, { method: 'DELETE' })
+      await db(`promotions?id=eq.${encodeURIComponent(cleanId)}`, { method: 'DELETE' })
       return json(res, 200, { success: true, message: 'Promotion deleted.' })
     } catch (err) {
       console.error('Failed to delete promotion in DB:', err.message)
@@ -158,7 +166,7 @@ export async function handleDeletePromotion(req, res, id, admin) {
     }
   }
 
-  localPromotions = localPromotions.filter(p => p.id !== id)
+  localPromotions = localPromotions.filter(p => p.id !== cleanId)
   return json(res, 200, { success: true, message: 'Promotion deleted.' })
 }
 

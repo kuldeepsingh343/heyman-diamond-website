@@ -256,11 +256,11 @@ const server = createServer(async (req, res) => {
       if (req.method === 'POST' && url.pathname === '/api/admin/promotions') {
         return await handleCreatePromotion(req, res, admin)
       }
-      if ((req.method === 'PUT' || req.method === 'PATCH') && /^\/api\/admin\/promotions\/[^/]+$/i.test(url.pathname)) {
+      if ((req.method === 'PUT' || req.method === 'PATCH') && /^\/api\/admin\/promotions\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
         const id = url.pathname.split('/').pop()
         return await handleUpdatePromotion(req, res, id, admin)
       }
-      if (req.method === 'DELETE' && /^\/api\/admin\/promotions\/[^/]+$/i.test(url.pathname)) {
+      if (req.method === 'DELETE' && /^\/api\/admin\/promotions\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
         const id = url.pathname.split('/').pop()
         return await handleDeletePromotion(req, res, id, admin)
       }
