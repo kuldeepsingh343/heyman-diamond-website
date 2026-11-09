@@ -42,16 +42,11 @@ export async function authenticatedUser(req) {
 
 const ADMIN_EMAILS = [
   'heymandiamondllc@gmail.com',
-  'heymandiamonllc@gmail.com',
   'info@heymandiamond.com',
-  'sales@heymandiamond.com',
-  'amy@heymandiamond.com',
-  'nikky@heymandiamond.com',
   'kuldeepsingh343@gmail.com',
-  'chauhanenterprises09@gmail.com',
 ]
 
-function isStaffEmail(email) {
+export function isStaffEmail(email) {
   if (!email) return false
   const em = String(email).toLowerCase().trim()
   return em.endsWith('@heymandiamond.com') || ADMIN_EMAILS.includes(em)
@@ -63,18 +58,35 @@ export async function requireAdmin(req) {
   if (user.email && isStaffEmail(user.email)) {
     return {
       user,
+      isSuperAdmin: true,
       permissions: {
         can_review_kyc: true,
         can_manage_orders: true,
         can_manage_promotions: true,
         can_manage_reviews: true,
+        can_manage_inventory: true,
+        can_manage_team: true,
+        role_title: 'Super Administrator',
       },
     }
   }
   try {
     const permissions = await db(`admin_users?user_id=eq.${user.id}`)
     if (permissions && permissions.length > 0) {
-      return { user, permissions: permissions[0] }
+      const p = permissions[0]
+      return {
+        user,
+        isSuperAdmin: Boolean(p.can_manage_team),
+        permissions: {
+          can_review_kyc: Boolean(p.can_review_kyc),
+          can_manage_orders: Boolean(p.can_manage_orders),
+          can_manage_promotions: Boolean(p.can_manage_promotions),
+          can_manage_reviews: Boolean(p.can_manage_reviews),
+          can_manage_inventory: p.can_manage_inventory !== false,
+          can_manage_team: Boolean(p.can_manage_team),
+          role_title: p.role_title || 'Operations Manager',
+        },
+      }
     }
     return null
   } catch {
@@ -317,13 +329,41 @@ export async function handleSignin(req, res) {
 
   const profiles = await db(`profiles?id=eq.${data.user.id}&select=account_type,dealer_status,full_name`)
   const adminRows = await db(`admin_users?user_id=eq.${data.user.id}`).catch(() => [])
-  const isAdmin = (Array.isArray(adminRows) && adminRows.length > 0) || isStaffEmail(email)
+  const isSuper = isStaffEmail(email) || Boolean(adminRows?.[0]?.can_manage_team)
+  const isAdmin = (Array.isArray(adminRows) && adminRows.length > 0) || isSuper
+  const permissions = isSuper
+    ? {
+      can_review_kyc: true,
+      can_manage_orders: true,
+      can_manage_promotions: true,
+      can_manage_reviews: true,
+      can_manage_inventory: true,
+      can_manage_team: true,
+      role_title: 'Super Administrator',
+    }
+    : (adminRows?.[0]
+      ? {
+        can_review_kyc: Boolean(adminRows[0].can_review_kyc),
+        can_manage_orders: Boolean(adminRows[0].can_manage_orders),
+        can_manage_promotions: Boolean(adminRows[0].can_manage_promotions),
+        can_manage_reviews: Boolean(adminRows[0].can_manage_reviews),
+        can_manage_inventory: adminRows[0].can_manage_inventory !== false,
+        can_manage_team: Boolean(adminRows[0].can_manage_team),
+        role_title: adminRows[0].role_title || 'Operations Manager',
+      }
+      : null)
   const accountType = isAdmin ? 'admin' : (profiles?.[0]?.account_type || 'customer')
   return json(res, 200, {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
     expiresIn: data.expires_in,
-    user: { email: data.user.email, ...(profiles?.[0] || {}), account_type: accountType },
+    user: {
+      email: data.user.email,
+      ...(profiles?.[0] || {}),
+      account_type: accountType,
+      role_title: permissions?.role_title,
+      permissions: permissions || undefined,
+    },
   })
 }
 
@@ -418,6 +458,7 @@ export async function handleGetProfile(req, res) {
 
   let profileData = null
   let isAdmin = false
+  let adminRecord = null
   if (supabaseReady()) {
     try {
       const rows = await db(`profiles?id=eq.${user.id}`)
@@ -425,17 +466,41 @@ export async function handleGetProfile(req, res) {
         profileData = rows[0]
       }
       const adminRows = await db(`admin_users?user_id=eq.${user.id}`)
-      if ((adminRows && adminRows.length > 0) || isStaffEmail(user.email)) {
+      if (adminRows && adminRows.length > 0) {
         isAdmin = true
+        adminRecord = adminRows[0]
       }
     } catch (err) {
       console.warn('Profile fetch from DB failed:', err.message)
     }
   }
 
-  if (isStaffEmail(user.email)) {
+  const isSuper = isStaffEmail(user.email) || Boolean(adminRecord?.can_manage_team)
+  if (isSuper) {
     isAdmin = true
   }
+
+  const permissions = isSuper
+    ? {
+      can_review_kyc: true,
+      can_manage_orders: true,
+      can_manage_promotions: true,
+      can_manage_reviews: true,
+      can_manage_inventory: true,
+      can_manage_team: true,
+      role_title: 'Super Administrator',
+    }
+    : (adminRecord
+      ? {
+        can_review_kyc: Boolean(adminRecord.can_review_kyc),
+        can_manage_orders: Boolean(adminRecord.can_manage_orders),
+        can_manage_promotions: Boolean(adminRecord.can_manage_promotions),
+        can_manage_reviews: Boolean(adminRecord.can_manage_reviews),
+        can_manage_inventory: adminRecord.can_manage_inventory !== false,
+        can_manage_team: Boolean(adminRecord.can_manage_team),
+        role_title: adminRecord.role_title || 'Operations Manager',
+      }
+      : null)
 
   const meta = user.user_metadata || {}
   const accountType = isAdmin ? 'admin' : (profileData?.account_type || meta.account_type || 'customer')
@@ -448,6 +513,8 @@ export async function handleGetProfile(req, res) {
     gender: meta.gender || 'prefer_not_to_say',
     account_type: accountType,
     dealer_status: profileData?.dealer_status || 'not_applied',
+    role_title: permissions?.role_title,
+    permissions: permissions || undefined,
     created_at: profileData?.created_at || user.created_at,
   })
 }

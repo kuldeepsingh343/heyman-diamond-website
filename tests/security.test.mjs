@@ -27,6 +27,8 @@ import {
 
 import {
   handleUpdateDealerApplication,
+  handleUpdateStaffUser,
+  handleDeleteStaffUser,
 } from '../server/services/admin.mjs'
 
 import {
@@ -391,6 +393,18 @@ test('Security — All admin parameterized endpoints reject PostgREST query inje
   await handleUpdateAdminDiamond(createMockReq({}, { customerPrice: 500 }), diamondRes, fullAdmin, injectionId)
   assert.equal(diamondRes.statusCode, 400, 'Diamond update must reject malicious ID')
   assert.equal(diamondRes.json?.error, 'Invalid diamond identifier.')
+
+  // Staff update
+  const staffUpdateRes = createMockRes()
+  await handleUpdateStaffUser(createMockReq({}, { roleTitle: 'Hacker' }), staffUpdateRes, { ...fullAdmin, isSuperAdmin: true }, injectionId)
+  assert.equal(staffUpdateRes.statusCode, 400, 'Staff update must reject malicious ID')
+  assert.equal(staffUpdateRes.json?.error, 'Invalid staff account identifier.')
+
+  // Staff delete
+  const staffDelRes = createMockRes()
+  await handleDeleteStaffUser(createMockReq(), staffDelRes, { ...fullAdmin, isSuperAdmin: true }, injectionId)
+  assert.equal(staffDelRes.statusCode, 400, 'Staff delete must reject malicious ID')
+  assert.equal(staffDelRes.json?.error, 'Invalid staff account identifier.')
 })
 
 test('Security — getClientIp prevents X-Forwarded-For spoofing behind reverse proxy', () => {

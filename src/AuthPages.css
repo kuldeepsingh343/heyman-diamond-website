@@ -2167,5 +2167,490 @@
   text-align: center;
 }
 
+/* ── Operational Staff & Role Management (Super Admin) ── */
+.tab-content--team {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.staff-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e8e2d5;
+}
+
+.staff-header-bar h2 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1a1a12;
+  margin: 0 0 6px 0;
+}
+
+.staff-header-bar p {
+  color: #666;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 680px;
+}
+
+.staff-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.staff-create-card {
+  background: #ffffff;
+  border: 1px solid #d4af37;
+  border-radius: 12px;
+  padding: 24px 28px;
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.staff-create-card-header h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 20px;
+  color: #1a1a12;
+  margin: 0 0 4px 0;
+}
+
+.staff-create-card-header p {
+  font-size: 13px;
+  color: #777;
+  margin: 0 0 18px 0;
+}
+
+.staff-preset-selector {
+  margin-bottom: 20px;
+  padding: 14px;
+  background: #fbf9f4;
+  border: 1px solid #ede5d5;
+  border-radius: 8px;
+}
+
+.staff-preset-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.staff-preset-pill {
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid #d8cfc0;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.staff-preset-pill:hover {
+  background: #f4eee2;
+  border-color: #c59b27;
+  color: #111;
+}
+
+.staff-preset-pill--active {
+  background: #111827;
+  color: #f7eedb;
+  border-color: #111827;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.staff-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.staff-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.staff-form-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #4b483e;
+}
+
+.staff-input-text {
+  padding: 10px 14px;
+  border: 1px solid #d8cfc0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #ffffff;
+  color: #1a1a12;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.staff-input-text:focus {
+  outline: none;
+  border-color: #c59b27;
+  box-shadow: 0 0 0 3px rgba(197, 155, 39, 0.15);
+}
+
+.staff-input-text--search {
+  min-width: 260px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.staff-btn-text-link {
+  background: none;
+  border: none;
+  color: #8b734b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.staff-btn-text-link:hover {
+  color: #1a1a12;
+}
+
+.staff-password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.staff-password-input-wrap .staff-input-text {
+  width: 100%;
+  padding-right: 76px;
+}
+
+.staff-btn-pw-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.staff-btn-pw-toggle:hover {
+  background: #f0ebe1;
+  color: #111;
+}
+
+.staff-perms-section {
+  margin-top: 10px;
+  margin-bottom: 24px;
+  padding-top: 18px;
+  border-top: 1px solid #eee7da;
+}
+
+.staff-perms-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a12;
+  margin: 0 0 4px 0;
+}
+
+.staff-perms-subtitle {
+  font-size: 13px;
+  color: #666;
+  margin: 0 0 14px 0;
+}
+
+.staff-perms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.staff-perm-checkbox-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #faf8f5;
+  border: 1px solid #e5ded3;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.staff-perm-checkbox-card:hover {
+  background: #f5f0e6;
+  border-color: #c59b27;
+}
+
+.staff-perm-checkbox-card--active {
+  background: #fbf7ee;
+  border-color: #d4af37;
+  box-shadow: 0 1px 4px rgba(212, 175, 55, 0.12);
+}
+
+.staff-perm-checkbox-card input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: #111827;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.staff-perm-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.staff-perm-card-content strong {
+  font-size: 13px;
+  color: #1a1a12;
+}
+
+.staff-perm-card-content p {
+  font-size: 11.5px;
+  color: #6b6659;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.staff-form-actions {
+  display: flex;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #eee7da;
+}
+
+.staff-directory-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.staff-directory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.staff-directory-header h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 19px;
+  color: #1a1a12;
+  margin: 0 0 4px 0;
+}
+
+.staff-directory-header p {
+  font-size: 13px;
+  color: #666;
+  margin: 0;
+}
+
+.staff-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.staff-member-card {
+  background: #ffffff;
+  border: 1px solid #e5ded3;
+  border-radius: 10px;
+  padding: 18px 22px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.staff-member-card:hover {
+  border-color: #c59b27;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+}
+
+.staff-member-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.staff-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #111827;
+  color: #f7eedb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.staff-member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-grow: 1;
+}
+
+.staff-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.staff-member-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a12;
+  margin: 0;
+}
+
+.staff-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.staff-badge--super {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.staff-badge--active {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.staff-meta-row {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #555;
+  flex-wrap: wrap;
+}
+
+.staff-granted-perms-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #faf8f5;
+  border-radius: 6px;
+  border: 1px solid #eee7da;
+}
+
+.staff-granted-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #7a7569;
+}
+
+.staff-perms-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.staff-perm-pill {
+  font-size: 12px;
+  padding: 3px 9px;
+  background: #ffffff;
+  border: 1px solid #d8cfc0;
+  border-radius: 14px;
+  color: #333;
+}
+
+.staff-perm-pill--admin {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+  font-weight: 600;
+}
+
+.staff-perm-pill--empty {
+  font-style: italic;
+  color: #999;
+  border-style: dashed;
+}
+
+.staff-inline-edit-panel {
+  background: #fbf9f4;
+  border: 1px solid #d4af37;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.staff-inline-perms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.staff-inline-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #222;
+  cursor: pointer;
+}
+
+.staff-inline-checkbox input[type="checkbox"] {
+  accent-color: #111827;
+  cursor: pointer;
+}
+
+.staff-inline-edit-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.staff-card-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+
 
 

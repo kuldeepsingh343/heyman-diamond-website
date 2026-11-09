@@ -49,7 +49,7 @@ test('API smoke checks', async t => {
   })
 
   await t.test('admin endpoints reject unauthenticated requests', async () => {
-    for (const path of ['/api/admin/orders', '/api/admin/reviews', '/api/admin/dealer-applications', '/api/admin/promotions']) {
+    for (const path of ['/api/admin/orders', '/api/admin/reviews', '/api/admin/dealer-applications', '/api/admin/promotions', '/api/admin/staff']) {
       const response = await fetch(`http://127.0.0.1:${port}${path}`, { headers: { Origin: origin } })
       assert.equal(response.status, 401, path + ' should require an authenticated admin')
     }

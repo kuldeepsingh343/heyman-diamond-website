@@ -76,6 +76,10 @@ import {
   handleGetDealerApplications,
   handleUpdateDealerApplication,
   handleGetOrders,
+  handleGetStaffUsers,
+  handleCreateStaffUser,
+  handleUpdateStaffUser,
+  handleDeleteStaffUser,
 } from './services/admin.mjs'
 
 const server = createServer(async (req, res) => {
@@ -263,6 +267,22 @@ const server = createServer(async (req, res) => {
       if (req.method === 'DELETE' && /^\/api\/admin\/promotions\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
         const id = url.pathname.split('/').pop()
         return await handleDeletePromotion(req, res, id, admin)
+      }
+
+      // Admin Staff & Role Management
+      if (req.method === 'GET' && url.pathname === '/api/admin/staff') {
+        return await handleGetStaffUsers(req, res, admin)
+      }
+      if (req.method === 'POST' && url.pathname === '/api/admin/staff') {
+        return await handleCreateStaffUser(req, res, admin)
+      }
+      if (req.method === 'PATCH' && /^\/api\/admin\/staff\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+        const id = url.pathname.split('/').pop()
+        return await handleUpdateStaffUser(req, res, admin, id)
+      }
+      if (req.method === 'DELETE' && /^\/api\/admin\/staff\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
+        const id = url.pathname.split('/').pop()
+        return await handleDeleteStaffUser(req, res, admin, id)
       }
 
       return json(res, 404, { error: 'Admin endpoint not found.' })

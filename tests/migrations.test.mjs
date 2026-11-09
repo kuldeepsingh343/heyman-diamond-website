@@ -10,6 +10,7 @@ test('reconstructed migrations cover live schema and hardening', async () => {
   const promotion = await readFile(new URL('20261029203343_align_promotion_fields_with_api.sql', root), 'utf8')
   const grants = await readFile(new URL('20261030151610_revoke_client_table_privileges.sql', root), 'utf8')
   const reviewPermission = await readFile(new URL('20261030151715_add_review_management_permission.sql', root), 'utf8')
+  const staffMigration = await readFile(new URL('20261109000000_add_staff_management_permissions.sql', root), 'utf8')
 
   for (const table of [
     'profiles', 'admin_users', 'dealer_applications', 'orders', 'quote_requests',
@@ -31,5 +32,7 @@ test('reconstructed migrations cover live schema and hardening', async () => {
   assert.ok(grants.includes('alter default privileges in schema public revoke all privileges on tables from anon, authenticated'))
   assert.ok(initial.includes('can_manage_reviews boolean not null default false'))
   assert.ok(reviewPermission.includes('add column if not exists can_manage_reviews boolean not null default false'))
+  assert.ok(staffMigration.includes('add column if not exists can_manage_team boolean not null default false'))
+  assert.ok(staffMigration.includes('add column if not exists role_title text not null default \'Operations Manager\''))
   assert.doesNotMatch(initial, /service_role_key/i)
 })
