@@ -130,7 +130,72 @@ export async function handleSignup(req, res) {
 
   const existingUser = await findAuthUserByEmail(email)
   if (existingUser?.email_confirmed_at) {
-    return json(res, 409, { code: 'already_registered', error: 'You are already a registered customer. Please sign in to your account.' })
+    const profileRows = await db(`profiles?id=eq.${existingUser.id}&select=account_type`).catch(() => [])
+    const isTrulyRegistered = Boolean(profileRows?.[0]?.account_type || existingUser.user_metadata?.account_type)
+    if (isTrulyRegistered) {
+      return json(res, 409, { code: 'already_registered', error: 'You are already a registered customer. Please sign in to your account.' })
+    }
+
+    // Account was created via OAuth (Google / Apple) without completing registration. Complete it now:
+    await db(`profiles?id=eq.${existingUser.id}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        full_name: fullName,
+        phone,
+        address,
+        gender,
+        account_type: accountType,
+        dealer_status: accountType === 'dealer' ? 'pending_review' : 'not_applied',
+      }),
+    })
+
+    if (accountType === 'dealer') {
+      await db('dealer_applications', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          user_id: existingUser.id,
+          registered_business_name: companyName,
+          primary_contact: fullName,
+          primary_email: email,
+          business_address: { address },
+          business_phone: phone,
+          status: 'pending_review',
+        }),
+      })
+    }
+
+    try {
+      await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${existingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          password,
+          user_metadata: {
+            ...existingUser.user_metadata,
+            full_name: fullName,
+            phone,
+            address,
+            gender,
+            account_type: accountType,
+          },
+        }),
+      })
+    } catch {}
+
+    return json(res, 201, {
+      submitted: true,
+      emailConfirmationRequired: false,
+      accountType,
+      message: accountType === 'dealer'
+        ? 'Your dealer account request has been received. Dealer access will remain pending until an administrator approves it.'
+        : 'Your customer account registration is now complete! You can now sign in with your account.',
+    })
   }
   if (existingUser && !existingUser.email_confirmed_at) {
     const resend = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
@@ -503,16 +568,18 @@ export async function handleGetProfile(req, res) {
       : null)
 
   const meta = user.user_metadata || {}
-  const accountType = isAdmin ? 'admin' : (profileData?.account_type || meta.account_type || 'customer')
+  const isRegisteredCustomer = Boolean(isAdmin || (profileData && profileData.account_type) || (meta && meta.account_type))
+  const accountType = isAdmin ? 'admin' : (profileData?.account_type || meta.account_type || null)
   return json(res, 200, {
     id: user.id,
     email: user.email,
-    full_name: profileData?.full_name || meta.full_name || '',
+    full_name: profileData?.full_name || meta.full_name || meta.name || '',
     phone: profileData?.phone || meta.phone || '',
     address: meta.address || '',
     gender: meta.gender || 'prefer_not_to_say',
     account_type: accountType,
     dealer_status: profileData?.dealer_status || 'not_applied',
+    is_registered: isRegisteredCustomer,
     role_title: permissions?.role_title,
     permissions: permissions || undefined,
     created_at: profileData?.created_at || user.created_at,
@@ -628,5 +695,49 @@ export async function handleOAuth(req, res, url) {
     return json(res, 500, { error: 'Failed to initialize OAuth.' })
   }
 }
+
+export async function handleCheckRegistered(req, res, url) {
+  const email = String(url.searchParams.get('email') || '').trim().toLowerCase()
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json(res, 400, { error: 'A valid email address is required.' })
+  }
+
+  // Staff and admin emails are always considered registered
+  if (isStaffEmail(email)) {
+    return json(res, 200, { registered: true, isStaff: true })
+  }
+
+  if (!supabaseReady()) {
+    // When DB is in mock mode, assume unregistered unless known mock staff
+    return json(res, 200, { registered: false })
+  }
+
+  try {
+    const user = await findAuthUserByEmail(email)
+    if (!user) {
+      return json(res, 200, { registered: false })
+    }
+
+    const adminRows = await db(`admin_users?user_id=eq.${user.id}`).catch(() => [])
+    if (Array.isArray(adminRows) && adminRows.length > 0) {
+      return json(res, 200, { registered: true, isAdmin: true })
+    }
+
+    const profileRows = await db(`profiles?id=eq.${user.id}&select=account_type`).catch(() => [])
+    if (profileRows?.[0]?.account_type) {
+      return json(res, 200, { registered: true })
+    }
+
+    if (user.user_metadata?.account_type) {
+      return json(res, 200, { registered: true })
+    }
+
+    return json(res, 200, { registered: false })
+  } catch (err) {
+    console.warn('Check registered lookup error:', err.message)
+    return json(res, 200, { registered: false })
+  }
+}
+
 
 

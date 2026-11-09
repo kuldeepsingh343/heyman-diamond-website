@@ -132,7 +132,7 @@ function getInitialStatus(): { text: string; kind: 'info' | 'error' | 'success' 
   if (result.accessToken) {
     localStorage.setItem('hmd_access_token', result.accessToken)
     if (result.refreshToken) localStorage.setItem('hmd_refresh_token', result.refreshToken)
-    window.history.replaceState(null, '', window.location.pathname + '#account')
+    window.history.replaceState(null, '', window.location.pathname + '#signin')
   } else if (result.kind === 'error') {
     window.history.replaceState(null, '', window.location.pathname + '#signin')
   }
@@ -1214,6 +1214,26 @@ export default function AuthPages({
         .then(res => res.json())
         .then(data => {
           if (data?.email) {
+            // If user logged in with Google/Apple but is NOT an existing registered customer or admin:
+            if (data.is_registered === false) {
+              localStorage.removeItem('hmd_access_token')
+              localStorage.removeItem('hmd_refresh_token')
+              localStorage.removeItem('hmd_user')
+              localStorage.removeItem('hmd_cart')
+              sessionStorage.removeItem('hmd_guest_cart_active')
+              updateUserSession(null)
+              setEmail(data.email)
+              if (data.full_name) {
+                setFullName(data.full_name)
+              }
+              setStatus({
+                text: 'This email is not registered. Please sign up first to create your customer account.',
+                kind: 'error',
+              })
+              window.location.hash = '#signup-customer'
+              return
+            }
+
             const profile: UserProfile = {
               email: data.email,
               full_name: data.full_name || data.email.split('@')[0],
@@ -1222,6 +1242,8 @@ export default function AuthPages({
               gender: data.gender || 'prefer_not_to_say',
               account_type: data.account_type || 'customer',
               dealer_status: data.dealer_status || 'not_applied',
+              permissions: data.permissions,
+              role_title: data.role_title,
             }
             localStorage.setItem('hmd_user', JSON.stringify(profile))
             updateUserSession(profile)
@@ -1537,6 +1559,35 @@ export default function AuthPages({
   }
 
   async function handleSocialLogin(provider: 'Google' | 'Apple') {
+    // 1. If currently on sign-in page and user entered an email, pre-check if registered
+    if (!signup && email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setBusy(true)
+      setStatus({ text: `Checking account registration for ${email.trim()}…`, kind: 'info' })
+      try {
+        const checkRes = await fetch(`/api/auth/check-registered?email=${encodeURIComponent(email.trim().toLowerCase())}`)
+        if (checkRes.ok) {
+          const checkData = await checkRes.json()
+          if (!checkData.registered) {
+            setBusy(false)
+            setStatus({
+              text: 'This email is not registered. Please sign up first to create your customer account.',
+              kind: 'error',
+            })
+            window.location.hash = '#signup-customer'
+            return
+          }
+        }
+      } catch {
+        // Fall back to standard OAuth
+      }
+    }
+
+    try {
+      sessionStorage.setItem('hmd_social_intent', signup ? 'signup' : 'signin')
+    } catch {
+      // Ignore private mode sessionStorage restrictions
+    }
+
     setBusy(true)
     setStatus({ text: `Connecting to ${provider}…`, kind: 'info' })
     try {

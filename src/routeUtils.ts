@@ -132,7 +132,7 @@ export function parseAuthStatusFromHash(hash?: string): AuthStatusResult {
         ? 'Verification successful. Please enter your new password below.'
         : isSignupConfirm
         ? 'Your email has been confirmed successfully. You can now sign in to your account.'
-        : 'You are signed in successfully.',
+        : 'Connecting to your account…',
       kind: isRecovery ? 'info' : 'success',
       accessToken,
       refreshToken: refreshToken ?? undefined,
