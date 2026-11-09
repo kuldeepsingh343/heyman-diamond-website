@@ -57,6 +57,7 @@ export interface DealerApplication {
 }
 
 export interface UserProfile {
+  id?: string
   email: string
   full_name?: string
   phone?: string
@@ -167,19 +168,9 @@ export default function AuthPages({
     if (token && saved) {
       try {
         const parsed = JSON.parse(saved)
-        const em = String(parsed?.email || '').toLowerCase()
-        if (
-          parsed.account_type === 'admin' ||
-          em.includes('heyman') ||
-          em.includes('patel') ||
-          em.includes('kuldeep') ||
-          em.includes('chauhan')
-        ) {
-          parsed.account_type = 'admin'
-        }
         return parsed
       } catch {
-        return { email: 'Customer', full_name: 'Customer' }
+        return null
       }
     }
     return null
@@ -323,6 +314,31 @@ export default function AuthPages({
     isSuperAdmin || user?.account_type === 'admin'
   )
 
+  const hasInventoryPerm = Boolean(
+    isSuperAdmin || (isUserAdmin && (user?.permissions ? Boolean(user.permissions.can_manage_inventory) : true))
+  )
+  const hasOrdersPerm = Boolean(
+    !isUserAdmin || isSuperAdmin || (user?.permissions ? Boolean(user.permissions.can_manage_orders) : true)
+  )
+  const hasKycPerm = Boolean(
+    isSuperAdmin || (isUserAdmin && (user?.permissions ? Boolean(user.permissions.can_review_kyc) : true))
+  )
+  const hasPromotionsPerm = Boolean(
+    isSuperAdmin || (isUserAdmin && (user?.permissions ? Boolean(user.permissions.can_manage_promotions) : true))
+  )
+  const hasReviewsPerm = Boolean(
+    isSuperAdmin || (isUserAdmin && (user?.permissions ? Boolean(user.permissions.can_manage_reviews) : true))
+  )
+
+  const roleTitle = user?.role_title || (
+    user?.role === 'super_admin' ? 'Super Administrator' :
+    user?.role === 'admin' ? 'Administrator' :
+    user?.role === 'sales_manager' ? 'Sales Manager' :
+    user?.role === 'operations_manager' ? 'Operations Manager' :
+    (isUserAdmin || user?.account_type === 'admin') ? 'Administrator' :
+    user?.account_type === 'dealer' ? 'Wholesale Dealer' : 'Verified Customer'
+  )
+
   // ── Staff & Operations Role Management (Super Admin) ─────────────────────
   const [staffList, setStaffList] = useState<StaffMember[]>([])
   const [loadingStaff, setLoadingStaff] = useState(false)
@@ -331,25 +347,25 @@ export default function AuthPages({
   const [staffMsg, setStaffMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
   const [creatingStaffBusy, setCreatingStaffBusy] = useState(false)
 
-  // Form states for creating staff
+  // Form states for inviting staff
   const [newStaffName, setNewStaffName] = useState('')
   const [newStaffEmail, setNewStaffEmail] = useState('')
-  const [newStaffPassword, setNewStaffPassword] = useState('')
-  const [showStaffPassword, setShowStaffPassword] = useState(false)
-  const [newStaffRolePreset, setNewStaffRolePreset] = useState<'sales' | 'inventory' | 'support' | 'marketing' | 'admin' | 'custom'>('sales')
-  const [newStaffRoleTitle, setNewStaffRoleTitle] = useState('Sales & Dealer Relations Manager')
+  const [newStaffRole, setNewStaffRole] = useState<'admin' | 'sales_manager' | 'operations_manager'>('sales_manager')
+  const [newStaffRoleTitle, setNewStaffRoleTitle] = useState('Sales Manager')
   const [newStaffPerms, setNewStaffPerms] = useState<StaffPermissions>({
-    can_manage_inventory: true,
+    can_manage_inventory: false,
     can_manage_orders: true,
     can_review_kyc: true,
-    can_manage_reviews: false,
+    can_manage_reviews: true,
     can_manage_promotions: false,
-    can_manage_team: false,
+    can_manage_users: false,
   })
 
   // Editing staff state
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null)
+  const [editRole, setEditRole] = useState<'admin' | 'sales_manager' | 'operations_manager'>('operations_manager')
   const [editRoleTitle, setEditRoleTitle] = useState('')
+  const [editIsActive, setEditIsActive] = useState<boolean>(true)
   const [editPerms, setEditPerms] = useState<StaffPermissions>({})
   const [savingEditBusy, setSavingEditBusy] = useState(false)
 
@@ -661,13 +677,21 @@ export default function AuthPages({
     setLoadingStaff(true)
     const token = localStorage.getItem('hmd_access_token')
     try {
-      const res = await fetch('/api/admin/staff', {
+      const res = await fetch('/api/admin/users', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (res.ok) {
         const data = await res.json()
-        if (data && Array.isArray(data.staff)) {
-          setStaffList(data.staff)
+        const list = Array.isArray(data.users) ? data.users : (Array.isArray(data.staff) ? data.staff : [])
+        setStaffList(list)
+      } else {
+        const fbRes = await fetch('/api/admin/staff', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        if (fbRes.ok) {
+          const fbData = await fbRes.json()
+          const list = Array.isArray(fbData.users) ? fbData.users : (Array.isArray(fbData.staff) ? fbData.staff : [])
+          setStaffList(list)
         }
       }
     } catch (err) {
@@ -677,73 +701,39 @@ export default function AuthPages({
     }
   }, [])
 
-  const handleSelectPreset = (preset: 'sales' | 'inventory' | 'support' | 'marketing' | 'admin' | 'custom') => {
-    setNewStaffRolePreset(preset)
-    if (preset === 'sales') {
-      setNewStaffRoleTitle('Sales & Dealer Relations Manager')
-      setNewStaffPerms({
-        can_manage_orders: true,
-        can_review_kyc: true,
-        can_manage_inventory: true,
-        can_manage_reviews: false,
-        can_manage_promotions: false,
-        can_manage_team: false,
-      })
-    } else if (preset === 'inventory') {
-      setNewStaffRoleTitle('Inventory & Dual-Price Manager')
-      setNewStaffPerms({
-        can_manage_inventory: true,
-        can_manage_orders: false,
-        can_review_kyc: false,
-        can_manage_reviews: false,
-        can_manage_promotions: false,
-        can_manage_team: false,
-      })
-    } else if (preset === 'support') {
-      setNewStaffRoleTitle('Customer Feedback & Reviews Specialist')
-      setNewStaffPerms({
-        can_manage_inventory: false,
-        can_manage_orders: true,
-        can_review_kyc: false,
-        can_manage_reviews: true,
-        can_manage_promotions: false,
-        can_manage_team: false,
-      })
-    } else if (preset === 'marketing') {
-      setNewStaffRoleTitle('Front Page Offers & Marketing Manager')
-      setNewStaffPerms({
-        can_manage_inventory: false,
-        can_manage_orders: false,
-        can_review_kyc: false,
-        can_manage_reviews: true,
-        can_manage_promotions: true,
-        can_manage_team: false,
-      })
-    } else if (preset === 'admin') {
-      setNewStaffRoleTitle('General Operations Administrator')
+  const handleSelectRole = (role: 'admin' | 'sales_manager' | 'operations_manager') => {
+    setNewStaffRole(role)
+    if (role === 'admin') {
+      setNewStaffRoleTitle('Administrator')
       setNewStaffPerms({
         can_manage_inventory: true,
         can_manage_orders: true,
         can_review_kyc: true,
         can_manage_reviews: true,
         can_manage_promotions: true,
-        can_manage_team: false,
+        can_manage_users: false,
+      })
+    } else if (role === 'sales_manager') {
+      setNewStaffRoleTitle('Sales Manager')
+      setNewStaffPerms({
+        can_manage_inventory: false,
+        can_manage_orders: true,
+        can_review_kyc: true,
+        can_manage_reviews: true,
+        can_manage_promotions: false,
+        can_manage_users: false,
+      })
+    } else if (role === 'operations_manager') {
+      setNewStaffRoleTitle('Operations Manager')
+      setNewStaffPerms({
+        can_manage_inventory: true,
+        can_manage_orders: true,
+        can_review_kyc: false,
+        can_manage_reviews: false,
+        can_manage_promotions: false,
+        can_manage_users: false,
       })
     }
-  }
-
-  const generateStrongPassword = () => {
-    const specials = '!@#$%^&*'
-    const lower = 'abcdefghjkmnpqrstuvwxyz'
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-    const numbers = '23456789'
-    let pwd = ''
-    for (let i = 0; i < 4; i++) pwd += upper[Math.floor(Math.random() * upper.length)]
-    for (let i = 0; i < 5; i++) pwd += lower[Math.floor(Math.random() * lower.length)]
-    for (let i = 0; i < 3; i++) pwd += numbers[Math.floor(Math.random() * numbers.length)]
-    for (let i = 0; i < 2; i++) pwd += specials[Math.floor(Math.random() * specials.length)]
-    setNewStaffPassword(pwd)
-    setShowStaffPassword(true)
   }
 
   const handleCreateStaff = async (e: FormEvent) => {
@@ -756,17 +746,13 @@ export default function AuthPages({
       setStaffMsg({ text: 'Please enter a valid email address.', kind: 'error' })
       return
     }
-    if (newStaffPassword.length < 8) {
-      setStaffMsg({ text: 'Password must be at least 8 characters long.', kind: 'error' })
-      return
-    }
 
     setCreatingStaffBusy(true)
     setStaffMsg(null)
     const token = localStorage.getItem('hmd_access_token')
 
     try {
-      const res = await fetch('/api/admin/staff', {
+      const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -774,25 +760,24 @@ export default function AuthPages({
         },
         body: JSON.stringify({
           fullName: newStaffName.trim(),
-          email: newStaffEmail.trim(),
-          password: newStaffPassword,
-          roleTitle: newStaffRoleTitle.trim(),
+          email: newStaffEmail.trim().toLowerCase(),
+          role: newStaffRole,
+          roleTitle: newStaffRoleTitle.trim() || undefined,
           permissions: newStaffPerms,
         }),
       })
       const data = await res.json()
       if (res.ok) {
-        setStaffMsg({ text: `✓ Account created for ${newStaffName} (${newStaffRoleTitle}).`, kind: 'success' })
+        setStaffMsg({ text: `✓ Invitation dispatched to ${newStaffEmail}. They will receive an email to securely set their password.`, kind: 'success' })
         setNewStaffName('')
         setNewStaffEmail('')
-        setNewStaffPassword('')
         setShowCreateStaffForm(false)
         fetchStaff()
       } else {
-        setStaffMsg({ text: data.error || 'Failed to create staff account.', kind: 'error' })
+        setStaffMsg({ text: data.error || 'Failed to dispatch staff invitation.', kind: 'error' })
       }
     } catch {
-      setStaffMsg({ text: 'Network request failed. Could not create account.', kind: 'error' })
+      setStaffMsg({ text: 'Network request failed. Could not invite staff member.', kind: 'error' })
     } finally {
       setCreatingStaffBusy(false)
     }
@@ -800,7 +785,11 @@ export default function AuthPages({
 
   const handleStartEditStaff = (staff: StaffMember) => {
     setEditingStaffId(staff.id)
+    const allowedRoles = ['admin', 'sales_manager', 'operations_manager']
+    const currentRole = staff.role && allowedRoles.includes(staff.role) ? staff.role as 'admin' | 'sales_manager' | 'operations_manager' : 'operations_manager'
+    setEditRole(currentRole)
     setEditRoleTitle(staff.role_title || '')
+    setEditIsActive(staff.is_active !== false)
     setEditPerms({ ...staff.permissions })
     setStaffMsg(null)
   }
@@ -809,20 +798,22 @@ export default function AuthPages({
     setSavingEditBusy(true)
     const token = localStorage.getItem('hmd_access_token')
     try {
-      const res = await fetch(`/api/admin/staff/${staffId}`, {
+      const res = await fetch(`/api/admin/users/${staffId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          role: editRole,
           roleTitle: editRoleTitle,
+          is_active: editIsActive,
           permissions: editPerms,
         }),
       })
       const data = await res.json()
       if (res.ok) {
-        setStaffMsg({ text: '✓ Staff permissions successfully updated.', kind: 'success' })
+        setStaffMsg({ text: '✓ Staff permissions and account status updated successfully.', kind: 'success' })
         setEditingStaffId(null)
         fetchStaff()
       } else {
@@ -835,25 +826,31 @@ export default function AuthPages({
     }
   }
 
-  const handleRevokeStaff = async (staff: StaffMember) => {
-    if (!window.confirm(`Are you sure you want to revoke operational access for ${staff.full_name} (${staff.email})?`)) {
+  const handleToggleStaffActive = async (staff: StaffMember) => {
+    const isActivating = staff.is_active === false
+    const actionWord = isActivating ? 'activate' : 'deactivate'
+    if (!window.confirm(`Are you sure you want to ${actionWord} the account for ${staff.full_name} (${staff.email})?`)) {
       return
     }
     const token = localStorage.getItem('hmd_access_token')
     try {
-      const res = await fetch(`/api/admin/staff/${staff.id}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      const res = await fetch(`/api/admin/users/${staff.id}`, {
+        method: isActivating ? 'PATCH' : 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        ...(isActivating ? { body: JSON.stringify({ is_active: true }) } : {}),
       })
       const data = await res.json()
       if (res.ok) {
-        setStaffMsg({ text: `✓ Operational access revoked for ${staff.full_name}.`, kind: 'success' })
+        setStaffMsg({ text: `✓ Staff account for ${staff.full_name} ${isActivating ? 'activated' : 'deactivated'}.`, kind: 'success' })
         fetchStaff()
       } else {
-        setStaffMsg({ text: data.error || 'Failed to revoke staff access.', kind: 'error' })
+        setStaffMsg({ text: data.error || `Failed to ${actionWord} account.`, kind: 'error' })
       }
     } catch {
-      setStaffMsg({ text: 'Network request error while revoking access.', kind: 'error' })
+      setStaffMsg({ text: `Network request error while ${actionWord}ing account.`, kind: 'error' })
     }
   }
 
@@ -1136,27 +1133,41 @@ export default function AuthPages({
       .finally(() => setLoadingOrders(false))
   }
 
+  const isTabAllowed = useCallback((tab: AccountTab): boolean => {
+    if (!isUserAdmin) return true
+    if (tab === 'orders') return hasOrdersPerm
+    if (tab === 'tools') return hasInventoryPerm
+    if (tab === 'dealers') return hasKycPerm
+    if (tab === 'offers') return hasPromotionsPerm
+    if (tab === 'reviews') return hasReviewsPerm
+    if (tab === 'team') return isSuperAdmin
+    return true
+  }, [isUserAdmin, hasOrdersPerm, hasInventoryPerm, hasKycPerm, hasPromotionsPerm, hasReviewsPerm, isSuperAdmin])
+
+  const effectiveTab = isTabAllowed(activeTab) ? activeTab : 'overview'
+
   const switchTab = (tab: AccountTab) => {
-    setActiveTab(tab)
-    if (tab === 'catalog' && catalogItems.length === 0) {
+    const targetTab = isTabAllowed(tab) ? tab : 'overview'
+    setActiveTab(targetTab)
+    if (targetTab === 'catalog' && catalogItems.length === 0) {
       loadCatalog()
     }
-    if (tab === 'orders') {
+    if (targetTab === 'orders') {
       loadOrders()
     }
-    if (tab === 'offers') {
+    if (targetTab === 'offers') {
       fetchPromotions()
     }
-    if (tab === 'tools') {
+    if (targetTab === 'tools') {
       fetchAdminDiamonds()
     }
-    if (tab === 'dealers') {
+    if (targetTab === 'dealers') {
       fetchDealerApplications()
     }
-    if (tab === 'reviews') {
+    if (targetTab === 'reviews') {
       fetchAdminReviews()
     }
-    if (tab === 'team') {
+    if (targetTab === 'team') {
       fetchStaff()
     }
   }
@@ -1290,6 +1301,7 @@ export default function AuthPages({
     }
   }, [user, mode, isUserAdmin])
 
+
   // Synchronize active tab when requested from cart flyout or header
   useEffect(() => {
     const handleSwitchTab = () => {
@@ -1309,7 +1321,7 @@ export default function AuthPages({
 
   // Load profile from server when entering profile tab
   useEffect(() => {
-    if (user && activeTab === 'profile') {
+    if (user && effectiveTab === 'profile') {
       const token = localStorage.getItem('hmd_access_token')
       if (token) {
         fetch('/api/user/profile', {
@@ -1327,7 +1339,7 @@ export default function AuthPages({
           .catch(() => {})
       }
     }
-  }, [user, activeTab])
+  }, [user, effectiveTab])
 
   // ── client-side validation for signup ─────────────────────────────────────
   function validate(): string | null {
@@ -1387,13 +1399,13 @@ export default function AuthPages({
         const profile: UserProfile = data.user || { email: email.trim(), full_name: email.split('@')[0], account_type: 'customer' }
         localStorage.setItem('hmd_user', JSON.stringify(profile))
         updateUserSession(profile)
-        const msg = (profile?.account_type === 'admin' || email.toLowerCase().includes('heyman') || email.toLowerCase().includes('kuldeep') || email.toLowerCase().includes('patel') || email.toLowerCase().includes('chauhan'))
+        const msg = profile?.account_type === 'admin'
           ? 'Signed in as Administrator. Welcome to the Admin Control Center.'
           : (profile?.account_type === 'dealer' && profile?.dealer_status !== 'approved')
           ? 'Signed in. Your dealer access is still awaiting administrator approval.'
           : 'You are signed in successfully.'
         setStatus({ text: msg, kind: 'success' })
-        window.location.hash = (mode === 'admin' || profile?.account_type === 'admin' || email.toLowerCase().includes('heyman') || email.toLowerCase().includes('kuldeep')) ? '#admin' : '#account'
+        window.location.hash = (mode === 'admin' || profile?.account_type === 'admin') ? '#admin' : '#account'
       } else {
         setStatus({ text: data.message || 'Request received.', kind: 'success' })
         setCanResend(true)
@@ -1727,7 +1739,7 @@ export default function AuthPages({
         <section className="auth-card account-dashboard">
           <span className="auth-eyebrow">
             {isUserAdmin || user.account_type === 'admin'
-              ? 'HEY MAN DIAMOND LLC · SECURE ADMINISTRATOR CONTROL CENTER'
+              ? `HEY MAN DIAMOND LLC · SECURE ${roleTitle.toUpperCase()} CONTROL CENTER`
               : 'HEY MAN DIAMOND LLC · SECURE CUSTOMER PORTAL'}
           </span>
           <h1>Welcome, {user.full_name || user.email.split('@')[0]}!</h1>
@@ -1736,9 +1748,9 @@ export default function AuthPages({
           </p>
 
           <div className="account-badge-container">
-            <span className={`account-badge account-badge--${isUserAdmin || user.account_type === 'admin' ? 'admin' : (user.account_type || 'customer')}`}>
+            <span className={`account-badge account-badge--${isUserAdmin || user.account_type === 'admin' ? (user.role || 'admin') : (user.account_type || 'customer')}`}>
               {isUserAdmin || user.account_type === 'admin'
-                ? '🛡️ Super Administrator'
+                ? `🛡️ ${roleTitle}`
                 : user.account_type === 'dealer'
                 ? 'Wholesale Dealer'
                 : 'Verified Customer'}
@@ -1754,70 +1766,72 @@ export default function AuthPages({
           <nav className="account-tabs-bar" aria-label="Account navigation">
             <button
               type="button"
-              className={`account-tab-btn ${activeTab === 'overview' ? 'account-tab-btn--active' : ''}`}
+              className={`account-tab-btn ${effectiveTab === 'overview' ? 'account-tab-btn--active' : ''}`}
               onClick={() => switchTab('overview')}
             >
               Overview
             </button>
             <button
               type="button"
-              className={`account-tab-btn ${activeTab === 'catalog' ? 'account-tab-btn--active' : ''}`}
+              className={`account-tab-btn ${effectiveTab === 'catalog' ? 'account-tab-btn--active' : ''}`}
               onClick={() => switchTab('catalog')}
             >
               💎 Diamond Products ({catalogItems.length > 0 ? catalogItems.length : '5+'})
             </button>
             <button
               type="button"
-              className={`account-tab-btn ${activeTab === 'cart' ? 'account-tab-btn--active' : ''}`}
+              className={`account-tab-btn ${effectiveTab === 'cart' ? 'account-tab-btn--active' : ''}`}
               onClick={() => switchTab('cart')}
             >
               🛒 Cart & Shortlist ({cart.reduce((s, i) => s + i.quantity, 0)})
             </button>
             <button
               type="button"
-              className={`account-tab-btn ${activeTab === 'profile' ? 'account-tab-btn--active' : ''}`}
+              className={`account-tab-btn ${effectiveTab === 'profile' ? 'account-tab-btn--active' : ''}`}
               onClick={() => switchTab('profile')}
             >
               👤 Edit Profile & Address
             </button>
-            <button
-              type="button"
-              className={`account-tab-btn ${activeTab === 'orders' ? 'account-tab-btn--active' : ''}`}
-              onClick={() => switchTab('orders')}
-            >
-              📋 Orders & Transactions
-            </button>
-            {isUserAdmin && (
+            {hasOrdersPerm && (
               <button
                 type="button"
-                className={`account-tab-btn ${activeTab === 'tools' ? 'account-tab-btn--active' : ''}`}
+                className={`account-tab-btn ${effectiveTab === 'orders' ? 'account-tab-btn--active' : ''}`}
+                onClick={() => switchTab('orders')}
+              >
+                📋 Orders & Transactions
+              </button>
+            )}
+            {hasInventoryPerm && (
+              <button
+                type="button"
+                className={`account-tab-btn ${effectiveTab === 'tools' ? 'account-tab-btn--active' : ''}`}
                 onClick={() => switchTab('tools')}
               >
                 ⚙️ Diamond Inventory & Pricing
               </button>
             )}
-            {isUserAdmin && (
+            {hasKycPerm && (
               <button
                 type="button"
-                className={`account-tab-btn ${activeTab === 'dealers' ? 'account-tab-btn--active' : ''}`}
+                className={`account-tab-btn ${effectiveTab === 'dealers' ? 'account-tab-btn--active' : ''}`}
                 onClick={() => switchTab('dealers')}
               >
                 🏢 Dealer Approvals {dealerApps.filter(a => a.status === 'pending_review').length > 0 ? `(${dealerApps.filter(a => a.status === 'pending_review').length})` : ''}
               </button>
             )}
-            {isUserAdmin && (
+            {hasPromotionsPerm && (
               <button
                 type="button"
-                className={`account-tab-btn ${activeTab === 'offers' ? 'account-tab-btn--active' : ''}`}
+                className={`account-tab-btn ${effectiveTab === 'offers' ? 'account-tab-btn--active' : ''}`}
                 onClick={() => switchTab('offers')}
               >
                 ✨ Offers & Schemes Banner
               </button>
             )}
-            {isUserAdmin && (
+            {hasReviewsPerm && (
               <button
                 type="button"
-                className={`account-tab-btn ${activeTab === 'reviews' ? 'account-tab-btn--active' : ''}`}
+                className={`account-tab-btn ${effectiveTab === 'reviews' ? 'account-tab-btn--active' : ''}`}
                 onClick={() => switchTab('reviews')}
               >
                 ⭐ Reviews & Replies {adminReviews.length > 0 ? `(${adminReviews.length})` : ''}
@@ -1826,16 +1840,16 @@ export default function AuthPages({
             {isSuperAdmin && (
               <button
                 type="button"
-                className={`account-tab-btn ${activeTab === 'team' ? 'account-tab-btn--active' : ''}`}
+                className={`account-tab-btn ${effectiveTab === 'team' ? 'account-tab-btn--active' : ''}`}
                 onClick={() => switchTab('team')}
               >
-                👥 Staff & Roles {staffList.length > 0 ? `(${staffList.length})` : ''}
+                👥 Users & Access {staffList.length > 0 ? `(${staffList.length})` : ''}
               </button>
             )}
           </nav>
 
           {/* ── TAB 1: OVERVIEW ── */}
-          {activeTab === 'overview' && (
+          {effectiveTab === 'overview' && (
             <div className="tab-content tab-content--overview">
               {status.text && (
                 <p className={statusClass} role="status" aria-live="polite">
@@ -1844,7 +1858,7 @@ export default function AuthPages({
               )}
 
               <div className="account-cards-grid">
-                {isUserAdmin && (
+                {hasInventoryPerm && (
                   <div className="account-card-item account-card-item--admin-highlight">
                     <div>
                       <h3>💎 Diamond Inventory &amp; Dual-Price Manager</h3>
@@ -1856,7 +1870,7 @@ export default function AuthPages({
                   </div>
                 )}
 
-                {isUserAdmin && (
+                {hasKycPerm && (
                   <div className="account-card-item account-card-item--admin-highlight">
                     <div>
                       <h3>🏢 Dealer Account Approvals</h3>
@@ -1868,7 +1882,7 @@ export default function AuthPages({
                   </div>
                 )}
 
-                {isUserAdmin && (
+                {hasReviewsPerm && (
                   <div className="account-card-item account-card-item--admin-highlight">
                     <div>
                       <h3>⭐ Customer Reviews &amp; Feedback Manager</h3>
@@ -1880,7 +1894,7 @@ export default function AuthPages({
                   </div>
                 )}
 
-                {isUserAdmin && (
+                {hasPromotionsPerm && (
                   <div className="account-card-item">
                     <div>
                       <h3>✨ Front Page Offers &amp; Schemes</h3>
@@ -1895,11 +1909,11 @@ export default function AuthPages({
                 {isSuperAdmin && (
                   <div className="account-card-item account-card-item--admin-highlight">
                     <div>
-                      <h3>👥 Operational Staff &amp; Access Control</h3>
-                      <p>Create staff credentials for Sales Managers, Inventory Specialists, and Administrators with custom granular permissions.</p>
+                      <h3>👥 Users &amp; Access Control</h3>
+                      <p>Invite operational team members, assign roles, and grant custom granular module permissions.</p>
                     </div>
                     <button type="button" className="button-primary" onClick={() => switchTab('team')}>
-                      Manage Staff &amp; Roles →
+                      Manage Users &amp; Access →
                     </button>
                   </div>
                 )}
@@ -1948,7 +1962,7 @@ export default function AuthPages({
           )}
 
           {/* ── TAB 2: PRODUCT CATALOG ── */}
-          {activeTab === 'catalog' && (
+          {effectiveTab === 'catalog' && (
             <div className="tab-content tab-content--catalog">
               <div className="catalog-header-bar">
                 <div>
@@ -2038,7 +2052,7 @@ export default function AuthPages({
           )}
 
           {/* ── TAB 3: CART & SHORTLIST ── */}
-          {activeTab === 'cart' && (
+          {effectiveTab === 'cart' && (
             <div className="tab-content tab-content--cart">
               <h2>Your Diamond Cart & Shortlist</h2>
               <p>Items in your cart are reserved for direct quote submission and ordering.</p>
@@ -2121,7 +2135,7 @@ export default function AuthPages({
           )}
 
           {/* ── TAB 4: EDIT PROFILE & ADDRESS ── */}
-          {activeTab === 'profile' && (
+          {effectiveTab === 'profile' && (
             <div className="tab-content tab-content--profile">
               <h2>My Profile & Account Settings</h2>
               <p>Update your personal information, contact number, and shipping address.</p>
@@ -2189,7 +2203,7 @@ export default function AuthPages({
           )}
 
           {/* ── TAB 5: ORDERS & TRANSACTIONS ── */}
-          {activeTab === 'orders' && (
+          {effectiveTab === 'orders' && (
             <div className="tab-content tab-content--orders">
               <h2>Order & Transaction History</h2>
               <p>Review your historical quote requests, custom diamond inquiries, and order transactions.</p>
@@ -2237,7 +2251,7 @@ export default function AuthPages({
           )}
 
           {/* ── TAB 6: INVENTORY TOOLS (STAFF / ADMIN ONLY) ── */}
-          {activeTab === 'tools' && isUserAdmin && (
+          {effectiveTab === 'tools' && hasInventoryPerm && (
             <div className="tab-content tab-content--tools">
               <div className="account-inventory-box" style={{ margin: 0 }}>
                 <div className="inventory-box-header">
@@ -2694,7 +2708,7 @@ export default function AuthPages({
           )}
 
           {/* ── TAB 7: OFFERS & SCHEMES BANNER (STAFF / ADMIN ONLY) ── */}
-          {activeTab === 'offers' && isUserAdmin && (
+          {effectiveTab === 'offers' && hasPromotionsPerm && (
             <div className="tab-content tab-content--offers">
               <div className="offers-manager-box">
                 <div className="offers-manager-header">
@@ -2916,7 +2930,7 @@ export default function AuthPages({
           )}
 
           {/* ── TAB 8: DEALER APPROVALS (ADMIN) ── */}
-          {activeTab === 'dealers' && isUserAdmin && (
+          {effectiveTab === 'dealers' && hasKycPerm && (
             <div className="tab-content tab-content--dealers">
               <div className="dealers-manager-box">
                 <div className="dealers-manager-header">
@@ -3008,7 +3022,7 @@ export default function AuthPages({
           )}
 
           {/* ── TAB 9: CUSTOMER REVIEWS & REPLIES (ADMIN) ── */}
-          {activeTab === 'reviews' && isUserAdmin && (
+          {effectiveTab === 'reviews' && hasReviewsPerm && (
             <div className="tab-content tab-content--reviews">
               <div className="reviews-manager-box">
                 <div className="reviews-manager-header">
@@ -3261,15 +3275,15 @@ export default function AuthPages({
             </div>
           )}
 
-          {/* ── TAB 10: STAFF & OPERATIONS ACCESS CONTROL (SUPER ADMIN) ── */}
-          {activeTab === 'team' && isSuperAdmin && (
+          {/* ── TAB 10: USERS & ACCESS CONTROL (SUPER ADMIN) ── */}
+          {effectiveTab === 'team' && isSuperAdmin && (
             <div className="tab-content tab-content--team">
               <div className="staff-header-bar">
                 <div>
-                  <h2>👥 Operational Staff &amp; Access Control</h2>
+                  <h2>👥 Users &amp; Access Control</h2>
                   <p>
-                    Create operational logins for Sales Managers, Inventory Specialists, and Support Administrators.
-                    Grant custom granular permissions to specific modules according to business responsibilities.
+                    Manage operational staff accounts, roles, and granular module permissions.
+                    Invitations are sent via Supabase Auth email.
                   </p>
                 </div>
                 <div className="staff-header-actions">
@@ -3281,7 +3295,7 @@ export default function AuthPages({
                       setStaffMsg(null)
                     }}
                   >
-                    {showCreateStaffForm ? '✕ Close Form' : '+ Add Staff Account'}
+                    {showCreateStaffForm ? '✕ Close Form' : '+ Invite User'}
                   </button>
                   <button
                     type="button"
@@ -3308,61 +3322,14 @@ export default function AuthPages({
                 </div>
               )}
 
-              {/* Collapsible Form for Creating New Staff */}
+              {/* Invite User Form Collapsible */}
               {showCreateStaffForm && (
                 <div className="staff-create-card">
                   <div className="staff-create-card-header">
-                    <h3>Create New Operational Staff Account</h3>
-                    <p>Assign credentials and customize access permissions for this staff member.</p>
-                  </div>
-
-                  {/* Preset Quick Selectors */}
-                  <div className="staff-preset-selector">
-                    <label className="staff-form-label">Role Template / Preset:</label>
-                    <div className="staff-preset-bar">
-                      <button
-                        type="button"
-                        className={`staff-preset-pill ${newStaffRolePreset === 'sales' ? 'staff-preset-pill--active' : ''}`}
-                        onClick={() => handleSelectPreset('sales')}
-                      >
-                        👔 Sales &amp; Dealer Manager
-                      </button>
-                      <button
-                        type="button"
-                        className={`staff-preset-pill ${newStaffRolePreset === 'inventory' ? 'staff-preset-pill--active' : ''}`}
-                        onClick={() => handleSelectPreset('inventory')}
-                      >
-                        💎 Inventory Specialist
-                      </button>
-                      <button
-                        type="button"
-                        className={`staff-preset-pill ${newStaffRolePreset === 'support' ? 'staff-preset-pill--active' : ''}`}
-                        onClick={() => handleSelectPreset('support')}
-                      >
-                        🎧 Customer Reviews &amp; Support
-                      </button>
-                      <button
-                        type="button"
-                        className={`staff-preset-pill ${newStaffRolePreset === 'marketing' ? 'staff-preset-pill--active' : ''}`}
-                        onClick={() => handleSelectPreset('marketing')}
-                      >
-                        ✨ Front Page &amp; Offers
-                      </button>
-                      <button
-                        type="button"
-                        className={`staff-preset-pill ${newStaffRolePreset === 'admin' ? 'staff-preset-pill--active' : ''}`}
-                        onClick={() => handleSelectPreset('admin')}
-                      >
-                        🛡️ General Administrator
-                      </button>
-                      <button
-                        type="button"
-                        className={`staff-preset-pill ${newStaffRolePreset === 'custom' ? 'staff-preset-pill--active' : ''}`}
-                        onClick={() => setNewStaffRolePreset('custom')}
-                      >
-                        ⚙️ Custom Permissions
-                      </button>
-                    </div>
+                    <h3>Invite Team Member</h3>
+                    <p>
+                      An invitation email will be sent via Supabase. The user can securely set their own password via the email link.
+                    </p>
                   </div>
 
                   <form onSubmit={handleCreateStaff} className="staff-create-form">
@@ -3386,61 +3353,41 @@ export default function AuthPages({
                           required
                           value={newStaffEmail}
                           onChange={e => setNewStaffEmail(e.target.value)}
-                          placeholder="staff@heymandiamond.com"
+                          placeholder="user@heymandiamond.com"
                           className="staff-input-text"
                         />
                       </div>
 
                       <div className="staff-form-group">
-                        <label className="staff-form-label">Role Title / Designation *</label>
+                        <label className="staff-form-label">Role *</label>
+                        <select
+                          className="staff-input-text"
+                          value={newStaffRole}
+                          onChange={e => handleSelectRole(e.target.value as 'admin' | 'sales_manager' | 'operations_manager')}
+                        >
+                          <option value="sales_manager">Sales Manager</option>
+                          <option value="operations_manager">Operations Manager</option>
+                          <option value="admin">Administrator</option>
+                        </select>
+                      </div>
+
+                      <div className="staff-form-group">
+                        <label className="staff-form-label">Custom Designation / Role Title</label>
                         <input
                           type="text"
-                          required
                           value={newStaffRoleTitle}
                           onChange={e => setNewStaffRoleTitle(e.target.value)}
-                          placeholder="e.g. Sales &amp; Dealer Relations Manager"
+                          placeholder="e.g. Senior Wholesale Sales Representative"
                           className="staff-input-text"
                         />
-                      </div>
-
-                      <div className="staff-form-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <label className="staff-form-label">Temporary Password (Min 8 chars) *</label>
-                          <button
-                            type="button"
-                            className="staff-btn-text-link"
-                            onClick={generateStrongPassword}
-                          >
-                            ⚡ Generate Secure Password
-                          </button>
-                        </div>
-                        <div className="staff-password-input-wrap">
-                          <input
-                            type={showStaffPassword ? 'text' : 'password'}
-                            required
-                            minLength={8}
-                            value={newStaffPassword}
-                            onChange={e => setNewStaffPassword(e.target.value)}
-                            placeholder="Enter or generate password"
-                            className="staff-input-text"
-                          />
-                          <button
-                            type="button"
-                            className="staff-btn-pw-toggle"
-                            onClick={() => setShowStaffPassword(!showStaffPassword)}
-                            aria-label="Toggle password visibility"
-                          >
-                            {showStaffPassword ? '🙈 Hide' : '👁️ Show'}
-                          </button>
-                        </div>
                       </div>
                     </div>
 
                     {/* Permissions Checkbox Grid */}
                     <div className="staff-perms-section">
-                      <h4 className="staff-perms-title">Select Module Access Permissions</h4>
+                      <h4 className="staff-perms-title">Assigned Module Permissions</h4>
                       <p className="staff-perms-subtitle">
-                        Choose which sections in the admin center this staff member is authorized to view and manage:
+                        Pre-filled based on selected role, customize as needed:
                       </p>
 
                       <div className="staff-perms-grid">
@@ -3450,7 +3397,6 @@ export default function AuthPages({
                             checked={Boolean(newStaffPerms.can_manage_inventory)}
                             onChange={e => {
                               setNewStaffPerms(prev => ({ ...prev, can_manage_inventory: e.target.checked }))
-                              setNewStaffRolePreset('custom')
                             }}
                           />
                           <div className="staff-perm-card-content">
@@ -3466,7 +3412,6 @@ export default function AuthPages({
                             checked={Boolean(newStaffPerms.can_manage_orders)}
                             onChange={e => {
                               setNewStaffPerms(prev => ({ ...prev, can_manage_orders: e.target.checked }))
-                              setNewStaffRolePreset('custom')
                             }}
                           />
                           <div className="staff-perm-card-content">
@@ -3482,7 +3427,6 @@ export default function AuthPages({
                             checked={Boolean(newStaffPerms.can_review_kyc)}
                             onChange={e => {
                               setNewStaffPerms(prev => ({ ...prev, can_review_kyc: e.target.checked }))
-                              setNewStaffRolePreset('custom')
                             }}
                           />
                           <div className="staff-perm-card-content">
@@ -3498,7 +3442,6 @@ export default function AuthPages({
                             checked={Boolean(newStaffPerms.can_manage_reviews)}
                             onChange={e => {
                               setNewStaffPerms(prev => ({ ...prev, can_manage_reviews: e.target.checked }))
-                              setNewStaffRolePreset('custom')
                             }}
                           />
                           <div className="staff-perm-card-content">
@@ -3514,29 +3457,12 @@ export default function AuthPages({
                             checked={Boolean(newStaffPerms.can_manage_promotions)}
                             onChange={e => {
                               setNewStaffPerms(prev => ({ ...prev, can_manage_promotions: e.target.checked }))
-                              setNewStaffRolePreset('custom')
                             }}
                           />
                           <div className="staff-perm-card-content">
                             <span className="staff-perm-card-icon">✨</span>
                             <strong>Front Page Offers &amp; Schemes</strong>
                             <p>Manage liquid glass promotional banners, video/image slider carousels, and promotional sales.</p>
-                          </div>
-                        </label>
-
-                        <label className={`staff-perm-checkbox-card ${newStaffPerms.can_manage_team ? 'staff-perm-checkbox-card--active' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(newStaffPerms.can_manage_team)}
-                            onChange={e => {
-                              setNewStaffPerms(prev => ({ ...prev, can_manage_team: e.target.checked }))
-                              setNewStaffRolePreset('custom')
-                            }}
-                          />
-                          <div className="staff-perm-card-content">
-                            <span className="staff-perm-card-icon">👥</span>
-                            <strong>Staff &amp; Role Management</strong>
-                            <p>Super Admin level authority: create, modify, and revoke access for other team members.</p>
                           </div>
                         </label>
                       </div>
@@ -3548,7 +3474,7 @@ export default function AuthPages({
                         className="button-primary"
                         disabled={creatingStaffBusy}
                       >
-                        {creatingStaffBusy ? 'Creating Account…' : '✓ Create Account & Grant Access'}
+                        {creatingStaffBusy ? 'Sending Invitation…' : '✉️ Send Invitation via Email'}
                       </button>
                       <button
                         type="button"
@@ -3566,8 +3492,8 @@ export default function AuthPages({
               <div className="staff-directory-wrap">
                 <div className="staff-directory-header">
                   <div>
-                    <h3>Operational Staff Directory</h3>
-                    <p>Current authorized accounts and granted operational permissions ({staffList.length} total):</p>
+                    <h3>Authorized Staff Accounts</h3>
+                    <p>Overview of all active and inactive operational accounts ({staffList.length} total):</p>
                   </div>
                   <div className="staff-search-box">
                     <input
@@ -3594,15 +3520,27 @@ export default function AuthPages({
                       return (
                         (staff.full_name && staff.full_name.toLowerCase().includes(q)) ||
                         (staff.email && staff.email.toLowerCase().includes(q)) ||
-                        (staff.role_title && staff.role_title.toLowerCase().includes(q))
+                        (staff.role_title && staff.role_title.toLowerCase().includes(q)) ||
+                        (staff.role && staff.role.toLowerCase().includes(q))
                       )
                     })
                     .map(staff => {
                       const isEditing = editingStaffId === staff.id
-                      const isSuper = staff.role === 'super_admin' || staff.is_super_admin || Boolean(staff.permissions?.can_manage_users || staff.permissions?.can_manage_team)
+                      const isSuper = staff.role === 'super_admin'
+                      const isSelf = Boolean(
+                        (user.id && staff.id === user.id) ||
+                        (staff.email && user.email && staff.email.toLowerCase() === user.email.toLowerCase())
+                      )
+                      const isActive = staff.is_active !== false
+
+                      const displayRole = staff.role === 'super_admin' ? 'Super Administrator'
+                        : staff.role === 'admin' ? 'Administrator'
+                        : staff.role === 'sales_manager' ? 'Sales Manager'
+                        : staff.role === 'operations_manager' ? 'Operations Manager'
+                        : (staff.role_title || 'Staff Member')
 
                       return (
-                        <div key={staff.id} className="staff-member-card">
+                        <div key={staff.id} className={`staff-member-card ${!isActive ? 'staff-member-card--inactive' : ''}`}>
                           <div className="staff-member-main">
                             <div className="staff-avatar">
                               {staff.full_name ? staff.full_name.charAt(0).toUpperCase() : '👤'}
@@ -3611,14 +3549,24 @@ export default function AuthPages({
                             <div className="staff-member-info">
                               <div className="staff-name-row">
                                 <h4 className="staff-member-name">{staff.full_name || 'Staff Member'}</h4>
-                                {isSuper && (
-                                  <span className="staff-badge staff-badge--super">🛡️ Super Admin</span>
+                                {isSelf && (
+                                  <span className="staff-badge staff-badge--self">You</span>
                                 )}
-                                <span className="staff-badge staff-badge--active">✓ Active</span>
+                                <span className={`staff-badge ${isSuper ? 'staff-badge--super' : 'staff-badge--role'}`}>
+                                  {isSuper ? '🛡️ Super Administrator' : displayRole}
+                                </span>
+                                <span className={`staff-badge ${isActive ? 'staff-badge--active' : 'staff-badge--inactive'}`}>
+                                  {isActive ? '✓ Active' : '✕ Inactive'}
+                                </span>
                               </div>
                               <div className="staff-meta-row">
                                 <span className="staff-member-email">✉️ {staff.email}</span>
-                                <span className="staff-member-title">💼 {staff.role_title || 'Operations Manager'}</span>
+                                {staff.role_title && staff.role_title !== displayRole && (
+                                  <span className="staff-member-title">💼 {staff.role_title}</span>
+                                )}
+                                {staff.created_at && (
+                                  <span className="staff-member-date">📅 Added {new Date(staff.created_at).toLocaleDateString()}</span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -3626,14 +3574,51 @@ export default function AuthPages({
                           {/* Inline Edit Panel */}
                           {isEditing ? (
                             <div className="staff-inline-edit-panel">
-                              <div className="staff-form-group">
-                                <label className="staff-form-label">Role Title / Designation</label>
-                                <input
-                                  type="text"
-                                  value={editRoleTitle}
-                                  onChange={e => setEditRoleTitle(e.target.value)}
-                                  className="staff-input-text"
-                                />
+                              <div className="staff-form-grid">
+                                <div className="staff-form-group">
+                                  <label className="staff-form-label">Role</label>
+                                  <select
+                                    className="staff-input-text"
+                                    value={editRole}
+                                    onChange={e => {
+                                      const newRole = e.target.value as 'admin' | 'sales_manager' | 'operations_manager'
+                                      setEditRole(newRole)
+                                      if (newRole === 'admin') {
+                                        setEditPerms({ can_manage_inventory: true, can_manage_orders: true, can_review_kyc: true, can_manage_reviews: true, can_manage_promotions: true, can_manage_users: false })
+                                      } else if (newRole === 'sales_manager') {
+                                        setEditPerms({ can_manage_inventory: false, can_manage_orders: true, can_review_kyc: true, can_manage_reviews: true, can_manage_promotions: false, can_manage_users: false })
+                                      } else if (newRole === 'operations_manager') {
+                                        setEditPerms({ can_manage_inventory: true, can_manage_orders: true, can_review_kyc: false, can_manage_reviews: false, can_manage_promotions: false, can_manage_users: false })
+                                      }
+                                    }}
+                                  >
+                                    <option value="sales_manager">Sales Manager</option>
+                                    <option value="operations_manager">Operations Manager</option>
+                                    <option value="admin">Administrator</option>
+                                  </select>
+                                </div>
+
+                                <div className="staff-form-group">
+                                  <label className="staff-form-label">Custom Designation / Role Title</label>
+                                  <input
+                                    type="text"
+                                    value={editRoleTitle}
+                                    onChange={e => setEditRoleTitle(e.target.value)}
+                                    className="staff-input-text"
+                                  />
+                                </div>
+
+                                <div className="staff-form-group">
+                                  <label className="staff-form-label">Account Status</label>
+                                  <select
+                                    className="staff-input-text"
+                                    value={editIsActive ? 'active' : 'inactive'}
+                                    onChange={e => setEditIsActive(e.target.value === 'active')}
+                                  >
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                  </select>
+                                </div>
                               </div>
 
                               <div className="staff-inline-perms-select">
@@ -3679,14 +3664,6 @@ export default function AuthPages({
                                     />
                                     <span>✨ Front Page Offers</span>
                                   </label>
-                                  <label className="staff-inline-checkbox">
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(editPerms.can_manage_team)}
-                                      onChange={e => setEditPerms(p => ({ ...p, can_manage_team: e.target.checked }))}
-                                    />
-                                    <span>👥 Team &amp; Roles (Admin)</span>
-                                  </label>
                                 </div>
                               </div>
 
@@ -3713,31 +3690,33 @@ export default function AuthPages({
                             <div className="staff-granted-perms-row">
                               <span className="staff-granted-label">Granted Permissions:</span>
                               <div className="staff-perms-pills">
-                                {staff.permissions?.can_manage_inventory && (
-                                  <span className="staff-perm-pill">💎 Diamond Inventory</span>
-                                )}
-                                {staff.permissions?.can_manage_orders && (
-                                  <span className="staff-perm-pill">📦 Orders &amp; Quotes</span>
-                                )}
-                                {staff.permissions?.can_review_kyc && (
-                                  <span className="staff-perm-pill">🏢 Dealer KYC</span>
-                                )}
-                                {staff.permissions?.can_manage_reviews && (
-                                  <span className="staff-perm-pill">⭐ Reviews &amp; Replies</span>
-                                )}
-                                {staff.permissions?.can_manage_promotions && (
-                                  <span className="staff-perm-pill">✨ Offers &amp; Schemes</span>
-                                )}
-                                {staff.permissions?.can_manage_team && (
-                                  <span className="staff-perm-pill staff-perm-pill--admin">👥 Team Management</span>
-                                )}
-                                {!staff.permissions?.can_manage_inventory &&
-                                 !staff.permissions?.can_manage_orders &&
-                                 !staff.permissions?.can_review_kyc &&
-                                 !staff.permissions?.can_manage_reviews &&
-                                 !staff.permissions?.can_manage_promotions &&
-                                 !staff.permissions?.can_manage_team && (
-                                  <span className="staff-perm-pill staff-perm-pill--empty">None assigned</span>
+                                {isSuper ? (
+                                  <span className="staff-perm-pill staff-perm-pill--admin">🛡️ Full System Super Admin Access</span>
+                                ) : (
+                                  <>
+                                    {staff.permissions?.can_manage_inventory && (
+                                      <span className="staff-perm-pill">💎 Diamond Inventory</span>
+                                    )}
+                                    {staff.permissions?.can_manage_orders && (
+                                      <span className="staff-perm-pill">📦 Orders &amp; Quotes</span>
+                                    )}
+                                    {staff.permissions?.can_review_kyc && (
+                                      <span className="staff-perm-pill">🏢 Dealer KYC</span>
+                                    )}
+                                    {staff.permissions?.can_manage_reviews && (
+                                      <span className="staff-perm-pill">⭐ Reviews &amp; Replies</span>
+                                    )}
+                                    {staff.permissions?.can_manage_promotions && (
+                                      <span className="staff-perm-pill">✨ Offers &amp; Schemes</span>
+                                    )}
+                                    {!staff.permissions?.can_manage_inventory &&
+                                     !staff.permissions?.can_manage_orders &&
+                                     !staff.permissions?.can_review_kyc &&
+                                     !staff.permissions?.can_manage_reviews &&
+                                     !staff.permissions?.can_manage_promotions && (
+                                      <span className="staff-perm-pill staff-perm-pill--empty">None assigned</span>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -3748,6 +3727,8 @@ export default function AuthPages({
                               <button
                                 type="button"
                                 className="button-secondary"
+                                disabled={isSelf || isSuper}
+                                title={isSelf ? 'You cannot edit your own permissions or role' : isSuper ? 'Super admin permissions are managed via database' : undefined}
                                 onClick={() => handleStartEditStaff(staff)}
                               >
                                 ✏️ Edit Access &amp; Role
@@ -3757,10 +3738,12 @@ export default function AuthPages({
                             {!isSuper && (
                               <button
                                 type="button"
-                                className="admin-btn-delete-review"
-                                onClick={() => handleRevokeStaff(staff)}
+                                className={isActive ? 'admin-btn-delete-review' : 'button-secondary'}
+                                disabled={isSelf}
+                                title={isSelf ? 'You cannot deactivate your own account' : undefined}
+                                onClick={() => handleToggleStaffActive(staff)}
                               >
-                                🗑️ Revoke Access
+                                {isActive ? '🚫 Deactivate Account' : '✓ Activate Account'}
                               </button>
                             )}
                           </div>

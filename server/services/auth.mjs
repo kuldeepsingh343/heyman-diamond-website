@@ -273,7 +273,7 @@ export async function handleSignup(req, res) {
   const existingUser = await findAuthUserByEmail(email)
   if (existingUser?.email_confirmed_at) {
     const profileRows = await db(`profiles?id=eq.${existingUser.id}&select=account_type`).catch(() => [])
-    const isTrulyRegistered = Boolean(profileRows?.[0]?.account_type || existingUser.user_metadata?.account_type)
+    const isTrulyRegistered = Boolean(profileRows?.[0]?.account_type)
     if (isTrulyRegistered) {
       return json(res, 409, { code: 'already_registered', error: 'You are already a registered customer. Please sign in to your account.' })
     }
@@ -714,17 +714,49 @@ export async function handleUpdateProfile(req, res) {
     }
   }
 
+  let profileData = null
+  let isAdmin = false
+  let adminRecord = null
+  if (supabaseReady()) {
+    try {
+      const rows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}`)
+      if (rows && rows.length > 0) profileData = rows[0]
+      if (user.email_confirmed_at) {
+        const adminRows = await db(`admin_users?user_id=eq.${encodeURIComponent(user.id)}`)
+        if (adminRows && adminRows.length > 0 && adminRows[0].is_active !== false) {
+          isAdmin = true
+          adminRecord = adminRows[0]
+        }
+      }
+    } catch (err) {
+      console.warn('Profile fetch after update failed:', err.message)
+    }
+  } else {
+    adminRecord = getMemoryStaffUser(user.id)
+    if (adminRecord && adminRecord.is_active !== false) isAdmin = true
+  }
+
+  const resolved = adminRecord ? resolvePermissions(adminRecord) : null
+  const accountType = isAdmin ? 'admin' : (profileData?.account_type === 'dealer' ? 'dealer' : 'customer')
+
   return json(res, 200, {
     success: true,
     message: 'Profile updated successfully.',
     user: {
+      id: user.id,
       email: user.email,
       full_name: fullName,
       phone,
       address,
       gender,
-      account_type: user.user_metadata?.account_type || 'customer',
-      dealer_status: user.user_metadata?.dealer_status || 'not_applied',
+      account_type: accountType,
+      dealer_status: profileData?.dealer_status || 'not_applied',
+      is_registered: Boolean(isAdmin || (profileData && profileData.account_type)),
+      is_admin: isAdmin,
+      is_super_admin: resolved?.role === 'super_admin',
+      role: resolved?.role || undefined,
+      role_title: resolved?.role_title || undefined,
+      permissions: resolved?.permissions || undefined,
     },
   })
 }

@@ -1045,19 +1045,22 @@ export async function handleGetCatalog(req, res, url, user = null) {
     let isDealerPending = false
 
     if (user) {
-      let accountType = user.user_metadata?.account_type || user.account_type || 'customer'
-      let dealerStatus = user.user_metadata?.dealer_status || user.dealer_status || 'not_applied'
+      let accountType = 'customer'
+      let dealerStatus = 'not_applied'
 
       if (user.id && supabaseReady()) {
         try {
-          const profileRows = await db(`profiles?id=eq.${user.id}&select=account_type,dealer_status`)
+          const profileRows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}&select=account_type,dealer_status`)
           if (Array.isArray(profileRows) && profileRows.length > 0) {
-            accountType = profileRows[0].account_type || accountType
-            dealerStatus = profileRows[0].dealer_status || dealerStatus
+            accountType = profileRows[0].account_type || 'customer'
+            dealerStatus = profileRows[0].dealer_status || 'not_applied'
           }
         } catch {
           // ignore profile fetch fallback
         }
+      } else if (user.account_type) {
+        accountType = user.account_type
+        dealerStatus = user.dealer_status || 'not_applied'
       }
 
       isApprovedDealer = accountType === 'dealer' && dealerStatus === 'approved'

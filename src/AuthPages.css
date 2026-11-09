@@ -369,13 +369,30 @@
   border: 1px solid #a58a50;
 }
 
-.account-badge--admin {
+.account-badge--admin,
+.account-badge--super_admin {
   background: var(--emerald-dark);
   color: var(--gold);
   border: 1px solid var(--gold);
   font-weight: 700;
   letter-spacing: 0.8px;
   box-shadow: 0 2px 8px var(--gold-border);
+}
+
+.account-badge--sales_manager {
+  background: #1e293b;
+  color: #38bdf8;
+  border: 1px solid #0284c7;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+.account-badge--operations_manager {
+  background: #134e4a;
+  color: #5eead4;
+  border: 1px solid #14b8a6;
+  font-weight: 700;
+  letter-spacing: 0.8px;
 }
 
 .account-badge--status-approved {
@@ -2650,6 +2667,36 @@
   align-items: center;
   justify-content: flex-end;
 }
+
+.staff-badge--self {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.staff-badge--role {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.staff-badge--inactive {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.staff-member-card--inactive {
+  opacity: 0.75;
+  border-color: #fca5a5;
+  background: #fdfaf9;
+}
+
+.staff-member-date {
+  font-size: 12px;
+  color: #78716c;
+}
+
 
 
 
