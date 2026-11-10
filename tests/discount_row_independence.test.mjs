@@ -4,6 +4,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { sanitizeAdminDiamonds } from '../src/inventoryUtils.ts';
 import {
+  computeAudiencePricingDraft,
+  validateRowDiscount,
+} from '../src/discountHelpers.ts';
+import {
   handleGetAdminDiamonds,
   handleUpdateAdminDiamond,
 } from '../server/services/inventory.mjs';
@@ -171,11 +175,60 @@ describe('Discount Row Independence & Actions Single Line Verification', () => {
     assert.match(tsx, /diamond-revert-btn/);
   });
 
+  it('handles discount input edge cases without clearing user input while typing', () => {
+    // 1. Typing 2-decimal percentage computes discPrice rounded to 2 decimals
+    const validPct = computeAudiencePricingDraft('discPercent', '4', 1850, '', '');
+    assert.strictEqual(validPct.discountPrice, 1776);
+    assert.strictEqual(validPct.discountPercent, 4);
+    assert.strictEqual(validPct.error, null);
+
+    // 2. Typing discounted $ recomputes % rounded to 2 decimals
+    const validDisc = computeAudiencePricingDraft('discPrice', '100', 1850, '', '');
+    assert.strictEqual(validDisc.discountPrice, 100);
+    assert.strictEqual(validDisc.discountPercent, 94.59);
+    assert.strictEqual(validDisc.error, null);
+
+    // 3. Typing out-of-range % (100 or 0) keeps raw input string intact and reports error
+    const pctOver = computeAudiencePricingDraft('discPercent', '100', 1850, '', '');
+    assert.strictEqual(pctOver.discountPercentInput, '100');
+    assert.strictEqual(pctOver.discountPrice, null);
+    assert.ok(pctOver.error);
+
+    const pctZero = computeAudiencePricingDraft('discPercent', '0', 1850, '', '');
+    assert.strictEqual(pctZero.discountPercentInput, '0');
+    assert.ok(pctZero.error);
+
+    // 4. Typing disc > list keeps raw input string and reports error
+    const discTooHigh = computeAudiencePricingDraft('discPrice', '2000', 1850, '', '');
+    assert.strictEqual(discTooHigh.discountPriceInput, '2000');
+    assert.strictEqual(discTooHigh.discountPercent, null);
+    assert.ok(discTooHigh.error);
+
+    // 5. List price = 0 rejects any discount with clear error while preserving input
+    const listZero = computeAudiencePricingDraft('discPrice', '100', 0, '', '');
+    assert.strictEqual(listZero.discountPriceInput, '100');
+    assert.strictEqual(listZero.discountPercent, null);
+    assert.ok(listZero.error);
+
+    // 6. Empty input clears discount cleanly without error
+    const cleared = computeAudiencePricingDraft('discPrice', '', 1850, '100', '94.59');
+    assert.strictEqual(cleared.discountPrice, null);
+    assert.strictEqual(cleared.discountPercent, null);
+    assert.strictEqual(cleared.discountPercentInput, '');
+    assert.strictEqual(cleared.error, null);
+
+    // 7. validateRowDiscount validates independently
+    assert.strictEqual(validateRowDiscount(1850, 1776, 4), null);
+    assert.ok(validateRowDiscount(1850, 1900, null));
+    assert.ok(validateRowDiscount(0, 100, null));
+  });
+
   it('verifies Bug 2 CSS requirements: Action buttons in ONE line, sticky right, and Status column width', () => {
     // Single line flex row with no wrap
     assert.match(css, /\.diamond-row-actions\s*\{[^}]*display:\s*flex;/);
     assert.match(css, /\.diamond-row-actions\s*\{[^}]*flex-direction:\s*row;/);
     assert.match(css, /\.diamond-row-actions\s*\{[^}]*flex-wrap:\s*nowrap;/);
+    assert.match(css, /\.diamond-row-actions\s*\{[^}]*gap:\s*8px;/);
     assert.match(css, /\.diamond-row-actions\s*\{[^}]*white-space:\s*nowrap;/);
 
     // Equal heights across buttons
@@ -186,7 +239,7 @@ describe('Discount Row Independence & Actions Single Line Verification', () => {
     assert.match(css, /\.diamonds-table\s+td:nth-child\(7\)[^{]*\{[^}]*position:\s*sticky;/);
     assert.match(css, /\.diamonds-table\s+th:nth-child\(7\)[^{]*\{[^}]*right:\s*0;/);
     assert.match(css, /\.diamonds-table\s+td:nth-child\(7\)[^{]*\{[^}]*right:\s*0;/);
-    assert.match(css, /\.diamonds-table\s+th:nth-child\(7\)[^{]*\{[^}]*min-width:\s*240px;/);
+    assert.match(css, /\.diamonds-table\s+th:nth-child\(7\)[^{]*\{[^}]*min-width:\s*360px;/);
 
     // Status column width
     assert.match(css, /\.diamonds-table\s+th:nth-child\(6\)[^{]*\{[^}]*min-width:\s*110px;/);

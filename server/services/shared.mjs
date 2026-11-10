@@ -7,6 +7,18 @@ export const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, '')
 export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY
 
+export function getSupabaseUrl() {
+  return (process.env.SUPABASE_URL || SUPABASE_URL || '').replace(/\/$/, '')
+}
+
+export function getSupabaseServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SERVICE_ROLE_KEY || ''
+}
+
+export function getSupabaseAnonKey() {
+  return process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY || ''
+}
+
 export const KNOWN_ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -159,16 +171,18 @@ export async function bodyJson(req, limit = 20000) {
 }
 
 export function supabaseReady() {
-  return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
+  return Boolean(getSupabaseUrl() && getSupabaseServiceRoleKey())
 }
 
 export async function db(path, options = {}) {
   if (!supabaseReady()) throw new Error('Database API is not configured')
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  const baseUrl = getSupabaseUrl()
+  const key = getSupabaseServiceRoleKey()
+  const response = await fetch(`${baseUrl}/rest/v1/${path}`, {
     ...options,
     headers: {
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      apikey: key,
+      Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },

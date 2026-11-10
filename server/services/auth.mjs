@@ -1,7 +1,7 @@
 import {
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY,
-  SUPABASE_SERVICE_ROLE_KEY,
+  getSupabaseUrl,
+  getSupabaseAnonKey,
+  getSupabaseServiceRoleKey,
   supabaseReady,
   db,
   json,
@@ -13,8 +13,8 @@ import { getMemoryStaffUser, memoryStaffUsers } from './admin.mjs'
 
 export async function findAuthUserByEmail(email) {
   if (!supabaseReady()) throw new Error('Database API is not configured')
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`, {
-    headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+  const response = await fetch(`${getSupabaseUrl()}/auth/v1/admin/users?page=1&per_page=1000`, {
+    headers: { apikey: getSupabaseServiceRoleKey(), Authorization: `Bearer ${getSupabaseServiceRoleKey()}` },
   })
   if (!response.ok) throw new Error(`Unable to check account status (${response.status})`)
   const data = await response.json()
@@ -25,10 +25,10 @@ export async function authenticatedUser(req) {
   const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1]
   if (!token) return null
 
-  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+  if (getSupabaseUrl() && getSupabaseAnonKey()) {
     try {
-      const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+      const response = await fetch(`${getSupabaseUrl()}/auth/v1/user`, {
+        headers: { apikey: getSupabaseAnonKey(), Authorization: `Bearer ${token}` },
       })
       if (response.ok) return await response.json()
     } catch (err) {
@@ -243,7 +243,7 @@ export async function handleSignup(req, res) {
   }
   recordAttempt(signupAttempts, ip, LOCKOUT_DURATION_MS, MAX_SIGNUP_ATTEMPTS)
 
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !supabaseReady()) {
+  if (!getSupabaseUrl() || !getSupabaseAnonKey() || !supabaseReady()) {
     return json(res, 503, { error: 'Account service is not configured yet.' })
   }
 
@@ -309,11 +309,11 @@ export async function handleSignup(req, res) {
     }
 
     try {
-      await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${existingUser.id}`, {
+      await fetch(`${getSupabaseUrl()}/auth/v1/admin/users/${existingUser.id}`, {
         method: 'PUT',
         headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          apikey: getSupabaseServiceRoleKey(),
+          Authorization: `Bearer ${getSupabaseServiceRoleKey()}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -340,9 +340,9 @@ export async function handleSignup(req, res) {
     })
   }
   if (existingUser && !existingUser.email_confirmed_at) {
-    const resend = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
+    const resend = await fetch(`${getSupabaseUrl()}/auth/v1/resend`, {
       method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      headers: { apikey: getSupabaseAnonKey(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'signup', email, options: { emailRedirectTo: getAuthRedirectUrl(req) } }),
     })
     if (!resend.ok) {
@@ -352,11 +352,11 @@ export async function handleSignup(req, res) {
     return json(res, 200, { submitted: true, confirmationResent: true, message: 'Your account is not confirmed yet. We have requested a fresh confirmation email. Please check your inbox and spam folder.' })
   }
 
-  const signupUrl = new URL('/auth/v1/signup', SUPABASE_URL)
+  const signupUrl = new URL('/auth/v1/signup', getSupabaseUrl())
   signupUrl.searchParams.set('redirect_to', getAuthRedirectUrl(req))
   const signup = await fetch(signupUrl, {
     method: 'POST',
-    headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+    headers: { apikey: getSupabaseAnonKey(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, data: { full_name: fullName, account_type: accountType } }),
   })
   const authData = await signup.json()
@@ -405,7 +405,7 @@ export async function handleSignup(req, res) {
 }
 
 export async function handleResendConfirmation(req, res) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Email confirmation is not configured yet.' })
+  if (!getSupabaseUrl() || !getSupabaseAnonKey()) return json(res, 503, { error: 'Email confirmation is not configured yet.' })
   const ip = getClientIp(req)
   const rateLimit = checkRateLimit(resendAttempts, ip, 3, LOCKOUT_DURATION_MS)
   if (!rateLimit.allowed) {
@@ -419,9 +419,9 @@ export async function handleResendConfirmation(req, res) {
   }
   recordAttempt(resendAttempts, ip, LOCKOUT_DURATION_MS, 3)
 
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/resend`, {
+  const response = await fetch(`${getSupabaseUrl()}/auth/v1/resend`, {
     method: 'POST',
-    headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+    headers: { apikey: getSupabaseAnonKey(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ type: 'signup', email, options: { emailRedirectTo: getAuthRedirectUrl(req) } }),
   })
   if (!response.ok) {
@@ -451,15 +451,15 @@ export async function handleSignin(req, res) {
     }
   }
 
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Sign-in service is not configured yet.' })
+  if (!getSupabaseUrl() || !getSupabaseAnonKey()) return json(res, 503, { error: 'Sign-in service is not configured yet.' })
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password || password.length > 128) {
     return json(res, 400, { error: 'Enter a valid email and password.' })
   }
 
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+  const response = await fetch(`${getSupabaseUrl()}/auth/v1/token?grant_type=password`, {
     method: 'POST',
-    headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+    headers: { apikey: getSupabaseAnonKey(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   })
   const data = await response.json()
@@ -527,7 +527,7 @@ export async function handleForgotPassword(req, res) {
   const email = String(input.email || '').trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'Enter a valid email address.' })
 
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Password reset is not configured yet.' })
+  if (!getSupabaseUrl() || !getSupabaseAnonKey()) return json(res, 503, { error: 'Password reset is not configured yet.' })
 
   recordAttempt(passwordResetAttempts, ip, LOCKOUT_DURATION_MS, 3)
   recordAttempt(passwordResetAttempts, `reset:${email}`, LOCKOUT_DURATION_MS, 3)
@@ -535,9 +535,9 @@ export async function handleForgotPassword(req, res) {
   // Standard safe password recovery dispatch directly via GoTrue email
   // Security rule: NEVER generate or expose direct recovery links in the HTTP response.
   try {
-    await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+    await fetch(`${getSupabaseUrl()}/auth/v1/recover`, {
       method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      headers: { apikey: getSupabaseAnonKey(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, redirect_to: getAuthRedirectUrl(req) }),
     })
   } catch (err) {
@@ -552,7 +552,7 @@ export async function handleForgotPassword(req, res) {
 }
 
 export async function handleResetPassword(req, res) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return json(res, 503, { error: 'Authentication service is not configured yet.' })
+  if (!getSupabaseUrl() || !getSupabaseAnonKey()) return json(res, 503, { error: 'Authentication service is not configured yet.' })
   const input = await bodyJson(req)
   const password = String(input.password || '')
   const authHeader = req.headers['authorization'] || ''
@@ -576,10 +576,10 @@ export async function handleResetPassword(req, res) {
   }
 
   try {
-    const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    const response = await fetch(`${getSupabaseUrl()}/auth/v1/user`, {
       method: 'PUT',
       headers: {
-        apikey: SUPABASE_ANON_KEY,
+        apikey: getSupabaseAnonKey(),
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
@@ -690,12 +690,12 @@ export async function handleUpdateProfile(req, res) {
 
   // Update user_metadata in GoTrue auth
   const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1]
-  if (token && SUPABASE_URL && SUPABASE_ANON_KEY) {
+  if (token && getSupabaseUrl() && getSupabaseAnonKey()) {
     try {
-      await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      await fetch(`${getSupabaseUrl()}/auth/v1/user`, {
         method: 'PUT',
         headers: {
-          apikey: SUPABASE_ANON_KEY,
+          apikey: getSupabaseAnonKey(),
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
@@ -762,7 +762,7 @@ export async function handleUpdateProfile(req, res) {
 }
 
 export async function handleOAuth(req, res, url) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  if (!getSupabaseUrl() || !getSupabaseAnonKey()) {
     return json(res, 503, { error: 'Auth service is not configured yet.' })
   }
   const provider = (url.searchParams.get('provider') || '').toLowerCase()
@@ -772,7 +772,7 @@ export async function handleOAuth(req, res, url) {
   const redirectUrl = getAuthRedirectUrl(req)
 
   try {
-    const probe = await fetch(`${SUPABASE_URL}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectUrl)}`, {
+    const probe = await fetch(`${getSupabaseUrl()}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectUrl)}`, {
       method: 'GET',
       redirect: 'manual',
     })
@@ -786,7 +786,7 @@ export async function handleOAuth(req, res, url) {
     }
 
     const location = probe.headers.get('location')
-    const targetUrl = location || `${SUPABASE_URL}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectUrl)}`
+    const targetUrl = location || `${getSupabaseUrl()}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectUrl)}`
     return json(res, 200, {
       enabled: true,
       provider,

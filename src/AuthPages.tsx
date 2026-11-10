@@ -4,7 +4,7 @@ import type { FormEvent, ChangeEvent } from 'react'
 import { parseAuthStatusFromHash } from './routeUtils'
 import type { PromotionOffer } from './OffersHero'
 import { getDiamondMedia } from './diamondUtils'
-import { calculateDiscountFromPrice, calculateDiscountFromPercent } from './discountHelpers'
+import { computeAudiencePricingDraft, validateRowDiscount } from './discountHelpers'
 import { sanitizeAdminDiamonds } from './inventoryUtils'
 
 type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account' | 'admin' | 'forgot-password' | 'reset-password'
@@ -158,11 +158,19 @@ export interface AdminDiamond {
 export interface DiamondRowDraft {
   category?: string
   customerPrice?: number
+  customerPriceInput?: string
   customerDiscountPrice?: number | null
+  customerDiscountPriceInput?: string
   customerDiscountPercent?: number | null
+  customerDiscountPercentInput?: string
+  customerDiscountError?: string | null
   dealerPrice?: number
+  dealerPriceInput?: string
   dealerDiscountPrice?: number | null
+  dealerDiscountPriceInput?: string
   dealerDiscountPercent?: number | null
+  dealerDiscountPercentInput?: string
+  dealerDiscountError?: string | null
   isDirty?: boolean
 }
 
@@ -949,7 +957,7 @@ export default function AuthPages({
     }
     const token = localStorage.getItem('hmd_access_token')
     try {
-      const res = await fetch(`/api/admin/diamonds/${diamondId}`, {
+      const res = await fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -969,7 +977,7 @@ export default function AuthPages({
   const handleRestoreDiamond = async (diamondId: string, sku?: string) => {
     const token = localStorage.getItem('hmd_access_token')
     try {
-      const res = await fetch(`/api/admin/diamonds/${diamondId}/restore`, {
+      const res = await fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}/restore`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2934,11 +2942,21 @@ export default function AuthPages({
                             const draft = dId ? diamondDrafts[dId] : undefined
                             const rowCategory = draft?.category !== undefined ? draft.category : d.category
                             const rowCustomerPrice = draft?.customerPrice !== undefined ? draft.customerPrice : (d.customerPrice ?? 0)
+                            const rowCustomerPriceInput = draft?.customerPriceInput !== undefined ? draft.customerPriceInput : String(d.customerPrice ?? 0)
                             const rowCustomerDiscPrice = draft?.customerDiscountPrice !== undefined ? draft.customerDiscountPrice : (d.customerDiscountPrice ?? null)
+                            const rowCustomerDiscPriceInput = draft?.customerDiscountPriceInput !== undefined ? draft.customerDiscountPriceInput : (d.customerDiscountPrice != null ? String(d.customerDiscountPrice) : '')
                             const rowCustomerDiscPercent = draft?.customerDiscountPercent !== undefined ? draft.customerDiscountPercent : (d.customerDiscountPercent ?? null)
+                            const rowCustomerDiscPercentInput = draft?.customerDiscountPercentInput !== undefined ? draft.customerDiscountPercentInput : (d.customerDiscountPercent != null ? String(d.customerDiscountPercent) : '')
+                            const rowCustomerDiscError = draft?.customerDiscountError !== undefined ? draft.customerDiscountError : validateRowDiscount(rowCustomerPrice, rowCustomerDiscPrice, rowCustomerDiscPercent)
+
                             const rowDealerPrice = draft?.dealerPrice !== undefined ? draft.dealerPrice : (d.dealerPrice ?? 0)
+                            const rowDealerPriceInput = draft?.dealerPriceInput !== undefined ? draft.dealerPriceInput : String(d.dealerPrice ?? 0)
                             const rowDealerDiscPrice = draft?.dealerDiscountPrice !== undefined ? draft.dealerDiscountPrice : (d.dealerDiscountPrice ?? null)
+                            const rowDealerDiscPriceInput = draft?.dealerDiscountPriceInput !== undefined ? draft.dealerDiscountPriceInput : (d.dealerDiscountPrice != null ? String(d.dealerDiscountPrice) : '')
                             const rowDealerDiscPercent = draft?.dealerDiscountPercent !== undefined ? draft.dealerDiscountPercent : (d.dealerDiscountPercent ?? null)
+                            const rowDealerDiscPercentInput = draft?.dealerDiscountPercentInput !== undefined ? draft.dealerDiscountPercentInput : (d.dealerDiscountPercent != null ? String(d.dealerDiscountPercent) : '')
+                            const rowDealerDiscError = draft?.dealerDiscountError !== undefined ? draft.dealerDiscountError : validateRowDiscount(rowDealerPrice, rowDealerDiscPrice, rowDealerDiscPercent)
+
                             const isDirty = Boolean(draft?.isDirty)
                             const isSaved = Boolean(dId && savedDiamondId === dId)
 
@@ -2949,16 +2967,76 @@ export default function AuthPages({
                                 [dId]: {
                                   category: rowCategory,
                                   customerPrice: rowCustomerPrice,
+                                  customerPriceInput: rowCustomerPriceInput,
                                   customerDiscountPrice: rowCustomerDiscPrice,
+                                  customerDiscountPriceInput: rowCustomerDiscPriceInput,
                                   customerDiscountPercent: rowCustomerDiscPercent,
+                                  customerDiscountPercentInput: rowCustomerDiscPercentInput,
+                                  customerDiscountError: rowCustomerDiscError,
                                   dealerPrice: rowDealerPrice,
+                                  dealerPriceInput: rowDealerPriceInput,
                                   dealerDiscountPrice: rowDealerDiscPrice,
+                                  dealerDiscountPriceInput: rowDealerDiscPriceInput,
                                   dealerDiscountPercent: rowDealerDiscPercent,
+                                  dealerDiscountPercentInput: rowDealerDiscPercentInput,
+                                  dealerDiscountError: rowDealerDiscError,
                                   ...(prev[dId] || {}),
                                   ...updates,
                                   isDirty: true,
                                 },
                               }))
+                            }
+
+                            const handleAudienceFieldChange = (
+                              audience: 'customer' | 'dealer',
+                              field: 'list' | 'discPrice' | 'discPercent',
+                              rawValue: string
+                            ) => {
+                              const next = computeAudiencePricingDraft(
+                                field,
+                                rawValue,
+                                audience === 'customer' ? rowCustomerPrice : rowDealerPrice,
+                                audience === 'customer' ? rowCustomerDiscPriceInput : rowDealerDiscPriceInput,
+                                audience === 'customer' ? rowCustomerDiscPercentInput : rowDealerDiscPercentInput
+                              )
+                              if (audience === 'customer') {
+                                updateRowDraft({
+                                  customerPrice: next.listPrice,
+                                  ...(next.listPriceInput !== undefined ? { customerPriceInput: next.listPriceInput } : {}),
+                                  customerDiscountPrice: next.discountPrice,
+                                  customerDiscountPriceInput: next.discountPriceInput,
+                                  customerDiscountPercent: next.discountPercent,
+                                  customerDiscountPercentInput: next.discountPercentInput,
+                                  customerDiscountError: next.error,
+                                })
+                              } else {
+                                updateRowDraft({
+                                  dealerPrice: next.listPrice,
+                                  ...(next.listPriceInput !== undefined ? { dealerPriceInput: next.listPriceInput } : {}),
+                                  dealerDiscountPrice: next.discountPrice,
+                                  dealerDiscountPriceInput: next.discountPriceInput,
+                                  dealerDiscountPercent: next.discountPercent,
+                                  dealerDiscountPercentInput: next.discountPercentInput,
+                                  dealerDiscountError: next.error,
+                                })
+                              }
+                            }
+
+                            const saveRowChanges = (nextStatus: AdminDiamond['status']) => {
+                              if (rowCustomerDiscError || rowDealerDiscError) {
+                                alert(rowCustomerDiscError || rowDealerDiscError)
+                                return
+                              }
+                              handleUpdateDiamond(dId, {
+                                category: rowCategory,
+                                customerPrice: rowCustomerPrice,
+                                customerDiscountPrice: rowCustomerDiscPrice,
+                                customerDiscountPercent: rowCustomerDiscPercent,
+                                dealerPrice: rowDealerPrice,
+                                dealerDiscountPrice: rowDealerDiscPrice,
+                                dealerDiscountPercent: rowDealerDiscPercent,
+                                status: nextStatus,
+                              })
                             }
 
                             const revertRowDraft = () => {
@@ -3043,24 +3121,17 @@ export default function AuthPages({
                                           placeholder="List $"
                                           aria-label="Customer list price"
                                           disabled={hasInvalidId}
-                                          value={rowCustomerPrice}
+                                          value={rowCustomerPriceInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
                                           }}
-                                          onChange={(e) => {
-                                            const newPrice = parseFloat(e.target.value) || 0
-                                            let discPrice = rowCustomerDiscPrice
-                                            if (rowCustomerDiscPercent && rowCustomerDiscPercent > 0) {
-                                              discPrice = Math.round((newPrice * (100 - rowCustomerDiscPercent) / 100) * 100) / 100
-                                            }
-                                            updateRowDraft({ customerPrice: newPrice, customerDiscountPrice: discPrice })
-                                          }}
+                                          onChange={(e) => handleAudienceFieldChange('customer', 'list', e.target.value)}
                                         />
                                       </div>
 
                                       <div
                                         className={`diamond-price-field-wrap diamond-price-field-wrap--disc ${
-                                          rowCustomerDiscPrice && rowCustomerPrice <= rowCustomerDiscPrice ? 'diamond-price-field-wrap--error' : ''
+                                          rowCustomerDiscError ? 'diamond-price-field-wrap--error' : ''
                                         }`}
                                         title="Customer Discounted Price ($)"
                                       >
@@ -3071,23 +3142,17 @@ export default function AuthPages({
                                           placeholder="Disc $"
                                           aria-label="Customer discount price"
                                           disabled={hasInvalidId}
-                                          value={rowCustomerDiscPrice ?? ''}
+                                          value={rowCustomerDiscPriceInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
                                           }}
-                                          onChange={(e) => {
-                                            const res = calculateDiscountFromPrice(rowCustomerPrice, e.target.value)
-                                            updateRowDraft({
-                                              customerDiscountPrice: res.discountPrice,
-                                              customerDiscountPercent: res.discountPercent,
-                                            })
-                                          }}
+                                          onChange={(e) => handleAudienceFieldChange('customer', 'discPrice', e.target.value)}
                                         />
                                       </div>
 
                                       <div
                                         className={`diamond-price-field-wrap diamond-price-field-wrap--pct ${
-                                          rowCustomerDiscPrice && rowCustomerPrice <= rowCustomerDiscPrice ? 'diamond-price-field-wrap--error' : ''
+                                          rowCustomerDiscError ? 'diamond-price-field-wrap--error' : ''
                                         }`}
                                         title="Customer Discount Percent (%)"
                                       >
@@ -3098,30 +3163,24 @@ export default function AuthPages({
                                           placeholder="%"
                                           aria-label="Customer discount percent"
                                           disabled={hasInvalidId}
-                                          value={rowCustomerDiscPercent ?? ''}
+                                          value={rowCustomerDiscPercentInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
                                           }}
-                                          onChange={(e) => {
-                                            const res = calculateDiscountFromPercent(rowCustomerPrice, e.target.value)
-                                            updateRowDraft({
-                                              customerDiscountPrice: res.discountPrice,
-                                              customerDiscountPercent: res.discountPercent,
-                                            })
-                                          }}
+                                          onChange={(e) => handleAudienceFieldChange('customer', 'discPercent', e.target.value)}
                                         />
                                       </div>
                                     </div>
 
                                     {/* Preview row */}
                                     <div className="diamond-disc-preview-row">
-                                      {rowCustomerDiscPrice && rowCustomerDiscPercent && rowCustomerPrice > rowCustomerDiscPrice ? (
+                                      {rowCustomerDiscError ? (
+                                        <span className="diamond-disc-preview diamond-disc-preview--error">
+                                          {rowCustomerDiscError}
+                                        </span>
+                                      ) : rowCustomerDiscPrice && rowCustomerDiscPercent && rowCustomerPrice > rowCustomerDiscPrice ? (
                                         <span className="diamond-disc-preview">
                                           Customer sees: ${rowCustomerPrice.toLocaleString()} → ${rowCustomerDiscPrice.toLocaleString()} ({Math.round(rowCustomerDiscPercent)}% OFF)
-                                        </span>
-                                      ) : rowCustomerDiscPrice && rowCustomerPrice <= rowCustomerDiscPrice ? (
-                                        <span className="diamond-disc-preview diamond-disc-preview--error">
-                                          Discount must be &lt; ${rowCustomerPrice}
                                         </span>
                                       ) : (
                                         <span className="diamond-disc-preview diamond-disc-preview--none">
@@ -3144,24 +3203,17 @@ export default function AuthPages({
                                           placeholder="List $"
                                           aria-label="Dealer list price"
                                           disabled={hasInvalidId}
-                                          value={rowDealerPrice}
+                                          value={rowDealerPriceInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
                                           }}
-                                          onChange={(e) => {
-                                            const newWholesale = parseFloat(e.target.value) || 0
-                                            let discPrice = rowDealerDiscPrice
-                                            if (rowDealerDiscPercent && rowDealerDiscPercent > 0) {
-                                              discPrice = Math.round((newWholesale * (100 - rowDealerDiscPercent) / 100) * 100) / 100
-                                            }
-                                            updateRowDraft({ dealerPrice: newWholesale, dealerDiscountPrice: discPrice })
-                                          }}
+                                          onChange={(e) => handleAudienceFieldChange('dealer', 'list', e.target.value)}
                                         />
                                       </div>
 
                                       <div
                                         className={`diamond-price-field-wrap diamond-price-field-wrap--disc ${
-                                          rowDealerDiscPrice && rowDealerPrice <= rowDealerDiscPrice ? 'diamond-price-field-wrap--error' : ''
+                                          rowDealerDiscError ? 'diamond-price-field-wrap--error' : ''
                                         }`}
                                         title="Dealer Discount Price ($)">
                                         <span className="diamond-field-affix">$</span>
@@ -3171,23 +3223,17 @@ export default function AuthPages({
                                           placeholder="Disc $"
                                           aria-label="Dealer discount price"
                                           disabled={hasInvalidId}
-                                          value={rowDealerDiscPrice ?? ''}
+                                          value={rowDealerDiscPriceInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
                                           }}
-                                          onChange={(e) => {
-                                            const res = calculateDiscountFromPrice(rowDealerPrice, e.target.value)
-                                            updateRowDraft({
-                                              dealerDiscountPrice: res.discountPrice,
-                                              dealerDiscountPercent: res.discountPercent,
-                                            })
-                                          }}
+                                          onChange={(e) => handleAudienceFieldChange('dealer', 'discPrice', e.target.value)}
                                         />
                                       </div>
 
                                       <div
                                         className={`diamond-price-field-wrap diamond-price-field-wrap--pct ${
-                                          rowDealerDiscPrice && rowDealerPrice <= rowDealerDiscPrice ? 'diamond-price-field-wrap--error' : ''
+                                          rowDealerDiscError ? 'diamond-price-field-wrap--error' : ''
                                         }`}
                                         title="Dealer Discount Percent (%)">
                                         <span className="diamond-field-affix">%</span>
@@ -3197,30 +3243,24 @@ export default function AuthPages({
                                           placeholder="%"
                                           aria-label="Dealer discount percent"
                                           disabled={hasInvalidId}
-                                          value={rowDealerDiscPercent ?? ''}
+                                          value={rowDealerDiscPercentInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
                                           }}
-                                          onChange={(e) => {
-                                            const res = calculateDiscountFromPercent(rowDealerPrice, e.target.value)
-                                            updateRowDraft({
-                                              dealerDiscountPrice: res.discountPrice,
-                                              dealerDiscountPercent: res.discountPercent,
-                                            })
-                                          }}
+                                          onChange={(e) => handleAudienceFieldChange('dealer', 'discPercent', e.target.value)}
                                         />
                                       </div>
                                     </div>
 
                                     {/* Preview row */}
                                     <div className="diamond-disc-preview-row">
-                                      {rowDealerDiscPrice && rowDealerDiscPercent && rowDealerPrice > rowDealerDiscPrice ? (
+                                      {rowDealerDiscError ? (
+                                        <span className="diamond-disc-preview diamond-disc-preview--error">
+                                          {rowDealerDiscError}
+                                        </span>
+                                      ) : rowDealerDiscPrice && rowDealerDiscPercent && rowDealerPrice > rowDealerDiscPrice ? (
                                         <span className="diamond-disc-preview">
                                           Dealer sees: ${rowDealerPrice.toLocaleString()} → ${rowDealerDiscPrice.toLocaleString()} ({Math.round(rowDealerDiscPercent)}% OFF)
-                                        </span>
-                                      ) : rowDealerDiscPrice && rowDealerPrice <= rowDealerDiscPrice ? (
-                                        <span className="diamond-disc-preview diamond-disc-preview--error">
-                                          Discount must be &lt; ${rowDealerPrice}
                                         </span>
                                       ) : (
                                         <span className="diamond-disc-preview diamond-disc-preview--none">
@@ -3264,18 +3304,7 @@ export default function AuthPages({
                                           type="button"
                                           className={`diamond-save-btn ${isSaved ? 'diamond-save-btn--success' : ''} ${isDirty ? 'diamond-save-btn--dirty' : ''}`}
                                           disabled={hasInvalidId}
-                                          onClick={() =>
-                                            handleUpdateDiamond(dId, {
-                                              category: rowCategory,
-                                              customerPrice: rowCustomerPrice,
-                                              customerDiscountPrice: rowCustomerDiscPrice,
-                                              customerDiscountPercent: rowCustomerDiscPercent,
-                                              dealerPrice: rowDealerPrice,
-                                              dealerDiscountPrice: rowDealerDiscPrice,
-                                              dealerDiscountPercent: rowDealerDiscPercent,
-                                              status: d.status,
-                                            })
-                                          }
+                                          onClick={() => saveRowChanges(d.status)}
                                           title={hasInvalidId ? 'Cannot save: Missing diamond ID' : isDirty ? 'Save changes to this diamond' : 'Save'}
                                         >
                                           {isSaved ? 'Saved ✓' : isDirty ? 'Save *' : 'Save'}
@@ -3299,16 +3328,7 @@ export default function AuthPages({
                                           onClick={() => {
                                             const nextStatus =
                                               d.status === 'published' ? 'hidden' : 'published'
-                                            handleUpdateDiamond(dId, {
-                                              category: rowCategory,
-                                              customerPrice: rowCustomerPrice,
-                                              customerDiscountPrice: rowCustomerDiscPrice,
-                                              customerDiscountPercent: rowCustomerDiscPercent,
-                                              dealerPrice: rowDealerPrice,
-                                              dealerDiscountPrice: rowDealerDiscPrice,
-                                              dealerDiscountPercent: rowDealerDiscPercent,
-                                              status: nextStatus,
-                                            })
+                                            saveRowChanges(nextStatus)
                                           }}
                                           title={d.status === 'published' ? 'Hide from store' : 'Publish live'}
                                         >
