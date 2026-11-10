@@ -1468,19 +1468,68 @@
   border-collapse: collapse;
   text-align: left;
   font-size: 13px;
-  min-width: 1050px;
+  min-width: 1260px;
 }
 
 .diamonds-table th {
   background: #f7f3eb;
-  padding: 14px 16px;
+  padding: 12px 10px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.7px;
+  letter-spacing: 0.5px;
   color: #555248;
   border-bottom: 2px solid #e2dac9;
   white-space: nowrap;
+}
+
+.diamonds-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #f0ece3;
+  color: #2b2820;
+  vertical-align: middle;
+}
+
+.diamonds-table th:nth-child(1),
+.diamonds-table td:nth-child(1) {
+  width: 175px;
+  min-width: 165px;
+}
+
+.diamonds-table th:nth-child(2),
+.diamonds-table td:nth-child(2) {
+  width: 125px;
+  min-width: 115px;
+}
+
+.diamonds-table th:nth-child(3),
+.diamonds-table td:nth-child(3) {
+  width: 165px;
+  min-width: 155px;
+}
+
+.diamonds-table th:nth-child(4),
+.diamonds-table td:nth-child(4) {
+  width: 270px;
+  min-width: 260px;
+}
+
+.diamonds-table th:nth-child(5),
+.diamonds-table td:nth-child(5) {
+  width: 270px;
+  min-width: 260px;
+}
+
+.diamonds-table th:nth-child(6),
+.diamonds-table td:nth-child(6) {
+  width: 95px;
+  min-width: 85px;
+}
+
+.diamonds-table th:nth-child(7),
+.diamonds-table td:nth-child(7) {
+  width: 245px;
+  min-width: 235px;
 }
 
 .diamonds-table td {
@@ -1599,65 +1648,77 @@
   outline: none;
 }
 
-/* Dual Price & Discount Box in Table Cell */
+/* Dual Price & Discount Box in Table Cell - Single Horizontal Line */
 .diamond-pricing-cell {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 160px;
-  max-width: 210px;
+  gap: 5px;
+  width: 100%;
 }
 
-.diamond-disc-mini-inputs {
+.diamond-pricing-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
 }
 
-.diamond-disc-mini-wrap {
-  display: inline-flex;
+.diamond-affix-input-wrap {
+  display: flex;
   align-items: center;
-  background: #fdfbf7;
-  border: 1px solid #dcd5c4;
-  border-radius: 4px;
+  background: #ffffff;
+  border: 1px solid #d4cbb8;
+  border-radius: 5px;
   padding: 0 6px;
-  width: 50%;
-  min-width: 70px;
+  height: 35px;
   box-sizing: border-box;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
-.diamond-disc-mini-wrap:focus-within {
-  border-color: #a58a50;
+.diamond-affix-input-wrap--list,
+.diamond-affix-input-wrap--disc {
+  flex: 1 1 100px;
+  min-width: 90px;
+}
+
+.diamond-affix-input-wrap--pct {
+  flex: 0 0 68px;
+  min-width: 62px;
+}
+
+.diamond-affix-input-wrap:focus-within {
+  border-color: #0f2e22;
+  box-shadow: 0 0 0 1.5px rgba(15, 46, 34, 0.25);
   background: #ffffff;
 }
 
-.diamond-disc-mini-wrap span {
-  font-size: 11px;
+.diamond-affix-tag {
+  font-size: 12px;
   font-weight: 700;
-  color: #8a7a58;
+  color: #8c826e;
   margin-right: 4px;
   flex-shrink: 0;
 }
 
-.diamond-disc-mini-input {
+.diamond-inline-price-input {
   width: 100%;
   border: none;
   background: transparent;
-  padding: 4px 0;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 600;
-  color: #1a1a14;
+  color: #1a1a12;
+  padding: 2px 0;
+  min-width: 0;
   -moz-appearance: textfield;
 }
 
-.diamond-disc-mini-input::-webkit-outer-spin-button,
-.diamond-disc-mini-input::-webkit-inner-spin-button {
+.diamond-inline-price-input::-webkit-outer-spin-button,
+.diamond-inline-price-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-.diamond-disc-mini-input:focus {
+.diamond-inline-price-input:focus {
   outline: none;
 }
 
@@ -1719,7 +1780,9 @@
 .diamond-row-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .diamond-save-btn {
