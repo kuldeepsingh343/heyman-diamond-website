@@ -337,3 +337,4 @@ test('Dealer Workflow — Rejected and Reset states handle cleanly', async () =>
     globalThis.fetch = origFetch
   }
 })
+
