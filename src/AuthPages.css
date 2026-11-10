@@ -1914,11 +1914,23 @@
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.diamond-restore-btn:hover {
+.diamond-restore-btn:hover:not(:disabled) {
   background: #dcfce7;
   border-color: #86efac;
+}
+
+.diamond-restore-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.diamonds-table tr.diamond-row--deleted {
+  background-color: #fafafa;
+  opacity: 0.85;
 }
 
 .diamond-status-pill--deleted {

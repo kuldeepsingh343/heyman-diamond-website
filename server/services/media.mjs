@@ -381,7 +381,9 @@ export async function handleConfirmMediaUpload(req, res, admin, diamondId) {
         })
         // Also update diamond image_url
         if (type === 'image') {
-          await db(`diamonds_inventory?or=(id.eq.${encodeURIComponent(cleanId)},sku.eq.${encodeURIComponent(cleanId)})`, {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)
+          const filterQuery = isUuid ? `id=eq.${encodeURIComponent(cleanId)}` : `sku=eq.${encodeURIComponent(cleanId)}`
+          await db(`diamonds_inventory?${filterQuery}`, {
             method: 'PATCH',
             body: JSON.stringify({ image_url: publicUrl }),
           })
@@ -464,7 +466,9 @@ export async function handleGetDiamondMedia(req, res, diamondId) {
     let diamond = null
     if (supabaseReady()) {
       try {
-        const rows = await db(`diamonds_inventory?or=(id.eq.${encodeURIComponent(cleanId)},sku.eq.${encodeURIComponent(cleanId)})&limit=1`)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)
+        const filterQuery = isUuid ? `id=eq.${encodeURIComponent(cleanId)}` : `sku=eq.${encodeURIComponent(cleanId)}`
+        const rows = await db(`diamonds_inventory?${filterQuery}&limit=1`)
         if (Array.isArray(rows) && rows.length > 0) diamond = rows[0]
       } catch {
         // ignore

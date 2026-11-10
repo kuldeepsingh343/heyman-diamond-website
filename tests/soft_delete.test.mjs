@@ -131,9 +131,31 @@ test('Soft Delete — Admin listing and Restoration', async () => {
   const restoreRes = createMockRes()
   await handleRestoreAdminDiamond(createMockReq(), restoreRes, authorizedAdmin, targetSku)
   assert.strictEqual(restoreRes.statusCode, 200)
+  assert.strictEqual(restoreRes.json.success, true)
 
   const restoredItem = getInventoryItemBySku(targetSku)
   assert.strictEqual(restoredItem.deletedAt, null, 'deletedAt must be cleared upon restore')
   assert.strictEqual(restoredItem.deleted_at, null)
+  assert.strictEqual(restoredItem.status, 'pending_review', 'restored item must return to pending_review for review')
+
+  // Deleted status query must NO LONGER include the restored diamond
+  const postRestoreDelRes = createMockRes()
+  await handleGetAdminDiamonds(createMockReq(), postRestoreDelRes, authorizedAdmin, delUrl)
+  assert.strictEqual(postRestoreDelRes.statusCode, 200)
+  assert.strictEqual(
+    postRestoreDelRes.json.items.find(i => i.sku === targetSku),
+    undefined,
+    'Restored diamond must not be in deleted list'
+  )
+
+  // Standard/staged query MUST include the restored diamond
+  const stagedUrl = new URL('http://localhost:3000/api/admin/diamonds?status=pending_review')
+  const stagedRes = createMockRes()
+  await handleGetAdminDiamonds(createMockReq(), stagedRes, authorizedAdmin, stagedUrl)
+  assert.strictEqual(stagedRes.statusCode, 200)
+  assert.ok(
+    stagedRes.json.items.some(i => i.sku === targetSku),
+    'Restored diamond must appear in active admin inventory'
+  )
 })
 

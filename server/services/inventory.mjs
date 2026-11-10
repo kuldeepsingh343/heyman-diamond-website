@@ -1596,11 +1596,14 @@ export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
   const safeId = encodeURIComponent(cleanId)
   const input = await bodyJson(req)
 
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)
+  const filterQuery = isUuid ? `id=eq.${safeId}` : `sku=eq.${safeId}`
+
   // Find existing diamond record to get baseline prices and capture before/after audit data
   let existing = null
   if (supabaseReady()) {
     try {
-      const rows = await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})&limit=1`)
+      const rows = await db(`diamonds_inventory?${filterQuery}&limit=1`)
       if (Array.isArray(rows) && rows.length > 0) existing = rows[0]
     } catch {
       // ignore
@@ -1726,11 +1729,13 @@ export async function handleDeleteAdminDiamond(req, res, admin, diamondId) {
     return json(res, 400, { error: 'Invalid diamond identifier.' })
   }
   const safeId = encodeURIComponent(cleanId)
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)
+  const filterQuery = isUuid ? `id=eq.${safeId}` : `sku=eq.${safeId}`
 
   let existing = null
   if (supabaseReady()) {
     try {
-      const rows = await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})&limit=1`)
+      const rows = await db(`diamonds_inventory?${filterQuery}&limit=1`)
       if (Array.isArray(rows) && rows.length > 0) existing = rows[0]
     } catch {
       // ignore
@@ -1749,7 +1754,7 @@ export async function handleDeleteAdminDiamond(req, res, admin, diamondId) {
 
   if (supabaseReady()) {
     try {
-      await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})`, {
+      await db(`diamonds_inventory?${filterQuery}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({
@@ -1805,11 +1810,13 @@ export async function handleRestoreAdminDiamond(req, res, admin, diamondId) {
     return json(res, 400, { error: 'Invalid diamond identifier.' })
   }
   const safeId = encodeURIComponent(cleanId)
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)
+  const filterQuery = isUuid ? `id=eq.${safeId}` : `sku=eq.${safeId}`
 
   let existing = null
   if (supabaseReady()) {
     try {
-      const rows = await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})&limit=1`)
+      const rows = await db(`diamonds_inventory?${filterQuery}&limit=1`)
       if (Array.isArray(rows) && rows.length > 0) existing = rows[0]
     } catch {
       // ignore
@@ -1827,7 +1834,7 @@ export async function handleRestoreAdminDiamond(req, res, admin, diamondId) {
 
   if (supabaseReady()) {
     try {
-      await db(`diamonds_inventory?or=(id.eq.${safeId},sku.eq.${safeId})`, {
+      await db(`diamonds_inventory?${filterQuery}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({

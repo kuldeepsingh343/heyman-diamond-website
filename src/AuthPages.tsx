@@ -323,6 +323,8 @@ export default function AuthPages({
   const [syncingFlomiz, setSyncingFlomiz] = useState(false)
   const [flomizSyncMsg, setFlomizSyncMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
   const [savedDiamondId, setSavedDiamondId] = useState<string | null>(null)
+  const [inventoryActionMsg, setInventoryActionMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+  const [restoringDiamondId, setRestoringDiamondId] = useState<string | null>(null)
   const [flomizBaseUrlInput, setFlomizBaseUrlInput] = useState('https://diamond.flomiz.com')
   const [flomizApiKeyInput, setFlomizApiKeyInput] = useState('')
   const [testingFlomiz, setTestingFlomiz] = useState(false)
@@ -952,7 +954,7 @@ export default function AuthPages({
   }
 
   const handleDeleteDiamond = async (diamondId: string, sku: string) => {
-    if (!window.confirm(`Are you sure you want to delete diamond ${sku}?\nIt will be hidden from the live storefront and default admin list.`)) {
+    if (!window.confirm(`Are you sure you want to delete diamond ${sku}?\nIt will be hidden from the live storefront and moved to the "Deleted Stones" list.`)) {
       return
     }
     const token = localStorage.getItem('hmd_access_token')
@@ -964,17 +966,24 @@ export default function AuthPages({
         },
       })
       if (res.ok) {
+        setInventoryActionMsg({
+          text: `✓ Diamond ${sku} moved to deleted stones. You can restore it anytime under the "Deleted Stones" filter.`,
+          kind: 'info',
+        })
+        setTimeout(() => setInventoryActionMsg(null), 5000)
         fetchAdminDiamonds()
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || 'Failed to delete diamond.')
+        setInventoryActionMsg({ text: data.error || 'Failed to delete diamond.', kind: 'error' })
       }
     } catch (err) {
       console.warn('Delete diamond failed:', err)
+      setInventoryActionMsg({ text: 'Network error deleting diamond.', kind: 'error' })
     }
   }
 
   const handleRestoreDiamond = async (diamondId: string, sku?: string) => {
+    setRestoringDiamondId(diamondId)
     const token = localStorage.getItem('hmd_access_token')
     try {
       const res = await fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}/restore`, {
@@ -984,14 +993,21 @@ export default function AuthPages({
         },
       })
       if (res.ok) {
-        if (sku) console.info(`Diamond ${sku} restored successfully.`)
+        setInventoryActionMsg({
+          text: `✓ Diamond ${sku || diamondId} restored to active inventory.`,
+          kind: 'success',
+        })
+        setTimeout(() => setInventoryActionMsg(null), 5000)
         fetchAdminDiamonds()
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || 'Failed to restore diamond.')
+        setInventoryActionMsg({ text: data.error || 'Failed to restore diamond.', kind: 'error' })
       }
     } catch (err) {
       console.warn('Restore diamond failed:', err)
+      setInventoryActionMsg({ text: 'Network error restoring diamond.', kind: 'error' })
+    } finally {
+      setRestoringDiamondId(null)
     }
   }
 
@@ -2859,6 +2875,12 @@ export default function AuthPages({
                     </div>
                   )}
 
+                  {inventoryActionMsg && (
+                    <p className={`auth-status auth-status--${inventoryActionMsg.kind}`} style={{ margin: '14px 0' }}>
+                      {inventoryActionMsg.text}
+                    </p>
+                  )}
+
                   {/* Filter & Search Toolbar */}
                   <div className="diamonds-toolbar">
                     <input
@@ -3048,8 +3070,14 @@ export default function AuthPages({
                               })
                             }
 
+                            const isDeleted = Boolean(d.deletedAt)
+                            const isFieldDisabled = isDeleted || hasInvalidId
+
                             return (
-                              <tr key={dId || d.sku} className={isDirty ? 'diamond-row--dirty' : ''}>
+                              <tr
+                                key={dId || d.sku}
+                                className={`${isDirty ? 'diamond-row--dirty' : ''} ${isDeleted ? 'diamond-row--deleted' : ''}`.trim()}
+                              >
                                 <td className="diamond-sku-cell">
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <img
@@ -3098,7 +3126,7 @@ export default function AuthPages({
                                   <select
                                     className="diamond-cat-select"
                                     value={rowCategory}
-                                    disabled={hasInvalidId}
+                                    disabled={isFieldDisabled}
                                     onChange={(e) => updateRowDraft({ category: e.target.value })}
                                   >
                                     <option value="Certified Diamonds">Certified Diamonds</option>
@@ -3120,7 +3148,7 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="List $"
                                           aria-label="Customer list price"
-                                          disabled={hasInvalidId}
+                                          disabled={isFieldDisabled}
                                           value={rowCustomerPriceInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
@@ -3141,7 +3169,7 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="Disc $"
                                           aria-label="Customer discount price"
-                                          disabled={hasInvalidId}
+                                          disabled={isFieldDisabled}
                                           value={rowCustomerDiscPriceInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
@@ -3162,7 +3190,7 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="%"
                                           aria-label="Customer discount percent"
-                                          disabled={hasInvalidId}
+                                          disabled={isFieldDisabled}
                                           value={rowCustomerDiscPercentInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
@@ -3202,7 +3230,7 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="List $"
                                           aria-label="Dealer list price"
-                                          disabled={hasInvalidId}
+                                          disabled={isFieldDisabled}
                                           value={rowDealerPriceInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
@@ -3222,7 +3250,7 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="Disc $"
                                           aria-label="Dealer discount price"
-                                          disabled={hasInvalidId}
+                                          disabled={isFieldDisabled}
                                           value={rowDealerDiscPriceInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
@@ -3242,7 +3270,7 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="%"
                                           aria-label="Dealer discount percent"
-                                          disabled={hasInvalidId}
+                                          disabled={isFieldDisabled}
                                           value={rowDealerDiscPercentInput}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') revertRowDraft()
@@ -3290,14 +3318,26 @@ export default function AuthPages({
                                 <td>
                                   <div className="diamond-row-actions">
                                     {d.deletedAt ? (
-                                      <button
-                                        type="button"
-                                        className="diamond-restore-btn"
-                                        onClick={() => handleRestoreDiamond(dId, d.sku)}
-                                        title={`Restore diamond ${d.sku} to active inventory`}
-                                      >
-                                        ♻ Restore
-                                      </button>
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="diamond-restore-btn"
+                                          disabled={restoringDiamondId === dId}
+                                          onClick={() => handleRestoreDiamond(dId, d.sku)}
+                                          title={`Restore diamond ${d.sku} to active inventory`}
+                                        >
+                                          {restoringDiamondId === dId ? 'Restoring…' : '♻ Restore'}
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          className="diamond-media-btn"
+                                          onClick={() => handleOpenMediaModal(d)}
+                                          title={`View photos and videos for diamond ${d.sku}`}
+                                        >
+                                          📷 Media
+                                        </button>
+                                      </>
                                     ) : (
                                       <>
                                         <button
