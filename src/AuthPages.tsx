@@ -2878,8 +2878,8 @@ export default function AuthPages({
                           <th>Diamond / SKU</th>
                           <th>Specs</th>
                           <th>Category</th>
-                          <th>Customer Price (List / Disc $ / %)</th>
-                          <th>Dealer Price (List / Disc $ / %)</th>
+                          <th>Customer Price</th>
+                          <th>Dealer Price</th>
                           <th>Status</th>
                           <th>Actions</th>
                         </tr>
@@ -2973,45 +2973,54 @@ export default function AuthPages({
 
                                 <td>
                                   <div className="diamond-pricing-cell">
-                                    <div className="diamond-pricing-row">
-                                      <div className="diamond-affix-input-wrap diamond-affix-input-wrap--list" title="Customer List Price ($)">
-                                        <span className="diamond-affix-tag">$</span>
-                                        <input
-                                          type="number"
-                                          className="diamond-inline-price-input"
-                                          placeholder="List $"
-                                          value={d.customerPrice ?? 0}
-                                          onChange={(e) => {
-                                            const newPrice = parseFloat(e.target.value) || 0
-                                            setAdminDiamonds((prev) =>
-                                              prev.map((item) => {
-                                                if (item.id === d.id || item.sku === d.sku) {
-                                                  let discPrice = item.customerDiscountPrice
-                                                  if (item.customerDiscountPercent && item.customerDiscountPercent > 0) {
-                                                    discPrice = Math.round((newPrice * (100 - item.customerDiscountPercent) / 100) * 100) / 100
-                                                  }
-                                                  return { ...item, customerPrice: newPrice, price: newPrice, customerDiscountPrice: discPrice }
+                                    {/* Line 1: Customer List Price */}
+                                    <div className="diamond-price-field-wrap diamond-price-field-wrap--list" title="Customer List Price ($)">
+                                      <span className="diamond-field-affix">$</span>
+                                      <input
+                                        type="number"
+                                        className="diamond-price-field-input"
+                                        placeholder="List Price"
+                                        aria-label="Customer list price"
+                                        value={d.customerPrice ?? 0}
+                                        onChange={(e) => {
+                                          const newPrice = parseFloat(e.target.value) || 0
+                                          setAdminDiamonds((prev) =>
+                                            prev.map((item) => {
+                                              if (item.id === d.id || item.sku === d.sku) {
+                                                let discPrice = item.customerDiscountPrice
+                                                if (item.customerDiscountPercent && item.customerDiscountPercent > 0) {
+                                                  discPrice = Math.round((newPrice * (100 - item.customerDiscountPercent) / 100) * 100) / 100
                                                 }
-                                                return item
-                                              })
-                                            )
-                                          }}
-                                        />
-                                      </div>
+                                                return { ...item, customerPrice: newPrice, price: newPrice, customerDiscountPrice: discPrice }
+                                              }
+                                              return item
+                                            })
+                                          )
+                                        }}
+                                      />
+                                    </div>
 
-                                      <div className="diamond-affix-input-wrap diamond-affix-input-wrap--disc" title="Customer Discounted Price ($)">
-                                        <span className="diamond-affix-tag">$</span>
+                                    {/* Line 2: Customer Disc $ and % side by side */}
+                                    <div className="diamond-disc-row">
+                                      <div
+                                        className={`diamond-price-field-wrap diamond-price-field-wrap--disc ${
+                                          d.customerDiscountPrice && d.customerPrice <= d.customerDiscountPrice ? 'diamond-price-field-wrap--error' : ''
+                                        }`}
+                                        title="Customer Discounted Price ($)"
+                                      >
+                                        <span className="diamond-field-affix">$</span>
                                         <input
                                           type="number"
-                                          className="diamond-inline-price-input"
+                                          className="diamond-price-field-input"
                                           placeholder="Disc $"
+                                          aria-label="Customer discount price"
                                           value={d.customerDiscountPrice ?? ''}
                                           onChange={(e) => {
                                             const res = calculateDiscountFromPrice(d.customerPrice ?? 0, e.target.value)
                                             setAdminDiamonds((prev) =>
                                               prev.map((item) =>
                                                 item.id === d.id || item.sku === d.sku
-                                                  ? {
+                                                 ? {
                                                       ...item,
                                                       customerDiscountPrice: res.discountPrice,
                                                       customerDiscountPercent: res.discountPercent,
@@ -3023,12 +3032,18 @@ export default function AuthPages({
                                         />
                                       </div>
 
-                                      <div className="diamond-affix-input-wrap diamond-affix-input-wrap--pct" title="Customer Discount Percent (%)">
-                                        <span className="diamond-affix-tag">%</span>
+                                      <div
+                                        className={`diamond-price-field-wrap diamond-price-field-wrap--pct ${
+                                          d.customerDiscountPrice && d.customerPrice <= d.customerDiscountPrice ? 'diamond-price-field-wrap--error' : ''
+                                        }`}
+                                        title="Customer Discount Percent (%)"
+                                      >
+                                        <span className="diamond-field-affix">%</span>
                                         <input
                                           type="number"
-                                          className="diamond-inline-price-input"
+                                          className="diamond-price-field-input"
                                           placeholder="%"
+                                          aria-label="Customer discount percent"
                                           value={d.customerDiscountPercent ?? ''}
                                           onChange={(e) => {
                                             const res = calculateDiscountFromPercent(d.customerPrice ?? 0, e.target.value)
@@ -3048,6 +3063,7 @@ export default function AuthPages({
                                       </div>
                                     </div>
 
+                                    {/* Line 3: Preview text */}
                                     <div className="diamond-disc-preview-row">
                                       {d.customerDiscountPrice && d.customerDiscountPercent && d.customerPrice > d.customerDiscountPrice ? (
                                         <span className="diamond-disc-preview">
@@ -3068,38 +3084,46 @@ export default function AuthPages({
 
                                 <td>
                                   <div className="diamond-pricing-cell">
-                                    <div className="diamond-pricing-row">
-                                      <div className="diamond-affix-input-wrap diamond-affix-input-wrap--list" title="Wholesale List Price ($)">
-                                        <span className="diamond-affix-tag">$</span>
-                                        <input
-                                          type="number"
-                                          className="diamond-inline-price-input"
-                                          placeholder="List $"
-                                          value={d.dealerPrice ?? 0}
-                                          onChange={(e) => {
-                                            const newWholesale = parseFloat(e.target.value) || 0
-                                            setAdminDiamonds((prev) =>
-                                              prev.map((item) => {
-                                                if (item.id === d.id || item.sku === d.sku) {
-                                                  let discPrice = item.dealerDiscountPrice
-                                                  if (item.dealerDiscountPercent && item.dealerDiscountPercent > 0) {
-                                                    discPrice = Math.round((newWholesale * (100 - item.dealerDiscountPercent) / 100) * 100) / 100
-                                                  }
-                                                  return { ...item, dealerPrice: newWholesale, wholesalePrice: newWholesale, dealerDiscountPrice: discPrice }
+                                    {/* Line 1: Dealer List Price */}
+                                    <div className="diamond-price-field-wrap diamond-price-field-wrap--list" title="Wholesale List Price ($)">
+                                      <span className="diamond-field-affix">$</span>
+                                      <input
+                                        type="number"
+                                        className="diamond-price-field-input"
+                                        placeholder="List Price"
+                                        aria-label="Dealer list price"
+                                        value={d.dealerPrice ?? 0}
+                                        onChange={(e) => {
+                                          const newWholesale = parseFloat(e.target.value) || 0
+                                          setAdminDiamonds((prev) =>
+                                            prev.map((item) => {
+                                              if (item.id === d.id || item.sku === d.sku) {
+                                                let discPrice = item.dealerDiscountPrice
+                                                if (item.dealerDiscountPercent && item.dealerDiscountPercent > 0) {
+                                                  discPrice = Math.round((newWholesale * (100 - item.dealerDiscountPercent) / 100) * 100) / 100
                                                 }
-                                                return item
-                                              })
-                                            )
-                                          }}
-                                        />
-                                      </div>
+                                                return { ...item, dealerPrice: newWholesale, wholesalePrice: newWholesale, dealerDiscountPrice: discPrice }
+                                              }
+                                              return item
+                                            })
+                                          )
+                                        }}
+                                      />
+                                    </div>
 
-                                      <div className="diamond-affix-input-wrap diamond-affix-input-wrap--disc" title="Dealer Discount Price ($)">
-                                        <span className="diamond-affix-tag">$</span>
+                                    {/* Line 2: Dealer Disc $ and % side by side */}
+                                    <div className="diamond-disc-row">
+                                      <div
+                                        className={`diamond-price-field-wrap diamond-price-field-wrap--disc ${
+                                          d.dealerDiscountPrice && d.dealerPrice <= d.dealerDiscountPrice ? 'diamond-price-field-wrap--error' : ''
+                                        }`}
+                                        title="Dealer Discount Price ($)">
+                                        <span className="diamond-field-affix">$</span>
                                         <input
                                           type="number"
-                                          className="diamond-inline-price-input"
+                                          className="diamond-price-field-input"
                                           placeholder="Disc $"
+                                          aria-label="Dealer discount price"
                                           value={d.dealerDiscountPrice ?? ''}
                                           onChange={(e) => {
                                             const res = calculateDiscountFromPrice(d.dealerPrice ?? 0, e.target.value)
@@ -3118,12 +3142,17 @@ export default function AuthPages({
                                         />
                                       </div>
 
-                                      <div className="diamond-affix-input-wrap diamond-affix-input-wrap--pct" title="Dealer Discount Percent (%)">
-                                        <span className="diamond-affix-tag">%</span>
+                                      <div
+                                        className={`diamond-price-field-wrap diamond-price-field-wrap--pct ${
+                                          d.dealerDiscountPrice && d.dealerPrice <= d.dealerDiscountPrice ? 'diamond-price-field-wrap--error' : ''
+                                        }`}
+                                        title="Dealer Discount Percent (%)">
+                                        <span className="diamond-field-affix">%</span>
                                         <input
                                           type="number"
-                                          className="diamond-inline-price-input"
+                                          className="diamond-price-field-input"
                                           placeholder="%"
+                                          aria-label="Dealer discount percent"
                                           value={d.dealerDiscountPercent ?? ''}
                                           onChange={(e) => {
                                             const res = calculateDiscountFromPercent(d.dealerPrice ?? 0, e.target.value)
@@ -3143,6 +3172,7 @@ export default function AuthPages({
                                       </div>
                                     </div>
 
+                                    {/* Line 3: Preview text */}
                                     <div className="diamond-disc-preview-row">
                                       {d.dealerDiscountPrice && d.dealerDiscountPercent && d.dealerPrice > d.dealerDiscountPrice ? (
                                         <span className="diamond-disc-preview">
