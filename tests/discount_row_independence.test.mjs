@@ -244,5 +244,10 @@ describe('Discount Row Independence & Actions Single Line Verification', () => {
     // Status column width
     assert.match(css, /\.diamonds-table\s+th:nth-child\(6\)[^{]*\{[^}]*min-width:\s*110px;/);
     assert.match(css, /\.diamonds-table\s+td:nth-child\(6\)[^{]*\{[^}]*min-width:\s*110px;/);
+
+    // Column 1 width prevents 'DIAMOND / SKU' header clipping
+    assert.match(css, /\.diamonds-table\s+th:nth-child\(1\)[^{]*\{[^}]*min-width:\s*165px;/);
+    // Column 3 width prevents 'Certified Diamonds' category truncation
+    assert.match(css, /\.diamonds-table\s+th:nth-child\(3\)[^{]*\{[^}]*min-width:\s*190px;/);
   });
 });

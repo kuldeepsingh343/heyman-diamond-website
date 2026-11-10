@@ -1469,7 +1469,7 @@
   border-spacing: 0;
   text-align: left;
   font-size: 13px;
-  min-width: 1180px;
+  min-width: 1480px;
 }
 
 .diamonds-table th {
@@ -1498,20 +1498,21 @@
 
 .diamonds-table th:nth-child(1),
 .diamonds-table td:nth-child(1) {
-  width: 145px;
-  min-width: 135px;
+  width: 175px;
+  min-width: 165px;
+  padding-left: 12px;
 }
 
 .diamonds-table th:nth-child(2),
 .diamonds-table td:nth-child(2) {
-  width: 105px;
-  min-width: 95px;
+  width: 110px;
+  min-width: 100px;
 }
 
 .diamonds-table th:nth-child(3),
 .diamonds-table td:nth-child(3) {
-  width: 145px;
-  min-width: 135px;
+  width: 200px;
+  min-width: 190px;
 }
 
 .diamonds-table th:nth-child(4),
