@@ -18,15 +18,16 @@ describe('Price Input Layout & CSS Alignment Verification', () => {
     assert.match(css, /font-variant-numeric:\s*tabular-nums\s*!important/);
   });
 
-  it('defines single outer wrappers with uniform 42px height, borders, and border-radius', () => {
-    assert.match(css, /\.diamond-price-field-wrap\s*\{[^}]*height:\s*42px/);
+  it('defines single outer wrappers with uniform 38px height, borders, and border-radius', () => {
+    assert.match(css, /\.diamond-price-field-wrap\s*\{[^}]*height:\s*38px/);
     assert.match(css, /\.diamond-price-field-wrap\s*\{[^}]*border-radius:\s*6px/);
     assert.match(css, /\.diamond-price-field-wrap\s*\{[^}]*border:\s*1px solid/);
   });
 
-  it('provides a 2-line structure per price cell (line 1: List price, line 2: Disc $ & %)', () => {
+  it('provides a single-line horizontal row for all 3 pricing inputs (List $, Disc $, %)', () => {
+    assert.match(css, /\.diamond-pricing-row\s*\{[^}]*display:\s*flex/);
+    assert.match(tsx, /diamond-pricing-row/);
     assert.match(tsx, /diamond-price-field-wrap--list/);
-    assert.match(tsx, /diamond-disc-row/);
     assert.match(tsx, /diamond-price-field-wrap--disc/);
     assert.match(tsx, /diamond-price-field-wrap--pct/);
   });
@@ -46,3 +47,4 @@ describe('Price Input Layout & CSS Alignment Verification', () => {
     assert.match(css, /\.diamond-row-actions\s*\{[^}]*grid-template-columns:\s*1fr\s*1fr/);
   });
 });
+

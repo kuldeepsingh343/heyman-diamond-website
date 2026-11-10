@@ -1469,12 +1469,12 @@
   border-spacing: 0;
   text-align: left;
   font-size: 13px;
-  min-width: 1090px;
+  min-width: 1180px;
 }
 
 .diamonds-table th {
   background: #f7f3eb;
-  padding: 12px 8px;
+  padding: 12px 6px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1485,7 +1485,7 @@
 }
 
 .diamonds-table td {
-  padding: 12px 8px;
+  padding: 10px 6px;
   border-bottom: 1px solid #f0ece3;
   color: #2b2820;
   vertical-align: middle;
@@ -1498,48 +1498,48 @@
 
 .diamonds-table th:nth-child(1),
 .diamonds-table td:nth-child(1) {
-  width: 155px;
-  min-width: 145px;
+  width: 145px;
+  min-width: 135px;
 }
 
 .diamonds-table th:nth-child(2),
 .diamonds-table td:nth-child(2) {
-  width: 115px;
-  min-width: 105px;
+  width: 105px;
+  min-width: 95px;
 }
 
 .diamonds-table th:nth-child(3),
 .diamonds-table td:nth-child(3) {
-  width: 160px;
-  min-width: 150px;
+  width: 145px;
+  min-width: 135px;
 }
 
 .diamonds-table th:nth-child(4),
 .diamonds-table td:nth-child(4) {
-  width: 205px;
-  min-width: 195px;
+  width: 275px;
+  min-width: 268px;
 }
 
 .diamonds-table th:nth-child(5),
 .diamonds-table td:nth-child(5) {
-  width: 205px;
-  min-width: 195px;
+  width: 275px;
+  min-width: 268px;
 }
 
 .diamonds-table th:nth-child(6),
 .diamonds-table td:nth-child(6) {
-  width: 95px;
-  min-width: 85px;
+  width: 90px;
+  min-width: 80px;
 }
 
 /* Actions Column: STICKY RIGHT COLUMN WITH SHADOW & BACKGROUND */
 .diamonds-table th:nth-child(7),
 .diamonds-table td:nth-child(7) {
-  width: 160px;
+  width: 155px;
   min-width: 150px;
   position: sticky;
   right: 0;
-  z-index: 3;
+  z-index: 5;
   background: #ffffff;
   box-shadow: -4px 0 8px rgba(0, 0, 0, 0.05);
 }
@@ -1609,20 +1609,20 @@
   box-shadow: 0 0 0 2px rgba(15, 46, 34, 0.2);
 }
 
-/* Pricing Cell Container: 2-line layout (Line 1: List Price, Line 2: Disc $ & Disc %) */
+/* Pricing Cell Container: Single horizontal line for pricing inputs + preview row */
 .diamond-pricing-cell {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* Line 2: Disc $ and % row */
-.diamond-disc-row {
+/* Single Horizontal Line with 3 inputs side-by-side */
+.diamond-pricing-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -1634,28 +1634,28 @@
   background: #ffffff;
   border: 1px solid #d4cbb8;
   border-radius: 6px;
-  height: 42px;
-  min-height: 42px;
-  max-height: 42px;
-  padding: 0 8px 0 10px;
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  padding: 0 6px 0 8px;
   box-sizing: border-box;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-  width: 100%;
 }
 
 .diamond-price-field-wrap--list {
-  width: 100%;
+  flex: 1 1 95px;
+  min-width: 88px;
 }
 
 .diamond-price-field-wrap--disc {
-  flex: 1 1 auto;
-  min-width: 105px;
+  flex: 1 1 95px;
+  min-width: 88px;
 }
 
 .diamond-price-field-wrap--pct {
-  flex: 0 0 76px;
-  width: 76px;
-  min-width: 72px;
+  flex: 0 0 68px;
+  width: 68px;
+  min-width: 64px;
 }
 
 .diamond-price-field-wrap:focus-within {
@@ -1675,10 +1675,10 @@
 
 /* Affix Tag ($ / %) */
 .diamond-field-affix {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #8a7a58;
-  margin-right: 6px;
+  margin-right: 4px;
   flex-shrink: 0;
   line-height: 1;
   user-select: none;
