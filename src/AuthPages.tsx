@@ -55,7 +55,9 @@ export interface DealerApplication {
   primary_contact: string
   primary_email: string
   business_phone?: string
+  business_address?: { address?: string } | string
   submitted_at: string
+  reviewed_at?: string
 }
 
 export interface UserProfile {
@@ -353,6 +355,8 @@ export default function AuthPages({
   // ── Wholesale Dealer Applications state (Admin) ──────────────────────────
   const [dealerApps, setDealerApps] = useState<DealerApplication[]>([])
   const [loadingDealerApps, setLoadingDealerApps] = useState(false)
+  const [updatingDealerAppId, setUpdatingDealerAppId] = useState<string | null>(null)
+  const [dealerAppFilter, setDealerAppFilter] = useState<'all' | 'pending_review' | 'approved' | 'rejected'>('all')
   const [dealerAppMsg, setDealerAppMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
 
   // ── Customer Reviews moderation state (Admin) ─────────────────────────────
@@ -578,6 +582,7 @@ export default function AuthPages({
   }, [])
 
   const handleUpdateDealerStatus = async (appId: string, nextStatus: 'approved' | 'rejected' | 'pending_review') => {
+    setUpdatingDealerAppId(appId)
     const token = localStorage.getItem('hmd_access_token')
     try {
       const res = await fetch(`/api/admin/dealer-applications/${appId}`, {
@@ -590,11 +595,18 @@ export default function AuthPages({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to update dealer status.')
-      setDealerAppMsg({ text: `Dealer application status updated to: ${nextStatus}.`, kind: 'success' })
+      setDealerAppMsg({
+        text: nextStatus === 'approved'
+          ? '✓ Wholesale dealer account approved and activated successfully! The dealer can now sign in and access wholesale trade rates.'
+          : `Dealer application status updated to: ${nextStatus}.`,
+        kind: nextStatus === 'approved' ? 'success' : 'info',
+      })
       setDealerApps(prev => prev.map(a => a.id === appId ? { ...a, status: nextStatus } : a))
-      setTimeout(() => setDealerAppMsg(null), 3000)
+      setTimeout(() => setDealerAppMsg(null), 4000)
     } catch (err) {
       setDealerAppMsg({ text: err instanceof Error ? err.message : 'Update failed', kind: 'error' })
+    } finally {
+      setUpdatingDealerAppId(null)
     }
   }
 
@@ -3801,14 +3813,29 @@ export default function AuthPages({
                       Review dealer accounts and activate their status to unlock wholesale trade pricing on the live website.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    className="sync-api-btn"
-                    onClick={fetchDealerApplications}
-                    disabled={loadingDealerApps}
-                  >
-                    {loadingDealerApps ? 'Refreshing…' : '🔄 Refresh Applications'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <select
+                      className="diamonds-filter-select"
+                      value={dealerAppFilter}
+                      onChange={(e) => setDealerAppFilter(e.target.value as 'all' | 'pending_review' | 'approved' | 'rejected')}
+                      aria-label="Filter dealer applications by status"
+                      style={{ padding: '8px 12px', fontSize: '13px' }}
+                    >
+                      <option value="all">All Applications ({dealerApps.length})</option>
+                      <option value="pending_review">Pending Review ({dealerApps.filter(a => a.status === 'pending_review').length})</option>
+                      <option value="approved">Approved ({dealerApps.filter(a => a.status === 'approved').length})</option>
+                      <option value="rejected">Rejected ({dealerApps.filter(a => a.status === 'rejected').length})</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      className="sync-api-btn"
+                      onClick={fetchDealerApplications}
+                      disabled={loadingDealerApps}
+                    >
+                      {loadingDealerApps ? 'Refreshing…' : '🔄 Refresh Applications'}
+                    </button>
+                  </div>
                 </div>
 
                 {dealerAppMsg && (
@@ -3828,7 +3855,7 @@ export default function AuthPages({
                     <table className="dealers-table">
                       <thead>
                         <tr>
-                          <th>Business Name</th>
+                          <th>Business Name &amp; Address</th>
                           <th>Primary Contact</th>
                           <th>Email Address</th>
                           <th>Phone</th>
@@ -3838,42 +3865,84 @@ export default function AuthPages({
                         </tr>
                       </thead>
                       <tbody>
-                        {dealerApps.map(app => (
-                          <tr key={app.id}>
-                            <td><strong>{app.registered_business_name || 'N/A'}</strong></td>
-                            <td>{app.primary_contact || 'N/A'}</td>
-                            <td><a href={`mailto:${app.primary_email}`}>{app.primary_email}</a></td>
-                            <td>{app.business_phone || 'N/A'}</td>
-                            <td>{app.submitted_at ? new Date(app.submitted_at).toLocaleDateString() : 'Recent'}</td>
-                            <td>
-                              <span className={`dealer-app-badge dealer-app-badge--${app.status}`}>
-                                {app.status === 'approved' ? '✓ Approved' : app.status === 'rejected' ? '✕ Rejected' : '⏳ Pending'}
-                              </span>
-                            </td>
-                            <td>
-                              <div className="dealer-action-btns">
-                                {app.status !== 'approved' && (
-                                  <button
-                                    type="button"
-                                    className="approve-dealer-btn"
-                                    onClick={() => handleUpdateDealerStatus(app.id, 'approved')}
-                                  >
-                                    ✓ Approve
-                                  </button>
-                                )}
-                                {app.status !== 'rejected' && (
-                                  <button
-                                    type="button"
-                                    className="reject-dealer-btn"
-                                    onClick={() => handleUpdateDealerStatus(app.id, 'rejected')}
-                                  >
-                                    ✕ Reject
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {dealerApps
+                          .filter((app) => (dealerAppFilter === 'all' ? true : app.status === dealerAppFilter))
+                          .map((app) => {
+                            const addr = typeof app.business_address === 'string'
+                              ? app.business_address
+                              : (app.business_address?.address || '')
+                            const isUpdating = updatingDealerAppId === app.id
+
+                            return (
+                              <tr key={app.id}>
+                                <td>
+                                  <strong>{app.registered_business_name || 'N/A'}</strong>
+                                  {addr && (
+                                    <div style={{ fontSize: '11px', color: '#77746b', marginTop: '2px' }}>
+                                      📍 {addr}
+                                    </div>
+                                  )}
+                                </td>
+                                <td>{app.primary_contact || 'N/A'}</td>
+                                <td><a href={`mailto:${app.primary_email}`}>{app.primary_email}</a></td>
+                                <td>{app.business_phone || 'N/A'}</td>
+                                <td>{app.submitted_at ? new Date(app.submitted_at).toLocaleDateString() : 'Recent'}</td>
+                                <td>
+                                  <span className={`dealer-app-badge dealer-app-badge--${app.status}`}>
+                                    {app.status === 'approved' ? '✓ Approved' : app.status === 'rejected' ? '✕ Rejected' : '⏳ Pending'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div className="dealer-action-btns">
+                                    {app.status !== 'approved' && (
+                                      <button
+                                        type="button"
+                                        className="approve-dealer-btn"
+                                        disabled={isUpdating}
+                                        onClick={() => handleUpdateDealerStatus(app.id, 'approved')}
+                                        title="Approve dealer and activate wholesale pricing"
+                                      >
+                                        {isUpdating ? 'Updating…' : '✓ Approve'}
+                                      </button>
+                                    )}
+                                    {app.status !== 'rejected' && (
+                                      <button
+                                        type="button"
+                                        className="reject-dealer-btn"
+                                        disabled={isUpdating}
+                                        onClick={() => handleUpdateDealerStatus(app.id, 'rejected')}
+                                        title="Reject dealer application"
+                                      >
+                                        {isUpdating ? 'Updating…' : '✕ Reject'}
+                                      </button>
+                                    )}
+                                    {app.status !== 'pending_review' && (
+                                      <button
+                                        type="button"
+                                        disabled={isUpdating}
+                                        onClick={() => handleUpdateDealerStatus(app.id, 'pending_review')}
+                                        title="Re-open application back to pending review"
+                                        style={{
+                                          background: '#f4f3ef',
+                                          border: '1px solid #d4cbb8',
+                                          color: '#6b6455',
+                                          borderRadius: '5px',
+                                          padding: '0 8px',
+                                          height: '32px',
+                                          fontSize: '11.5px',
+                                          fontWeight: 600,
+                                          cursor: isUpdating ? 'not-allowed' : 'pointer',
+                                          opacity: isUpdating ? 0.6 : 1,
+                                        }}
+                                      >
+                                        ↺ Reset
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
                       </tbody>
                     </table>
                   </div>

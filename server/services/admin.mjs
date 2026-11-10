@@ -480,7 +480,7 @@ export async function handleDeleteStaffUser(req, res, admin, id) {
 
 export async function handleGetDealerApplications(req, res, admin) {
   if (!admin?.permissions?.can_review_kyc) return json(res, 403, { error: 'KYC review permission required.' })
-  const rows = await db('dealer_applications?select=id,user_id,status,registered_business_name,primary_contact,primary_email,submitted_at&order=submitted_at.desc')
+  const rows = await db('dealer_applications?select=id,user_id,status,registered_business_name,primary_contact,primary_email,business_phone,business_address,submitted_at,reviewed_at&order=submitted_at.desc')
   return json(res, 200, { items: rows })
 }
 
@@ -499,12 +499,46 @@ export async function handleUpdateDealerApplication(req, res, admin, id) {
   const currentApp = rows?.[0]
   if (!currentApp) return json(res, 404, { error: 'Dealer application not found.' })
 
-  await db(`dealer_applications?id=eq.${safeId}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: input.status, reviewed_at: new Date().toISOString(), reviewed_by: admin.user.id }) })
+  const isReviewerUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(admin?.user?.id || ''))
+  const reviewerUserId = isReviewerUuid ? admin.user.id : null
+
+  await db(`dealer_applications?id=eq.${safeId}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      status: input.status,
+      reviewed_at: new Date().toISOString(),
+      reviewer_user_id: reviewerUserId,
+    }),
+  })
+
   if (currentApp.user_id && ['approved', 'rejected', 'suspended', 'pending_review'].includes(input.status)) {
     const safeUserId = encodeURIComponent(String(currentApp.user_id))
-    await db(`profiles?id=eq.${safeUserId}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ dealer_status: input.status }) })
+    const profileUpdates = { dealer_status: input.status }
+    if (input.status === 'approved') {
+      profileUpdates.account_type = 'dealer'
+    }
+    await db(`profiles?id=eq.${safeUserId}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(profileUpdates),
+    })
   }
-  await db('audit_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ actor_user_id: admin.user.id, action: 'dealer_application_status_changed', entity_type: 'dealer_application', entity_id: cleanId, metadata: { status: input.status } }) })
+
+  const isActorUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(admin?.user?.id || ''))
+  const isEntityUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)
+
+  await db('audit_log', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      actor_user_id: isActorUuid ? admin.user.id : null,
+      action: 'dealer_application_status_changed',
+      entity_type: 'dealer_application',
+      entity_id: isEntityUuid ? cleanId : null,
+      metadata: { status: input.status, user_id: currentApp.user_id, application_id: cleanId },
+    }),
+  })
 
   return json(res, 200, { updated: true, status: input.status })
 }

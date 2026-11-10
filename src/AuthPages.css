@@ -2070,8 +2070,14 @@
   transition: background 0.15s ease;
 }
 
-.approve-dealer-btn:hover {
+.approve-dealer-btn:hover:not(:disabled) {
   background: #0d5c27;
+}
+
+.approve-dealer-btn:disabled,
+.reject-dealer-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .reject-dealer-btn {
