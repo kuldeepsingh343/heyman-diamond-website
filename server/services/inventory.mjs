@@ -94,6 +94,7 @@ export function isFlomizConfigured() {
 // In-memory inventory store for instant uploads and fallback caching
 let memoryInventory = [
   {
+    id: 'seed-hmd-lg-1001',
     sku: 'HMD-LG-1001',
     category: 'Certified Diamonds',
     shape: 'Round',
@@ -122,6 +123,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-lg-1002',
     sku: 'HMD-LG-1002',
     category: 'Certified Diamonds',
     shape: 'Oval',
@@ -144,6 +146,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-lg-1003',
     sku: 'HMD-LG-1003',
     category: 'Certified Diamonds',
     shape: 'Emerald',
@@ -166,6 +169,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-lg-1004',
     sku: 'HMD-LG-1004',
     category: 'Loose Fancy Diamonds',
     shape: 'Radiant',
@@ -188,6 +192,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-lg-1005',
     sku: 'HMD-LG-1005',
     category: 'Loose Fancy Diamonds',
     shape: 'Pear',
@@ -210,6 +215,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-rm-2001',
     sku: 'HMD-RM-2001',
     category: 'Round Melee Diamonds',
     shape: 'Round',
@@ -232,6 +238,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-cp-3001',
     sku: 'HMD-CP-3001',
     category: 'Solitaire Non-Certified Diamonds',
     shape: 'Radiant',
@@ -252,6 +259,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-mp-4001',
     sku: 'HMD-MP-4001',
     category: 'Matched Pairs',
     shape: 'Pear',
@@ -272,6 +280,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-lg-1006',
     sku: 'HMD-LG-1006',
     category: 'Certified Diamonds',
     shape: 'Princess',
@@ -292,6 +301,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-lg-1007',
     sku: 'HMD-LG-1007',
     category: 'Certified Diamonds',
     shape: 'Cushion',
@@ -312,6 +322,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-lg-1008',
     sku: 'HMD-LG-1008',
     category: 'Certified Diamonds',
     shape: 'Asscher',
@@ -332,6 +343,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-lf-1009',
     sku: 'HMD-LF-1009',
     category: 'Loose Fancy Diamonds',
     shape: 'Marquise',
@@ -352,6 +364,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-lf-1010',
     sku: 'HMD-LF-1010',
     category: 'Loose Fancy Diamonds',
     shape: 'Heart',
@@ -372,6 +385,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-mp-4002',
     sku: 'HMD-MP-4002',
     category: 'Matched Pairs',
     shape: 'Baguette',
@@ -392,6 +406,7 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
   {
+    id: 'seed-hmd-cp-3002',
     sku: 'HMD-CP-3002',
     category: 'Solitaire Non-Certified Diamonds',
     shape: 'Square Cushion',
@@ -599,7 +614,9 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
       }
     }
 
+    const rowId = `upl-${sku.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}-${rowIndex}`
     validItems.push({
+      id: rowId,
       sku,
       category,
       shape: shape.charAt(0).toUpperCase() + shape.slice(1).toLowerCase(),
@@ -1537,6 +1554,23 @@ export async function handleGetAdminDiamonds(req, res, admin, url) {
       i.category?.toLowerCase().includes(s)
     )
   }
+
+  // Guarantee every diamond returned from admin diamonds API has a strictly non-null, unique id
+  const seenIds = new Set()
+  items = items.map((item, index) => {
+    let id = item.id ? String(item.id).trim() : ''
+    if (!id) {
+      id = item.sku ? `dia-${String(item.sku).toLowerCase().replace(/[^a-z0-9_-]/g, '-')}` : `dia-${Date.now()}-${index}`
+    }
+    if (seenIds.has(id)) {
+      id = `${id}-${index}`
+    }
+    seenIds.add(id)
+    return {
+      ...item,
+      id,
+    }
+  })
 
   const allDiamonds = memoryInventory
   const counts = {

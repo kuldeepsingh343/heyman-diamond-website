@@ -1528,20 +1528,20 @@
 
 .diamonds-table th:nth-child(6),
 .diamonds-table td:nth-child(6) {
-  width: 90px;
-  min-width: 80px;
+  width: 115px;
+  min-width: 110px;
 }
 
 /* Actions Column: STICKY RIGHT COLUMN WITH SHADOW & BACKGROUND */
 .diamonds-table th:nth-child(7),
 .diamonds-table td:nth-child(7) {
-  width: 155px;
-  min-width: 150px;
+  width: max-content;
+  min-width: 240px;
   position: sticky;
   right: 0;
   z-index: 5;
   background: #ffffff;
-  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.05);
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.06);
 }
 
 .diamonds-table th:nth-child(7) {
@@ -1783,23 +1783,27 @@
   color: #7b786f;
 }
 
-/* Row Actions: 2x2 Grid with Fixed Heights, No Clipping */
+/* Row Actions: Single Horizontal Row with Fixed Uniform Heights, No Wrapping */
 .diamond-row-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
   width: 100%;
-  max-width: 165px;
+  white-space: nowrap;
 }
 
 .diamond-save-btn,
 .diamond-status-btn,
 .diamond-media-btn,
-.diamond-delete-btn {
-  height: 33px;
-  min-height: 33px;
-  padding: 0 6px;
-  font-size: 11px;
+.diamond-delete-btn,
+.diamond-revert-btn {
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  padding: 0 8px;
+  font-size: 11.5px;
   font-weight: 600;
   border-radius: 5px;
   display: inline-flex;
@@ -1811,6 +1815,7 @@
   white-space: nowrap;
   transition: all 0.15s ease;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .diamond-save-btn {
@@ -1823,6 +1828,12 @@
 .diamond-save-btn:hover {
   background: #a58a50;
   border-color: #a58a50;
+}
+
+.diamond-save-btn--dirty {
+  background: #a58a50 !important;
+  border-color: #8c733f !important;
+  color: #ffffff !important;
 }
 
 .diamond-save-btn--success {
@@ -1842,6 +1853,33 @@
   color: #1a1a12;
 }
 
+.diamond-media-btn {
+  background: #fcfbf9;
+  border: 1px solid #d8d0bf;
+  color: #49453c;
+}
+
+.diamond-media-btn:hover {
+  background: #f4efe4;
+  border-color: #a58a50;
+  color: #1a1a12;
+}
+
+.diamond-revert-btn {
+  background: #f4f3ef;
+  border: 1px solid #d4cbb8;
+  color: #6b6455;
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.diamond-revert-btn:hover {
+  background: #e8e4da;
+  color: #1a1a12;
+  border-color: #b8ad96;
+}
+
 .diamond-delete-btn {
   background: #fff5f5;
   border: 1px solid #fecaca;
@@ -1853,9 +1891,16 @@
   border-color: #f87171;
 }
 
+.diamonds-table tr.diamond-row--dirty {
+  background-color: #fffdf9;
+}
+
+.diamonds-table tr.diamond-row--dirty td:first-child {
+  border-left: 3px solid #c5a059;
+}
+
 .diamond-restore-btn {
-  grid-column: 1 / -1;
-  height: 36px;
+  height: 34px;
   padding: 0 12px;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;

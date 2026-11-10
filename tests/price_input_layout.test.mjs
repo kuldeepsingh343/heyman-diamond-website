@@ -41,10 +41,11 @@ describe('Price Input Layout & CSS Alignment Verification', () => {
     assert.match(tsx, /aria-label="Dealer discount percent"/);
   });
 
-  it('ensures Actions column is sticky right and 4 action buttons are arranged in a 2x2 grid', () => {
+  it('ensures Actions column is sticky right and 4 action buttons are arranged in one horizontal line with no wrapping', () => {
     assert.match(css, /\.diamonds-table\s+th:nth-child\(7\)[^{]*\{[^}]*position:\s*sticky/);
     assert.match(css, /\.diamonds-table\s+td:nth-child\(7\)[^{]*\{[^}]*position:\s*sticky/);
-    assert.match(css, /\.diamond-row-actions\s*\{[^}]*grid-template-columns:\s*1fr\s*1fr/);
+    assert.match(css, /\.diamond-row-actions\s*\{[^}]*display:\s*flex/);
+    assert.match(css, /\.diamond-row-actions\s*\{[^}]*flex-wrap:\s*nowrap/);
   });
 });
 

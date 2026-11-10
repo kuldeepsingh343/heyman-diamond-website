@@ -5,6 +5,7 @@ import { parseAuthStatusFromHash } from './routeUtils'
 import type { PromotionOffer } from './OffersHero'
 import { getDiamondMedia } from './diamondUtils'
 import { calculateDiscountFromPrice, calculateDiscountFromPercent } from './discountHelpers'
+import { sanitizeAdminDiamonds } from './inventoryUtils'
 
 type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account' | 'admin' | 'forgot-password' | 'reset-password'
 type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools' | 'dealers' | 'offers' | 'reviews' | 'team'
@@ -154,6 +155,17 @@ export interface AdminDiamond {
   videoUrl?: string | null
 }
 
+export interface DiamondRowDraft {
+  category?: string
+  customerPrice?: number
+  customerDiscountPrice?: number | null
+  customerDiscountPercent?: number | null
+  dealerPrice?: number
+  dealerDiscountPrice?: number | null
+  dealerDiscountPercent?: number | null
+  isDirty?: boolean
+}
+
 export interface DiamondMediaItem {
   id: string
   diamond_id: string
@@ -294,6 +306,7 @@ export default function AuthPages({
 
   // ── Admin Diamonds Inventory & Price Manager state ───────────────────────
   const [adminDiamonds, setAdminDiamonds] = useState<AdminDiamond[]>([])
+  const [diamondDrafts, setDiamondDrafts] = useState<Record<string, DiamondRowDraft>>({})
   const [loadingAdminDiamonds, setLoadingAdminDiamonds] = useState(false)
   const [diamondFilterCategory, setDiamondFilterCategory] = useState('all')
   const [diamondFilterStatus, setDiamondFilterStatus] = useState('all')
@@ -702,7 +715,7 @@ export default function AuthPages({
       if (res.ok) {
         const data = await res.json()
         if (data && Array.isArray(data.items)) {
-          setAdminDiamonds(data.items)
+          setAdminDiamonds(sanitizeAdminDiamonds<AdminDiamond>(data.items))
         }
       }
     } catch (err) {
@@ -895,9 +908,13 @@ export default function AuthPages({
   }
 
   const handleUpdateDiamond = async (diamondId: string, updates: Partial<AdminDiamond>) => {
+    if (!diamondId || typeof diamondId !== 'string') {
+      alert('Cannot update diamond: Missing diamond identifier.')
+      return
+    }
     const token = localStorage.getItem('hmd_access_token')
     try {
-      const res = await fetch(`/api/admin/diamonds/${diamondId}`, {
+      const res = await fetch(`/api/admin/diamonds/${encodeURIComponent(diamondId)}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -909,8 +926,14 @@ export default function AuthPages({
         setSavedDiamondId(diamondId)
         setTimeout(() => setSavedDiamondId(null), 2500)
         setAdminDiamonds(prev =>
-          prev.map(d => (d.id === diamondId || d.sku === diamondId ? { ...d, ...updates } : d))
+          prev.map(d => (d.id === diamondId ? { ...d, ...updates } : d))
         )
+        // Clear draft edits for this row on save
+        setDiamondDrafts(prev => {
+          const next = { ...prev }
+          delete next[diamondId]
+          return next
+        })
       } else {
         const data = await res.json().catch(() => ({}))
         alert(data.error || 'Failed to update diamond.')
@@ -1597,7 +1620,7 @@ export default function AuthPages({
         .then(res => res.json())
         .then(data => {
           if (!ignore && data?.items && Array.isArray(data.items)) {
-            setAdminDiamonds(data.items)
+            setAdminDiamonds(sanitizeAdminDiamonds<AdminDiamond>(data.items))
           }
         })
         .catch(() => {})
@@ -2906,9 +2929,49 @@ export default function AuthPages({
                             return true
                           })
                           .map((d) => {
-                            const isSaved = savedDiamondId === (d.id || d.sku)
+                            const dId = String(d.id || '').trim()
+                            const hasInvalidId = !dId
+                            const draft = dId ? diamondDrafts[dId] : undefined
+                            const rowCategory = draft?.category !== undefined ? draft.category : d.category
+                            const rowCustomerPrice = draft?.customerPrice !== undefined ? draft.customerPrice : (d.customerPrice ?? 0)
+                            const rowCustomerDiscPrice = draft?.customerDiscountPrice !== undefined ? draft.customerDiscountPrice : (d.customerDiscountPrice ?? null)
+                            const rowCustomerDiscPercent = draft?.customerDiscountPercent !== undefined ? draft.customerDiscountPercent : (d.customerDiscountPercent ?? null)
+                            const rowDealerPrice = draft?.dealerPrice !== undefined ? draft.dealerPrice : (d.dealerPrice ?? 0)
+                            const rowDealerDiscPrice = draft?.dealerDiscountPrice !== undefined ? draft.dealerDiscountPrice : (d.dealerDiscountPrice ?? null)
+                            const rowDealerDiscPercent = draft?.dealerDiscountPercent !== undefined ? draft.dealerDiscountPercent : (d.dealerDiscountPercent ?? null)
+                            const isDirty = Boolean(draft?.isDirty)
+                            const isSaved = Boolean(dId && savedDiamondId === dId)
+
+                            const updateRowDraft = (updates: Partial<DiamondRowDraft>) => {
+                              if (!dId) return
+                              setDiamondDrafts((prev) => ({
+                                ...prev,
+                                [dId]: {
+                                  category: rowCategory,
+                                  customerPrice: rowCustomerPrice,
+                                  customerDiscountPrice: rowCustomerDiscPrice,
+                                  customerDiscountPercent: rowCustomerDiscPercent,
+                                  dealerPrice: rowDealerPrice,
+                                  dealerDiscountPrice: rowDealerDiscPrice,
+                                  dealerDiscountPercent: rowDealerDiscPercent,
+                                  ...(prev[dId] || {}),
+                                  ...updates,
+                                  isDirty: true,
+                                },
+                              }))
+                            }
+
+                            const revertRowDraft = () => {
+                              if (!dId) return
+                              setDiamondDrafts((prev) => {
+                                const next = { ...prev }
+                                delete next[dId]
+                                return next
+                              })
+                            }
+
                             return (
-                              <tr key={d.id || d.sku}>
+                              <tr key={dId || d.sku} className={isDirty ? 'diamond-row--dirty' : ''}>
                                 <td className="diamond-sku-cell">
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <img
@@ -2919,7 +2982,7 @@ export default function AuthPages({
                                     <div>
                                       <strong>{d.sku}</strong>
                                       <div><small>{d.lab ? `${d.lab} ${d.certificateNumber || ''}` : 'Non-Certified'}</small></div>
-                                      <div style={{ display: 'flex', gap: '5px', marginTop: '3px' }}>
+                                      <div style={{ display: 'flex', gap: '5px', marginTop: '3px', alignItems: 'center' }}>
                                         <span
                                           className={`diamond-source-tag diamond-source-tag--${
                                             d.source === 'flomiz_api' ? 'api' : 'excel'
@@ -2930,6 +2993,11 @@ export default function AuthPages({
                                         {d.videoUrl && (
                                           <span style={{ fontSize: '9px', fontWeight: 700, background: '#1c1b17', color: '#f7df99', padding: '1px 5px', borderRadius: '3px' }}>
                                             ▶ 360°
+                                          </span>
+                                        )}
+                                        {hasInvalidId && (
+                                          <span style={{ fontSize: '9px', fontWeight: 700, background: '#fee2e2', color: '#b91c1c', padding: '1px 5px', borderRadius: '3px' }} title="Missing unique ID - editing disabled">
+                                            ⚠️ ID Missing
                                           </span>
                                         )}
                                       </div>
@@ -2951,17 +3019,9 @@ export default function AuthPages({
                                 <td>
                                   <select
                                     className="diamond-cat-select"
-                                    value={d.category}
-                                    onChange={(e) => {
-                                      const newCat = e.target.value
-                                      setAdminDiamonds((prev) =>
-                                        prev.map((item) =>
-                                          (item.id === d.id || item.sku === d.sku)
-                                            ? { ...item, category: newCat }
-                                            : item
-                                        )
-                                      )
-                                    }}
+                                    value={rowCategory}
+                                    disabled={hasInvalidId}
+                                    onChange={(e) => updateRowDraft({ category: e.target.value })}
                                   >
                                     <option value="Certified Diamonds">Certified Diamonds</option>
                                     <option value="Round Melee Diamonds">Round Melee Diamonds</option>
@@ -2982,28 +3042,25 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="List $"
                                           aria-label="Customer list price"
-                                          value={d.customerPrice ?? 0}
+                                          disabled={hasInvalidId}
+                                          value={rowCustomerPrice}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Escape') revertRowDraft()
+                                          }}
                                           onChange={(e) => {
                                             const newPrice = parseFloat(e.target.value) || 0
-                                            setAdminDiamonds((prev) =>
-                                              prev.map((item) => {
-                                                if (item.id === d.id || item.sku === d.sku) {
-                                                  let discPrice = item.customerDiscountPrice
-                                                  if (item.customerDiscountPercent && item.customerDiscountPercent > 0) {
-                                                    discPrice = Math.round((newPrice * (100 - item.customerDiscountPercent) / 100) * 100) / 100
-                                                  }
-                                                  return { ...item, customerPrice: newPrice, price: newPrice, customerDiscountPrice: discPrice }
-                                                }
-                                                return item
-                                              })
-                                            )
+                                            let discPrice = rowCustomerDiscPrice
+                                            if (rowCustomerDiscPercent && rowCustomerDiscPercent > 0) {
+                                              discPrice = Math.round((newPrice * (100 - rowCustomerDiscPercent) / 100) * 100) / 100
+                                            }
+                                            updateRowDraft({ customerPrice: newPrice, customerDiscountPrice: discPrice })
                                           }}
                                         />
                                       </div>
 
                                       <div
                                         className={`diamond-price-field-wrap diamond-price-field-wrap--disc ${
-                                          d.customerDiscountPrice && d.customerPrice <= d.customerDiscountPrice ? 'diamond-price-field-wrap--error' : ''
+                                          rowCustomerDiscPrice && rowCustomerPrice <= rowCustomerDiscPrice ? 'diamond-price-field-wrap--error' : ''
                                         }`}
                                         title="Customer Discounted Price ($)"
                                       >
@@ -3013,27 +3070,24 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="Disc $"
                                           aria-label="Customer discount price"
-                                          value={d.customerDiscountPrice ?? ''}
+                                          disabled={hasInvalidId}
+                                          value={rowCustomerDiscPrice ?? ''}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Escape') revertRowDraft()
+                                          }}
                                           onChange={(e) => {
-                                            const res = calculateDiscountFromPrice(d.customerPrice ?? 0, e.target.value)
-                                            setAdminDiamonds((prev) =>
-                                              prev.map((item) =>
-                                                item.id === d.id || item.sku === d.sku
-                                                  ? {
-                                                      ...item,
-                                                      customerDiscountPrice: res.discountPrice,
-                                                      customerDiscountPercent: res.discountPercent,
-                                                    }
-                                                  : item
-                                              )
-                                            )
+                                            const res = calculateDiscountFromPrice(rowCustomerPrice, e.target.value)
+                                            updateRowDraft({
+                                              customerDiscountPrice: res.discountPrice,
+                                              customerDiscountPercent: res.discountPercent,
+                                            })
                                           }}
                                         />
                                       </div>
 
                                       <div
                                         className={`diamond-price-field-wrap diamond-price-field-wrap--pct ${
-                                          d.customerDiscountPrice && d.customerPrice <= d.customerDiscountPrice ? 'diamond-price-field-wrap--error' : ''
+                                          rowCustomerDiscPrice && rowCustomerPrice <= rowCustomerDiscPrice ? 'diamond-price-field-wrap--error' : ''
                                         }`}
                                         title="Customer Discount Percent (%)"
                                       >
@@ -3043,20 +3097,17 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="%"
                                           aria-label="Customer discount percent"
-                                          value={d.customerDiscountPercent ?? ''}
+                                          disabled={hasInvalidId}
+                                          value={rowCustomerDiscPercent ?? ''}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Escape') revertRowDraft()
+                                          }}
                                           onChange={(e) => {
-                                            const res = calculateDiscountFromPercent(d.customerPrice ?? 0, e.target.value)
-                                            setAdminDiamonds((prev) =>
-                                              prev.map((item) =>
-                                                item.id === d.id || item.sku === d.sku
-                                                  ? {
-                                                      ...item,
-                                                      customerDiscountPrice: res.discountPrice,
-                                                      customerDiscountPercent: res.discountPercent,
-                                                    }
-                                                  : item
-                                              )
-                                            )
+                                            const res = calculateDiscountFromPercent(rowCustomerPrice, e.target.value)
+                                            updateRowDraft({
+                                              customerDiscountPrice: res.discountPrice,
+                                              customerDiscountPercent: res.discountPercent,
+                                            })
                                           }}
                                         />
                                       </div>
@@ -3064,13 +3115,13 @@ export default function AuthPages({
 
                                     {/* Preview row */}
                                     <div className="diamond-disc-preview-row">
-                                      {d.customerDiscountPrice && d.customerDiscountPercent && d.customerPrice > d.customerDiscountPrice ? (
+                                      {rowCustomerDiscPrice && rowCustomerDiscPercent && rowCustomerPrice > rowCustomerDiscPrice ? (
                                         <span className="diamond-disc-preview">
-                                          Customer sees: ${d.customerPrice.toLocaleString()} → ${d.customerDiscountPrice.toLocaleString()} ({Math.round(d.customerDiscountPercent)}% OFF)
+                                          Customer sees: ${rowCustomerPrice.toLocaleString()} → ${rowCustomerDiscPrice.toLocaleString()} ({Math.round(rowCustomerDiscPercent)}% OFF)
                                         </span>
-                                      ) : d.customerDiscountPrice && d.customerPrice <= d.customerDiscountPrice ? (
+                                      ) : rowCustomerDiscPrice && rowCustomerPrice <= rowCustomerDiscPrice ? (
                                         <span className="diamond-disc-preview diamond-disc-preview--error">
-                                          Discount must be &lt; ${d.customerPrice}
+                                          Discount must be &lt; ${rowCustomerPrice}
                                         </span>
                                       ) : (
                                         <span className="diamond-disc-preview diamond-disc-preview--none">
@@ -3092,28 +3143,25 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="List $"
                                           aria-label="Dealer list price"
-                                          value={d.dealerPrice ?? 0}
+                                          disabled={hasInvalidId}
+                                          value={rowDealerPrice}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Escape') revertRowDraft()
+                                          }}
                                           onChange={(e) => {
                                             const newWholesale = parseFloat(e.target.value) || 0
-                                            setAdminDiamonds((prev) =>
-                                              prev.map((item) => {
-                                                if (item.id === d.id || item.sku === d.sku) {
-                                                  let discPrice = item.dealerDiscountPrice
-                                                  if (item.dealerDiscountPercent && item.dealerDiscountPercent > 0) {
-                                                    discPrice = Math.round((newWholesale * (100 - item.dealerDiscountPercent) / 100) * 100) / 100
-                                                  }
-                                                  return { ...item, dealerPrice: newWholesale, wholesalePrice: newWholesale, dealerDiscountPrice: discPrice }
-                                                }
-                                                return item
-                                              })
-                                            )
+                                            let discPrice = rowDealerDiscPrice
+                                            if (rowDealerDiscPercent && rowDealerDiscPercent > 0) {
+                                              discPrice = Math.round((newWholesale * (100 - rowDealerDiscPercent) / 100) * 100) / 100
+                                            }
+                                            updateRowDraft({ dealerPrice: newWholesale, dealerDiscountPrice: discPrice })
                                           }}
                                         />
                                       </div>
 
                                       <div
                                         className={`diamond-price-field-wrap diamond-price-field-wrap--disc ${
-                                          d.dealerDiscountPrice && d.dealerPrice <= d.dealerDiscountPrice ? 'diamond-price-field-wrap--error' : ''
+                                          rowDealerDiscPrice && rowDealerPrice <= rowDealerDiscPrice ? 'diamond-price-field-wrap--error' : ''
                                         }`}
                                         title="Dealer Discount Price ($)">
                                         <span className="diamond-field-affix">$</span>
@@ -3122,27 +3170,24 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="Disc $"
                                           aria-label="Dealer discount price"
-                                          value={d.dealerDiscountPrice ?? ''}
+                                          disabled={hasInvalidId}
+                                          value={rowDealerDiscPrice ?? ''}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Escape') revertRowDraft()
+                                          }}
                                           onChange={(e) => {
-                                            const res = calculateDiscountFromPrice(d.dealerPrice ?? 0, e.target.value)
-                                            setAdminDiamonds((prev) =>
-                                              prev.map((item) =>
-                                                item.id === d.id || item.sku === d.sku
-                                                  ? {
-                                                      ...item,
-                                                      dealerDiscountPrice: res.discountPrice,
-                                                      dealerDiscountPercent: res.discountPercent,
-                                                    }
-                                                  : item
-                                              )
-                                            )
+                                            const res = calculateDiscountFromPrice(rowDealerPrice, e.target.value)
+                                            updateRowDraft({
+                                              dealerDiscountPrice: res.discountPrice,
+                                              dealerDiscountPercent: res.discountPercent,
+                                            })
                                           }}
                                         />
                                       </div>
 
                                       <div
                                         className={`diamond-price-field-wrap diamond-price-field-wrap--pct ${
-                                          d.dealerDiscountPrice && d.dealerPrice <= d.dealerDiscountPrice ? 'diamond-price-field-wrap--error' : ''
+                                          rowDealerDiscPrice && rowDealerPrice <= rowDealerDiscPrice ? 'diamond-price-field-wrap--error' : ''
                                         }`}
                                         title="Dealer Discount Percent (%)">
                                         <span className="diamond-field-affix">%</span>
@@ -3151,20 +3196,17 @@ export default function AuthPages({
                                           className="diamond-price-field-input"
                                           placeholder="%"
                                           aria-label="Dealer discount percent"
-                                          value={d.dealerDiscountPercent ?? ''}
+                                          disabled={hasInvalidId}
+                                          value={rowDealerDiscPercent ?? ''}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Escape') revertRowDraft()
+                                          }}
                                           onChange={(e) => {
-                                            const res = calculateDiscountFromPercent(d.dealerPrice ?? 0, e.target.value)
-                                            setAdminDiamonds((prev) =>
-                                              prev.map((item) =>
-                                                item.id === d.id || item.sku === d.sku
-                                                  ? {
-                                                      ...item,
-                                                      dealerDiscountPrice: res.discountPrice,
-                                                      dealerDiscountPercent: res.discountPercent,
-                                                    }
-                                                  : item
-                                              )
-                                            )
+                                            const res = calculateDiscountFromPercent(rowDealerPrice, e.target.value)
+                                            updateRowDraft({
+                                              dealerDiscountPrice: res.discountPrice,
+                                              dealerDiscountPercent: res.discountPercent,
+                                            })
                                           }}
                                         />
                                       </div>
@@ -3172,13 +3214,13 @@ export default function AuthPages({
 
                                     {/* Preview row */}
                                     <div className="diamond-disc-preview-row">
-                                      {d.dealerDiscountPrice && d.dealerDiscountPercent && d.dealerPrice > d.dealerDiscountPrice ? (
+                                      {rowDealerDiscPrice && rowDealerDiscPercent && rowDealerPrice > rowDealerDiscPrice ? (
                                         <span className="diamond-disc-preview">
-                                          Dealer sees: ${d.dealerPrice.toLocaleString()} → ${d.dealerDiscountPrice.toLocaleString()} ({Math.round(d.dealerDiscountPercent)}% OFF)
+                                          Dealer sees: ${rowDealerPrice.toLocaleString()} → ${rowDealerDiscPrice.toLocaleString()} ({Math.round(rowDealerDiscPercent)}% OFF)
                                         </span>
-                                      ) : d.dealerDiscountPrice && d.dealerPrice <= d.dealerDiscountPrice ? (
+                                      ) : rowDealerDiscPrice && rowDealerPrice <= rowDealerDiscPrice ? (
                                         <span className="diamond-disc-preview diamond-disc-preview--error">
-                                          Discount must be &lt; ${d.dealerPrice}
+                                          Discount must be &lt; ${rowDealerPrice}
                                         </span>
                                       ) : (
                                         <span className="diamond-disc-preview diamond-disc-preview--none">
@@ -3211,7 +3253,7 @@ export default function AuthPages({
                                       <button
                                         type="button"
                                         className="diamond-restore-btn"
-                                        onClick={() => handleRestoreDiamond(d.id || d.sku, d.sku)}
+                                        onClick={() => handleRestoreDiamond(dId, d.sku)}
                                         title={`Restore diamond ${d.sku} to active inventory`}
                                       >
                                         ♻ Restore
@@ -3220,37 +3262,51 @@ export default function AuthPages({
                                       <>
                                         <button
                                           type="button"
-                                          className={`diamond-save-btn ${isSaved ? 'diamond-save-btn--success' : ''}`}
+                                          className={`diamond-save-btn ${isSaved ? 'diamond-save-btn--success' : ''} ${isDirty ? 'diamond-save-btn--dirty' : ''}`}
+                                          disabled={hasInvalidId}
                                           onClick={() =>
-                                            handleUpdateDiamond(d.id || d.sku, {
-                                              category: d.category,
-                                              customerPrice: d.customerPrice,
-                                              customerDiscountPrice: d.customerDiscountPrice,
-                                              customerDiscountPercent: d.customerDiscountPercent,
-                                              dealerPrice: d.dealerPrice,
-                                              dealerDiscountPrice: d.dealerDiscountPrice,
-                                              dealerDiscountPercent: d.dealerDiscountPercent,
+                                            handleUpdateDiamond(dId, {
+                                              category: rowCategory,
+                                              customerPrice: rowCustomerPrice,
+                                              customerDiscountPrice: rowCustomerDiscPrice,
+                                              customerDiscountPercent: rowCustomerDiscPercent,
+                                              dealerPrice: rowDealerPrice,
+                                              dealerDiscountPrice: rowDealerDiscPrice,
+                                              dealerDiscountPercent: rowDealerDiscPercent,
                                               status: d.status,
                                             })
                                           }
+                                          title={hasInvalidId ? 'Cannot save: Missing diamond ID' : isDirty ? 'Save changes to this diamond' : 'Save'}
                                         >
-                                          {isSaved ? 'Saved ✓' : 'Save'}
+                                          {isSaved ? 'Saved ✓' : isDirty ? 'Save *' : 'Save'}
                                         </button>
+
+                                        {isDirty && (
+                                          <button
+                                            type="button"
+                                            className="diamond-revert-btn"
+                                            onClick={revertRowDraft}
+                                            title="Discard unsaved edits (or press Esc)"
+                                          >
+                                            ↺
+                                          </button>
+                                        )}
 
                                         <button
                                           type="button"
                                           className="diamond-status-btn"
+                                          disabled={hasInvalidId}
                                           onClick={() => {
                                             const nextStatus =
                                               d.status === 'published' ? 'hidden' : 'published'
-                                            handleUpdateDiamond(d.id || d.sku, {
-                                              category: d.category,
-                                              customerPrice: d.customerPrice,
-                                              customerDiscountPrice: d.customerDiscountPrice,
-                                              customerDiscountPercent: d.customerDiscountPercent,
-                                              dealerPrice: d.dealerPrice,
-                                              dealerDiscountPrice: d.dealerDiscountPrice,
-                                              dealerDiscountPercent: d.dealerDiscountPercent,
+                                            handleUpdateDiamond(dId, {
+                                              category: rowCategory,
+                                              customerPrice: rowCustomerPrice,
+                                              customerDiscountPrice: rowCustomerDiscPrice,
+                                              customerDiscountPercent: rowCustomerDiscPercent,
+                                              dealerPrice: rowDealerPrice,
+                                              dealerDiscountPrice: rowDealerDiscPrice,
+                                              dealerDiscountPercent: rowDealerDiscPercent,
                                               status: nextStatus,
                                             })
                                           }}
@@ -3271,7 +3327,7 @@ export default function AuthPages({
                                         <button
                                           type="button"
                                           className="diamond-delete-btn"
-                                          onClick={() => handleDeleteDiamond(d.id || d.sku, d.sku)}
+                                          onClick={() => handleDeleteDiamond(dId, d.sku)}
                                           title={`Delete diamond ${d.sku}`}
                                         >
                                           🗑 Delete
