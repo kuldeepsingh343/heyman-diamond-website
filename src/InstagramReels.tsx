@@ -174,7 +174,16 @@ export default function InstagramReels() {
               rel="noreferrer"
               aria-label="Watch reel on Instagram"
             >
-              <img src={reel.thumbnailUrl} alt="Hey Man Diamond Reel" loading="lazy" />
+              <img
+                src={reel.thumbnailUrl}
+                alt="Hey Man Diamond Reel"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.onerror = null
+                  e.currentTarget.src = '/certified-diamonds.jpg'
+                }}
+              />
               <div className="instagram-play-overlay">
                 <span className="instagram-play-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
