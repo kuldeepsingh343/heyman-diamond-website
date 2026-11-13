@@ -1,5 +1,11 @@
 import { resolve } from 'node:path'
 
+try {
+  process.loadEnvFile?.()
+} catch {
+  // Ignore missing .env in environments where env vars are injected directly
+}
+
 export const PORT = Number(process.env.PORT || process.env.API_PORT || 3000)
 export const DIST_DIR = resolve(process.cwd(), 'dist')
 

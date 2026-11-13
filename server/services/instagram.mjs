@@ -1,14 +1,22 @@
 import { json } from './shared.mjs'
 
-const INSTAGRAM_ACCOUNT_ID = process.env.INSTAGRAM_ACCOUNT_ID || process.env.INSTAGRAM_USER_ID
-const INSTAGRAM_ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN
+export function getInstagramAccountId() {
+  return process.env.INSTAGRAM_ACCOUNT_ID || process.env.INSTAGRAM_USER_ID || ''
+}
+
+export function getInstagramAccessToken() {
+  return process.env.INSTAGRAM_ACCESS_TOKEN || ''
+}
+
 const INSTAGRAM_GRAPH_API_VERSION = process.env.INSTAGRAM_GRAPH_API_VERSION || 'v22.0'
 const INSTAGRAM_CACHE_TTL_MS = 5 * 60 * 1000
 
 let instagramCache = { expiresAt: 0, reels: [] }
 
 export async function fetchInstagramReels() {
-  if (!INSTAGRAM_ACCOUNT_ID || !INSTAGRAM_ACCESS_TOKEN) {
+  const accountId = getInstagramAccountId()
+  const accessToken = getInstagramAccessToken()
+  if (!accountId || !accessToken) {
     return null
   }
   const now = Date.now()
@@ -16,9 +24,9 @@ export async function fetchInstagramReels() {
     return instagramCache.reels
   }
 
-  const endpoint = new URL(`https://graph.facebook.com/${INSTAGRAM_GRAPH_API_VERSION}/${encodeURIComponent(INSTAGRAM_ACCOUNT_ID)}/media`)
+  const endpoint = new URL(`https://graph.facebook.com/${INSTAGRAM_GRAPH_API_VERSION}/${encodeURIComponent(accountId)}/media`)
   endpoint.searchParams.set('fields', 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp')
-  endpoint.searchParams.set('access_token', INSTAGRAM_ACCESS_TOKEN)
+  endpoint.searchParams.set('access_token', accessToken)
   endpoint.searchParams.set('limit', '12')
 
   const response = await fetch(endpoint, {
@@ -51,7 +59,7 @@ export async function fetchInstagramReels() {
 }
 
 export async function handleInstagramFeed(req, res) {
-  if (!INSTAGRAM_ACCOUNT_ID || !INSTAGRAM_ACCESS_TOKEN) {
+  if (!getInstagramAccountId() || !getInstagramAccessToken()) {
     return json(res, 503, {
       error: 'Instagram feed is not configured.',
     })
