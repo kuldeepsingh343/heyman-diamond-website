@@ -1384,11 +1384,16 @@ export async function handleUploadInventory(req, res, admin) {
           updated_at: new Date().toISOString(),
         }))
 
-        await db('diamonds_inventory', {
-          method: 'POST',
-          headers: { Prefer: 'resolution=merge-duplicates' },
-          body: JSON.stringify(dbRows),
-        })
+        // Chunk into batches of 200 to ensure seamless persistence for 1000+ items without database timeouts
+        const BATCH_SIZE = 200
+        for (let i = 0; i < dbRows.length; i += BATCH_SIZE) {
+          const chunk = dbRows.slice(i, i + BATCH_SIZE)
+          await db('diamonds_inventory', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates' },
+            body: JSON.stringify(chunk),
+          })
+        }
         dbPersisted = true
       } catch (dbErr) {
         console.warn('Note: Diamonds table sync to Supabase skipped:', dbErr.message)
