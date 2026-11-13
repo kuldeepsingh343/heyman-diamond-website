@@ -112,6 +112,35 @@ test('Reviews Service — Admin Delete Review Flow', async () => {
   assert.equal(afterDeleteRes.body.items.some(r => r.id === targetId), false)
 })
 
+test('Reviews Service — Reply-Only user cannot delete or hide reviews', async () => {
+  const replyOnlyUser = {
+    user: { id: 'reply-only-staff-1', email: 'support@heymandiamond.com' },
+    role: 'sales_manager',
+    permissions: {
+      can_manage_reviews: true,
+      can_delete_reviews: false,
+    },
+  }
+
+  // Attempt delete
+  const delRes = createMockRes()
+  await handleDeleteReview({}, delRes, replyOnlyUser, 'sample-1')
+  assert.equal(delRes.statusCode, 403)
+  assert.match(delRes.body?.error, /Delete review permission required/)
+
+  // Attempt hide/unhide
+  const patchReq = {
+    headers: { 'content-type': 'application/json' },
+    [Symbol.asyncIterator]: async function* () {
+      yield Buffer.from(JSON.stringify({ status: 'hidden' }))
+    },
+  }
+  const patchRes = createMockRes()
+  await handleUpdateReviewStatus(patchReq, patchRes, replyOnlyUser, 'sample-1')
+  assert.equal(patchRes.statusCode, 403)
+  assert.match(patchRes.body?.error, /Review status management permission required/)
+})
+
 test('Reviews Service — Status Toggle (published / hidden)', async () => {
   const listRes = createMockRes()
   await handleGetAdminReviews({}, listRes, mockAdmin)

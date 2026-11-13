@@ -117,6 +117,7 @@ export function getDefaultPermissions(role) {
         can_review_kyc: true,
         can_manage_promotions: true,
         can_manage_reviews: true,
+        can_delete_reviews: true,
         can_manage_users: true,
         can_manage_team: true,
       }
@@ -127,6 +128,7 @@ export function getDefaultPermissions(role) {
         can_review_kyc: true,
         can_manage_promotions: true,
         can_manage_reviews: true,
+        can_delete_reviews: true,
         can_manage_users: false,
         can_manage_team: false,
       }
@@ -137,6 +139,7 @@ export function getDefaultPermissions(role) {
         can_review_kyc: true,
         can_manage_promotions: false,
         can_manage_reviews: false,
+        can_delete_reviews: false,
         can_manage_users: false,
         can_manage_team: false,
       }
@@ -148,6 +151,7 @@ export function getDefaultPermissions(role) {
         can_review_kyc: false,
         can_manage_promotions: false,
         can_manage_reviews: true,
+        can_delete_reviews: false,
         can_manage_users: false,
         can_manage_team: false,
       }
@@ -172,6 +176,7 @@ export function resolvePermissions(adminRow) {
         can_review_kyc: true,
         can_manage_promotions: true,
         can_manage_reviews: true,
+        can_delete_reviews: true,
         can_manage_users: true,
         can_manage_team: true,
       },
@@ -187,6 +192,7 @@ export function resolvePermissions(adminRow) {
       can_review_kyc: adminRow.can_review_kyc !== undefined ? Boolean(adminRow.can_review_kyc) : defaults.can_review_kyc,
       can_manage_promotions: adminRow.can_manage_promotions !== undefined ? Boolean(adminRow.can_manage_promotions) : defaults.can_manage_promotions,
       can_manage_reviews: adminRow.can_manage_reviews !== undefined ? Boolean(adminRow.can_manage_reviews) : defaults.can_manage_reviews,
+      can_delete_reviews: adminRow.can_delete_reviews !== undefined ? Boolean(adminRow.can_delete_reviews) : Boolean(defaults.can_delete_reviews),
       can_manage_users: false,
       can_manage_team: false,
     },

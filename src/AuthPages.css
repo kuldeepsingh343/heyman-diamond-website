@@ -121,7 +121,7 @@
   text-transform: uppercase;
 }
 
-.auth-card input,
+.auth-card input:not([type="checkbox"]):not([type="radio"]),
 .auth-card select {
   width: 100%;
   min-height: 48px;
@@ -135,7 +135,7 @@
   appearance: none;
 }
 
-.auth-card input:focus,
+.auth-card input:not([type="checkbox"]):not([type="radio"]):focus,
 .auth-card select:focus {
   border-color: #a58a50;
   box-shadow: 0 0 0 3px rgb(165 138 80 / 14%);
@@ -2678,32 +2678,87 @@
 .staff-perm-checkbox-card {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 14px 16px;
   background: #faf8f5;
-  border: 1px solid #e5ded3;
+  border: 1.5px solid #e5ded3;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
+  user-select: none;
 }
 
 .staff-perm-checkbox-card:hover {
   background: #f5f0e6;
-  border-color: #c59b27;
+  border-color: #0e2b1d;
 }
 
 .staff-perm-checkbox-card--active {
-  background: #fbf7ee;
-  border-color: #d4af37;
-  box-shadow: 0 1px 4px rgba(212, 175, 55, 0.12);
+  background: #f7f9f7;
+  border-color: #0e2b1d;
+  box-shadow: 0 1px 5px rgba(14, 43, 29, 0.12);
+}
+
+.staff-perm-checkbox-card--active .staff-perm-card-content strong {
+  color: #0e2b1d;
 }
 
 .staff-perm-checkbox-card input[type="checkbox"] {
-  margin-top: 3px;
-  accent-color: #111827;
-  cursor: pointer;
-  width: 16px;
-  height: 16px;
+  position: absolute !important;
+  opacity: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 0 !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+
+.staff-perm-tickbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  max-width: 20px;
+  max-height: 20px;
+  border: 1.5px solid #b8ab96;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #ffffff;
+  margin-top: 1px;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.staff-perm-tickbox svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+  stroke: #ffffff;
+}
+
+.staff-perm-checkbox-card:hover .staff-perm-tickbox,
+.staff-inline-checkbox:hover .staff-perm-tickbox {
+  border-color: #0e2b1d;
+}
+
+.staff-perm-tickbox--checked {
+  background: #0e2b1d !important;
+  border-color: #0e2b1d !important;
+  color: #ffffff !important;
+}
+
+.staff-perm-card-icon {
+  margin-right: 6px;
+  font-size: 14px;
+  display: inline-block;
 }
 
 .staff-perm-card-content {
@@ -2918,15 +2973,42 @@
 .staff-inline-checkbox {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e5ded3;
+  border-radius: 6px;
+  font-size: 12.5px;
   color: #222;
   cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.staff-inline-checkbox:hover {
+  background: #fbf9f4;
+  border-color: #0e2b1d;
+}
+
+.staff-inline-checkbox--active {
+  background: #f7f9f7;
+  border-color: #0e2b1d;
+  font-weight: 500;
 }
 
 .staff-inline-checkbox input[type="checkbox"] {
-  accent-color: #111827;
-  cursor: pointer;
+  position: absolute !important;
+  opacity: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 0 !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+}
+
+.staff-inline-checkbox .staff-perm-tickbox {
+  margin-top: 0;
 }
 
 .staff-inline-edit-actions {

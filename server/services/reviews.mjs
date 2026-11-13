@@ -179,7 +179,9 @@ export async function handleGetAdminReviews(req, res, admin) {
 }
 
 export async function handleUpdateReviewStatus(req, res, admin, id) {
-  if (!admin?.permissions?.can_manage_reviews) return json(res, 403, { error: 'Review-management permission required.', message: 'Review-management permission required.' })
+  const isSuper = admin?.role === 'super_admin' || admin?.isSuperAdmin
+  const canToggle = isSuper || (Boolean(admin?.permissions?.can_manage_reviews) && admin?.permissions?.can_delete_reviews !== false)
+  if (!canToggle) return json(res, 403, { error: 'Review status management permission required. You have permission to reply only.', message: 'Review status management permission required. You have permission to reply only.' })
   const input = await bodyJson(req).catch(() => ({}))
   if (!['published', 'hidden'].includes(input.status)) return json(res, 400, { error: 'Status must be published or hidden.' })
 
@@ -268,7 +270,9 @@ export async function handleCreateReviewReply(req, res, admin) {
 }
 
 export async function handleDeleteReview(req, res, admin, id) {
-  if (!admin?.permissions?.can_manage_reviews) return json(res, 403, { error: 'Review-management permission required.', message: 'Review-management permission required.' })
+  const isSuper = admin?.role === 'super_admin' || admin?.isSuperAdmin
+  const canDelete = isSuper || (Boolean(admin?.permissions?.can_manage_reviews) && admin?.permissions?.can_delete_reviews !== false)
+  if (!canDelete) return json(res, 403, { error: 'Delete review permission required. You have permission to reply only.', message: 'Delete review permission required. You have permission to reply only.' })
   const reviewId = String(id || '').trim()
   if (!reviewId || !/^[a-zA-Z0-9_-]+$/.test(reviewId)) return json(res, 400, { error: 'Invalid review identifier.' })
   const safeId = encodeURIComponent(reviewId)

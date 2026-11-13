@@ -15,6 +15,7 @@ export interface StaffPermissions {
   can_manage_orders?: boolean
   can_review_kyc?: boolean
   can_manage_reviews?: boolean
+  can_delete_reviews?: boolean
   can_manage_promotions?: boolean
   can_manage_users?: boolean
   can_manage_team?: boolean
@@ -422,6 +423,7 @@ export default function AuthPages({
     can_manage_orders: true,
     can_review_kyc: true,
     can_manage_reviews: true,
+    can_delete_reviews: false,
     can_manage_promotions: false,
     can_manage_users: false,
   })
@@ -785,6 +787,7 @@ export default function AuthPages({
         can_manage_orders: true,
         can_review_kyc: true,
         can_manage_reviews: true,
+        can_delete_reviews: true,
         can_manage_promotions: true,
         can_manage_users: false,
       })
@@ -795,6 +798,7 @@ export default function AuthPages({
         can_manage_orders: true,
         can_review_kyc: true,
         can_manage_reviews: false,
+        can_delete_reviews: false,
         can_manage_promotions: false,
         can_manage_users: false,
       })
@@ -805,6 +809,7 @@ export default function AuthPages({
         can_manage_orders: true,
         can_review_kyc: false,
         can_manage_reviews: true,
+        can_delete_reviews: false,
         can_manage_promotions: false,
         can_manage_users: false,
       })
@@ -4176,25 +4181,29 @@ export default function AuthPages({
                                     💬 Write Reply
                                   </button>
                                 )}
-                                <button
-                                  type="button"
-                                  className="admin-btn-toggle-status"
-                                  onClick={() => handleToggleReviewStatus(review.id, review.status || 'published')}
-                                >
-                                  {review.status === 'hidden' ? '👁️ Unhide (Publish)' : '👁️ Hide from Public'}
-                                </button>
+                                {Boolean(isSuperAdmin || (user?.permissions?.can_delete_reviews ?? true)) && (
+                                  <button
+                                    type="button"
+                                    className="admin-btn-toggle-status"
+                                    onClick={() => handleToggleReviewStatus(review.id, review.status || 'published')}
+                                  >
+                                    {review.status === 'hidden' ? '👁️ Unhide (Publish)' : '👁️ Hide from Public'}
+                                  </button>
+                                )}
                               </div>
 
-                              <div>
-                                <button
-                                  type="button"
-                                  className="admin-btn-delete-review"
-                                  disabled={deletingReviewId === review.id}
-                                  onClick={() => handleDeleteReview(review.id, review.customer_name)}
-                                >
-                                  {deletingReviewId === review.id ? 'Deleting…' : '🗑️ Delete Review'}
-                                </button>
-                              </div>
+                              {Boolean(isSuperAdmin || (user?.permissions?.can_delete_reviews ?? true)) && (
+                                <div>
+                                  <button
+                                    type="button"
+                                    className="admin-btn-delete-review"
+                                    disabled={deletingReviewId === review.id}
+                                    onClick={() => handleDeleteReview(review.id, review.customer_name)}
+                                  >
+                                    {deletingReviewId === review.id ? 'Deleting…' : '🗑️ Delete Review'}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </article>
                         )
@@ -4329,9 +4338,15 @@ export default function AuthPages({
                               setNewStaffPerms(prev => ({ ...prev, can_manage_inventory: e.target.checked }))
                             }}
                           />
+                          <span className={`staff-perm-tickbox ${newStaffPerms.can_manage_inventory ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                            {newStaffPerms.can_manage_inventory && (
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </span>
                           <div className="staff-perm-card-content">
-                            <span className="staff-perm-card-icon">💎</span>
-                            <strong>Diamond Inventory &amp; Pricing</strong>
+                            <strong><span className="staff-perm-card-icon">💎</span>Diamond Inventory &amp; Pricing</strong>
                             <p>Sync Flomiz staged API diamonds, configure customer &amp; dealer markups, upload Excel sheets.</p>
                           </div>
                         </label>
@@ -4344,9 +4359,15 @@ export default function AuthPages({
                               setNewStaffPerms(prev => ({ ...prev, can_manage_orders: e.target.checked }))
                             }}
                           />
+                          <span className={`staff-perm-tickbox ${newStaffPerms.can_manage_orders ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                            {newStaffPerms.can_manage_orders && (
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </span>
                           <div className="staff-perm-card-content">
-                            <span className="staff-perm-card-icon">📦</span>
-                            <strong>Orders &amp; Quote Transactions</strong>
+                            <strong><span className="staff-perm-card-icon">📦</span>Orders &amp; Quote Transactions</strong>
                             <p>View dealer inquiries, quote requests, counter-offers, and update fulfillment states.</p>
                           </div>
                         </label>
@@ -4359,25 +4380,68 @@ export default function AuthPages({
                               setNewStaffPerms(prev => ({ ...prev, can_review_kyc: e.target.checked }))
                             }}
                           />
+                          <span className={`staff-perm-tickbox ${newStaffPerms.can_review_kyc ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                            {newStaffPerms.can_review_kyc && (
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </span>
                           <div className="staff-perm-card-content">
-                            <span className="staff-perm-card-icon">🏢</span>
-                            <strong>Dealer Account Approvals</strong>
+                            <strong><span className="staff-perm-card-icon">🏢</span>Dealer Account Approvals</strong>
                             <p>Review wholesale registration forms, verify resale tax certificates, and approve B2B discounts.</p>
                           </div>
                         </label>
 
-                        <label className={`staff-perm-checkbox-card ${newStaffPerms.can_manage_reviews ? 'staff-perm-checkbox-card--active' : ''}`}>
+                        <label className={`staff-perm-checkbox-card ${newStaffPerms.can_manage_reviews && newStaffPerms.can_delete_reviews ? 'staff-perm-checkbox-card--active' : ''}`}>
                           <input
                             type="checkbox"
-                            checked={Boolean(newStaffPerms.can_manage_reviews)}
-                            onChange={e => {
-                              setNewStaffPerms(prev => ({ ...prev, can_manage_reviews: e.target.checked }))
+                            checked={Boolean(newStaffPerms.can_manage_reviews && newStaffPerms.can_delete_reviews)}
+                            onChange={() => {
+                              const active = Boolean(newStaffPerms.can_manage_reviews && newStaffPerms.can_delete_reviews)
+                              if (active) {
+                                setNewStaffPerms(prev => ({ ...prev, can_manage_reviews: false, can_delete_reviews: false }))
+                              } else {
+                                setNewStaffPerms(prev => ({ ...prev, can_manage_reviews: true, can_delete_reviews: true }))
+                              }
                             }}
                           />
+                          <span className={`staff-perm-tickbox ${newStaffPerms.can_manage_reviews && newStaffPerms.can_delete_reviews ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                            {Boolean(newStaffPerms.can_manage_reviews && newStaffPerms.can_delete_reviews) && (
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </span>
                           <div className="staff-perm-card-content">
-                            <span className="staff-perm-card-icon">⭐</span>
-                            <strong>Customer Reviews &amp; Replies</strong>
-                            <p>Read client testimonials, post official verified replies as Hey Man Diamond LLC, or delete reviews.</p>
+                            <strong><span className="staff-perm-card-icon">🛡️</span>Reviews: Reply &amp; Delete (Full)</strong>
+                            <p>User can read client testimonials, post official replies as Hey Man Diamond LLC, and delete or hide reviews.</p>
+                          </div>
+                        </label>
+
+                        <label className={`staff-perm-checkbox-card ${newStaffPerms.can_manage_reviews && !newStaffPerms.can_delete_reviews ? 'staff-perm-checkbox-card--active' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(newStaffPerms.can_manage_reviews && !newStaffPerms.can_delete_reviews)}
+                            onChange={() => {
+                              const active = Boolean(newStaffPerms.can_manage_reviews && !newStaffPerms.can_delete_reviews)
+                              if (active) {
+                                setNewStaffPerms(prev => ({ ...prev, can_manage_reviews: false, can_delete_reviews: false }))
+                              } else {
+                                setNewStaffPerms(prev => ({ ...prev, can_manage_reviews: true, can_delete_reviews: false }))
+                              }
+                            }}
+                          />
+                          <span className={`staff-perm-tickbox ${newStaffPerms.can_manage_reviews && !newStaffPerms.can_delete_reviews ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                            {Boolean(newStaffPerms.can_manage_reviews && !newStaffPerms.can_delete_reviews) && (
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </span>
+                          <div className="staff-perm-card-content">
+                            <strong><span className="staff-perm-card-icon">💬</span>Reviews: Reply Only</strong>
+                            <p>User can only reply to customer reviews as Hey Man Diamond LLC, but cannot delete or hide reviews.</p>
                           </div>
                         </label>
 
@@ -4389,9 +4453,15 @@ export default function AuthPages({
                               setNewStaffPerms(prev => ({ ...prev, can_manage_promotions: e.target.checked }))
                             }}
                           />
+                          <span className={`staff-perm-tickbox ${newStaffPerms.can_manage_promotions ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                            {newStaffPerms.can_manage_promotions && (
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </span>
                           <div className="staff-perm-card-content">
-                            <span className="staff-perm-card-icon">✨</span>
-                            <strong>Front Page Offers &amp; Schemes</strong>
+                            <strong><span className="staff-perm-card-icon">✨</span>Front Page Offers &amp; Schemes</strong>
                             <p>Manage liquid glass promotional banners, video/image slider carousels, and promotional sales.</p>
                           </div>
                         </label>
@@ -4514,11 +4584,11 @@ export default function AuthPages({
                                       const newRole = e.target.value as 'admin' | 'sales_manager' | 'operations_manager'
                                       setEditRole(newRole)
                                       if (newRole === 'admin') {
-                                        setEditPerms({ can_manage_inventory: true, can_manage_orders: true, can_review_kyc: true, can_manage_reviews: true, can_manage_promotions: true, can_manage_users: false })
+                                        setEditPerms({ can_manage_inventory: true, can_manage_orders: true, can_review_kyc: true, can_manage_reviews: true, can_delete_reviews: true, can_manage_promotions: true, can_manage_users: false })
                                       } else if (newRole === 'sales_manager') {
-                                        setEditPerms({ can_manage_inventory: false, can_manage_orders: true, can_review_kyc: true, can_manage_reviews: true, can_manage_promotions: false, can_manage_users: false })
+                                        setEditPerms({ can_manage_inventory: false, can_manage_orders: true, can_review_kyc: true, can_manage_reviews: true, can_delete_reviews: false, can_manage_promotions: false, can_manage_users: false })
                                       } else if (newRole === 'operations_manager') {
-                                        setEditPerms({ can_manage_inventory: true, can_manage_orders: true, can_review_kyc: false, can_manage_reviews: false, can_manage_promotions: false, can_manage_users: false })
+                                        setEditPerms({ can_manage_inventory: true, can_manage_orders: true, can_review_kyc: false, can_manage_reviews: false, can_delete_reviews: false, can_manage_promotions: false, can_manage_users: false })
                                       }
                                     }}
                                   >
@@ -4554,44 +4624,108 @@ export default function AuthPages({
                               <div className="staff-inline-perms-select">
                                 <label className="staff-form-label">Update Module Permissions:</label>
                                 <div className="staff-inline-perms-grid">
-                                  <label className="staff-inline-checkbox">
+                                  <label className={`staff-inline-checkbox ${editPerms.can_manage_inventory ? 'staff-inline-checkbox--active' : ''}`}>
                                     <input
                                       type="checkbox"
                                       checked={Boolean(editPerms.can_manage_inventory)}
                                       onChange={e => setEditPerms(p => ({ ...p, can_manage_inventory: e.target.checked }))}
                                     />
+                                    <span className={`staff-perm-tickbox ${editPerms.can_manage_inventory ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                                      {editPerms.can_manage_inventory && (
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </span>
                                     <span>💎 Diamond Inventory &amp; Pricing</span>
                                   </label>
-                                  <label className="staff-inline-checkbox">
+                                  <label className={`staff-inline-checkbox ${editPerms.can_manage_orders ? 'staff-inline-checkbox--active' : ''}`}>
                                     <input
                                       type="checkbox"
                                       checked={Boolean(editPerms.can_manage_orders)}
                                       onChange={e => setEditPerms(p => ({ ...p, can_manage_orders: e.target.checked }))}
                                     />
+                                    <span className={`staff-perm-tickbox ${editPerms.can_manage_orders ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                                      {editPerms.can_manage_orders && (
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </span>
                                     <span>📦 Orders &amp; Quotes</span>
                                   </label>
-                                  <label className="staff-inline-checkbox">
+                                  <label className={`staff-inline-checkbox ${editPerms.can_review_kyc ? 'staff-inline-checkbox--active' : ''}`}>
                                     <input
                                       type="checkbox"
                                       checked={Boolean(editPerms.can_review_kyc)}
                                       onChange={e => setEditPerms(p => ({ ...p, can_review_kyc: e.target.checked }))}
                                     />
+                                    <span className={`staff-perm-tickbox ${editPerms.can_review_kyc ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                                      {editPerms.can_review_kyc && (
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </span>
                                     <span>🏢 Dealer KYC Approvals</span>
                                   </label>
-                                  <label className="staff-inline-checkbox">
+                                  <label className={`staff-inline-checkbox ${editPerms.can_manage_reviews && editPerms.can_delete_reviews ? 'staff-inline-checkbox--active' : ''}`}>
                                     <input
                                       type="checkbox"
-                                      checked={Boolean(editPerms.can_manage_reviews)}
-                                      onChange={e => setEditPerms(p => ({ ...p, can_manage_reviews: e.target.checked }))}
+                                      checked={Boolean(editPerms.can_manage_reviews && editPerms.can_delete_reviews)}
+                                      onChange={() => {
+                                        const active = Boolean(editPerms.can_manage_reviews && editPerms.can_delete_reviews)
+                                        if (active) {
+                                          setEditPerms(p => ({ ...p, can_manage_reviews: false, can_delete_reviews: false }))
+                                        } else {
+                                          setEditPerms(p => ({ ...p, can_manage_reviews: true, can_delete_reviews: true }))
+                                        }
+                                      }}
                                     />
-                                    <span>⭐ Reviews &amp; Replies</span>
+                                    <span className={`staff-perm-tickbox ${editPerms.can_manage_reviews && editPerms.can_delete_reviews ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                                      {Boolean(editPerms.can_manage_reviews && editPerms.can_delete_reviews) && (
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </span>
+                                    <span>🛡️ Reviews: Reply &amp; Delete (Full)</span>
                                   </label>
-                                  <label className="staff-inline-checkbox">
+                                  <label className={`staff-inline-checkbox ${editPerms.can_manage_reviews && !editPerms.can_delete_reviews ? 'staff-inline-checkbox--active' : ''}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(editPerms.can_manage_reviews && !editPerms.can_delete_reviews)}
+                                      onChange={() => {
+                                        const active = Boolean(editPerms.can_manage_reviews && !editPerms.can_delete_reviews)
+                                        if (active) {
+                                          setEditPerms(p => ({ ...p, can_manage_reviews: false, can_delete_reviews: false }))
+                                        } else {
+                                          setEditPerms(p => ({ ...p, can_manage_reviews: true, can_delete_reviews: false }))
+                                        }
+                                      }}
+                                    />
+                                    <span className={`staff-perm-tickbox ${editPerms.can_manage_reviews && !editPerms.can_delete_reviews ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                                      {Boolean(editPerms.can_manage_reviews && !editPerms.can_delete_reviews) && (
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </span>
+                                    <span>💬 Reviews: Reply Only</span>
+                                  </label>
+                                  <label className={`staff-inline-checkbox ${editPerms.can_manage_promotions ? 'staff-inline-checkbox--active' : ''}`}>
                                     <input
                                       type="checkbox"
                                       checked={Boolean(editPerms.can_manage_promotions)}
                                       onChange={e => setEditPerms(p => ({ ...p, can_manage_promotions: e.target.checked }))}
                                     />
+                                    <span className={`staff-perm-tickbox ${editPerms.can_manage_promotions ? 'staff-perm-tickbox--checked' : ''}`} aria-hidden="true">
+                                      {editPerms.can_manage_promotions && (
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </span>
                                     <span>✨ Front Page Offers</span>
                                   </label>
                                 </div>
@@ -4634,7 +4768,11 @@ export default function AuthPages({
                                       <span className="staff-perm-pill">🏢 Dealer KYC</span>
                                     )}
                                     {staff.permissions?.can_manage_reviews && (
-                                      <span className="staff-perm-pill">⭐ Reviews &amp; Replies</span>
+                                      staff.permissions?.can_delete_reviews ? (
+                                        <span className="staff-perm-pill">🛡️ Reviews (Reply &amp; Delete)</span>
+                                      ) : (
+                                        <span className="staff-perm-pill">💬 Reviews (Reply Only)</span>
+                                      )
                                     )}
                                     {staff.permissions?.can_manage_promotions && (
                                       <span className="staff-perm-pill">✨ Offers &amp; Schemes</span>

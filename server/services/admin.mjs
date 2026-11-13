@@ -20,6 +20,7 @@ export const memoryStaffUsers = [
       can_manage_orders: true,
       can_review_kyc: true,
       can_manage_reviews: true,
+      can_delete_reviews: true,
       can_manage_promotions: true,
       can_manage_users: true,
       can_manage_team: true,
@@ -134,6 +135,7 @@ export async function handleCreateStaffUser(req, res, admin) {
     can_manage_orders: customPerms.can_manage_orders !== undefined ? Boolean(customPerms.can_manage_orders) : defaults.can_manage_orders,
     can_review_kyc: customPerms.can_review_kyc !== undefined ? Boolean(customPerms.can_review_kyc) : defaults.can_review_kyc,
     can_manage_reviews: customPerms.can_manage_reviews !== undefined ? Boolean(customPerms.can_manage_reviews) : defaults.can_manage_reviews,
+    can_delete_reviews: customPerms.can_delete_reviews !== undefined ? Boolean(customPerms.can_delete_reviews) : Boolean(defaults.can_delete_reviews),
     can_manage_promotions: customPerms.can_manage_promotions !== undefined ? Boolean(customPerms.can_manage_promotions) : defaults.can_manage_promotions,
     can_manage_users: false, // strictly false for non-super_admin
     can_manage_team: false,
@@ -192,6 +194,7 @@ export async function handleCreateStaffUser(req, res, admin) {
           can_manage_orders: perms.can_manage_orders,
           can_review_kyc: perms.can_review_kyc,
           can_manage_reviews: perms.can_manage_reviews,
+          can_delete_reviews: perms.can_delete_reviews,
           can_manage_promotions: perms.can_manage_promotions,
           can_manage_users: false,
           can_manage_team: false,
@@ -332,6 +335,7 @@ export async function handleUpdateStaffUser(req, res, admin, id) {
         ...(perms.can_manage_orders !== undefined && { can_manage_orders: Boolean(perms.can_manage_orders) }),
         ...(perms.can_review_kyc !== undefined && { can_review_kyc: Boolean(perms.can_review_kyc) }),
         ...(perms.can_manage_reviews !== undefined && { can_manage_reviews: Boolean(perms.can_manage_reviews) }),
+        ...(perms.can_delete_reviews !== undefined && { can_delete_reviews: Boolean(perms.can_delete_reviews) }),
         ...(perms.can_manage_promotions !== undefined && { can_manage_promotions: Boolean(perms.can_manage_promotions) }),
         can_manage_users: mem.role === 'super_admin',
         can_manage_team: mem.role === 'super_admin',
@@ -352,6 +356,7 @@ export async function handleUpdateStaffUser(req, res, admin, id) {
         if (perms.can_manage_orders !== undefined) dbUpdates.can_manage_orders = Boolean(perms.can_manage_orders)
         if (perms.can_review_kyc !== undefined) dbUpdates.can_review_kyc = Boolean(perms.can_review_kyc)
         if (perms.can_manage_reviews !== undefined) dbUpdates.can_manage_reviews = Boolean(perms.can_manage_reviews)
+        if (perms.can_delete_reviews !== undefined) dbUpdates.can_delete_reviews = Boolean(perms.can_delete_reviews)
         if (perms.can_manage_promotions !== undefined) dbUpdates.can_manage_promotions = Boolean(perms.can_manage_promotions)
         if (!targetIsSuperAdmin) {
           dbUpdates.can_manage_users = false
