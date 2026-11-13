@@ -1280,7 +1280,7 @@ export async function handleUploadInventory(req, res, admin) {
       return json(res, 401, { error: 'Admin authentication required.' })
     }
 
-    const input = await bodyJson(req)
+    const input = await bodyJson(req, 50 * 1024 * 1024)
     const content = input.content || input.fileContent || input.csv
     const mode = input.mode === 'replace' ? 'replace' : 'append'
 

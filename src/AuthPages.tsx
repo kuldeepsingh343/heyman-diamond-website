@@ -202,6 +202,57 @@ function getInitialStatus(): { text: string; kind: 'info' | 'error' | 'success' 
   return { text: result.text, kind: result.kind }
 }
 
+export async function authFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  onSessionExpired?: () => void
+): Promise<Response> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('hmd_access_token') || '' : ''
+  const headers = new Headers(init?.headers || {})
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  let res = await fetch(input, { ...init, headers })
+
+  if (res.status === 401 && typeof window !== 'undefined') {
+    const refreshToken = localStorage.getItem('hmd_refresh_token')
+    if (refreshToken) {
+      try {
+        const refreshRes = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        })
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json()
+          if (refreshData.accessToken) {
+            localStorage.setItem('hmd_access_token', refreshData.accessToken)
+            if (refreshData.refreshToken) {
+              localStorage.setItem('hmd_refresh_token', refreshData.refreshToken)
+            }
+            if (refreshData.user) {
+              localStorage.setItem('hmd_user', JSON.stringify(refreshData.user))
+            }
+            const retryHeaders = new Headers(init?.headers || {})
+            retryHeaders.set('Authorization', `Bearer ${refreshData.accessToken}`)
+            res = await fetch(input, { ...init, headers: retryHeaders })
+            return res
+          }
+        }
+      } catch (err) {
+        console.warn('Auto token refresh attempt failed:', err)
+      }
+    }
+
+    if (res.status === 401 && onSessionExpired) {
+      onSessionExpired()
+    }
+  }
+
+  return res
+}
+
 export default function AuthPages({
   mode,
   onUserChange,
@@ -729,13 +780,10 @@ export default function AuthPages({
 
   const fetchAdminDiamonds = useCallback(async (statusOverride?: string) => {
     setLoadingAdminDiamonds(true)
-    const token = localStorage.getItem('hmd_access_token')
     const activeStatus = statusOverride !== undefined ? statusOverride : diamondFilterStatus
     const query = activeStatus && activeStatus !== 'all' ? `?status=${encodeURIComponent(activeStatus)}` : ''
     try {
-      const res = await fetch(`/api/admin/diamonds${query}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      const res = await authFetch(`/api/admin/diamonds${query}`)
       if (res.ok) {
         const data = await res.json()
         if (data && Array.isArray(data.items)) {
@@ -2097,12 +2145,10 @@ export default function AuthPages({
 
     try {
       const text = await uploadFile.text()
-      const token = localStorage.getItem('hmd_access_token') || ''
-      const res = await fetch('/api/admin/inventory/upload', {
+      const res = await authFetch('/api/admin/inventory/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           fileContent: text,
@@ -2114,6 +2160,9 @@ export default function AuthPages({
       const isJson = res.headers.get('content-type')?.includes('application/json')
       const data = isJson ? await res.json().catch(() => ({})) : {}
       if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Your administrator session has expired. Please sign in again.')
+        }
         throw new Error(data.error || 'Failed to upload diamond inventory.')
       }
 

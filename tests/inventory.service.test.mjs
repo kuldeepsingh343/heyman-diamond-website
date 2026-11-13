@@ -11,7 +11,9 @@ import {
   getFlomizBaseUrl,
   setFlomizConfig,
   cleanFlomizBaseUrl,
+  handleUploadInventory,
 } from '../server/services/inventory.mjs'
+import { handleRefreshToken } from '../server/services/auth.mjs'
 
 test('Inventory Service — CSV and TSV Parsing', () => {
   const standardCsv = 'SKU,Shape,Carat\nHMD-1,Round,1.5\nHMD-2,Oval,2.0'
@@ -206,5 +208,51 @@ test('Inventory Service — Flomiz Product Normalization', () => {
   assert.equal(getFlomizApiKey(), 'my_key')
   setFlomizConfig('', 'https://diamond.flomiz.com')
 })
+
+test('Inventory Upload — Supports large spreadsheet uploads (> 100KB) without 413 error', async () => {
+  const rows = ['SKU,Shape,Carat,Color,Clarity,Cut,Price,Wholesale Price']
+  for (let i = 1; i <= 2500; i++) {
+    rows.push(`HMD-BULK-${i},Round,1.00,D,VVS1,Ideal,1500,1000`)
+  }
+  const largeCsv = rows.join('\n')
+  assert.ok(largeCsv.length > 100000, 'Payload must be > 100KB to test limit elevation')
+
+  const admin = {
+    user: { id: 'af4c0658-56f0-4325-b8e4-6cf338ac6004', email: 'heymandiamondllc@gmail.com' },
+    role: 'super_admin',
+    permissions: { can_manage_inventory: true },
+  }
+
+  async function* generator() {
+    yield Buffer.from(JSON.stringify({ fileContent: largeCsv, mode: 'append' }))
+  }
+  const req = generator()
+  req.headers = { 'content-type': 'application/json' }
+
+  let statusCode = null
+  let body = ''
+  const res = {
+    writeHead(code) { statusCode = code },
+    end(data) { body = data || '' },
+  }
+
+  await handleUploadInventory(req, res, admin)
+  assert.equal(statusCode, 200)
+  const jsonRes = JSON.parse(body)
+  assert.equal(jsonRes.success, true)
+  assert.equal(jsonRes.importedCount, 2500)
+})
+
+test('Auth Service — handleRefreshToken validates refresh token', async () => {
+  async function* gen1() { yield Buffer.from(JSON.stringify({})) }
+  const req1 = gen1()
+  let sc1 = null
+  let b1 = ''
+  const res1 = { writeHead(c) { sc1 = c }, end(d) { b1 = d || '' } }
+  await handleRefreshToken(req1, res1)
+  assert.equal(sc1, 400)
+  assert.match(JSON.parse(b1).error, /Refresh token is required/i)
+})
+
 
 

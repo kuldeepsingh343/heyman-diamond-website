@@ -26,11 +26,35 @@ export const memoryStaffUsers = [
       can_manage_team: true,
     },
   },
+  {
+    id: 'af4c0658-56f0-4325-b8e4-6cf338ac6004',
+    user_id: 'af4c0658-56f0-4325-b8e4-6cf338ac6004',
+    email: 'heymandiamondllc@gmail.com',
+    full_name: 'Bharat Kumar Patel',
+    role: 'super_admin',
+    role_title: 'Super Administrator',
+    is_super_admin: true,
+    is_active: true,
+    status: 'active',
+    created_at: '2026-11-05T21:52:56.240Z',
+    updated_at: '2026-11-10T06:24:54.858Z',
+    permissions: {
+      can_manage_inventory: true,
+      can_manage_orders: true,
+      can_review_kyc: true,
+      can_manage_reviews: true,
+      can_delete_reviews: true,
+      can_manage_promotions: true,
+      can_manage_users: true,
+      can_manage_team: true,
+    },
+  },
 ]
 
-export function getMemoryStaffUser(id) {
-  if (!id) return null
-  return memoryStaffUsers.find(s => s.id === id || s.user_id === id) || null
+export function getMemoryStaffUser(idOrEmail) {
+  if (!idOrEmail) return null
+  const query = String(idOrEmail).toLowerCase().trim()
+  return memoryStaffUsers.find(s => s.id === idOrEmail || s.user_id === idOrEmail || String(s.email || '').toLowerCase() === query) || null
 }
 
 export async function handleGetStaffUsers(req, res, admin) {

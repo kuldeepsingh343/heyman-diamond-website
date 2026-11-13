@@ -218,10 +218,11 @@ export async function requireAdmin(req) {
       }
     } catch (err) {
       console.warn('requireAdmin DB lookup error:', err.message)
-      return null
     }
-  } else {
-    adminRow = getMemoryStaffUser(user.id)
+  }
+
+  if (!adminRow) {
+    adminRow = getMemoryStaffUser(user.id) || getMemoryStaffUser(user.email)
   }
 
   if (!adminRow || adminRow.is_active === false) {
@@ -494,10 +495,90 @@ export async function handleSignin(req, res) {
         console.warn('Admin status lookup failed during signin:', err.message)
       }
     } else {
-      adminRecord = getMemoryStaffUser(data.user.id)
+      adminRecord = getMemoryStaffUser(data.user.id) || getMemoryStaffUser(data.user.email)
       if (adminRecord && adminRecord.is_active !== false) {
         isAdmin = true
       }
+    }
+  }
+
+  if (!adminRecord && data.user.email_confirmed_at) {
+    adminRecord = getMemoryStaffUser(data.user.id) || getMemoryStaffUser(data.user.email)
+    if (adminRecord && adminRecord.is_active !== false) {
+      isAdmin = true
+    }
+  }
+
+  const profiles = await db(`profiles?id=eq.${encodeURIComponent(data.user.id)}&select=account_type,dealer_status,full_name`).catch(() => [])
+  const resolved = adminRecord ? resolvePermissions(adminRecord) : null
+  const accountType = isAdmin ? 'admin' : (profiles?.[0]?.account_type === 'dealer' ? 'dealer' : 'customer')
+
+  return json(res, 200, {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresIn: data.expires_in,
+    user: {
+      email: data.user.email,
+      ...(profiles?.[0] || {}),
+      account_type: accountType,
+      role: resolved?.role || undefined,
+      role_title: resolved?.role_title || undefined,
+      is_super_admin: resolved?.role === 'super_admin',
+      permissions: resolved?.permissions || undefined,
+    },
+  })
+}
+
+export async function handleRefreshToken(req, res) {
+  const input = await bodyJson(req)
+  const refreshToken = String(input.refreshToken || input.refresh_token || '').trim()
+
+  if (!refreshToken) {
+    return json(res, 400, { error: 'Refresh token is required.' })
+  }
+
+  if (!getSupabaseUrl() || !getSupabaseAnonKey()) {
+    return json(res, 503, { error: 'Authentication service is not configured yet.' })
+  }
+
+  const response = await fetch(`${getSupabaseUrl()}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: { apikey: getSupabaseAnonKey(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    return json(res, response.status, {
+      error: data.msg || data.message || 'Session expired. Please sign in again.',
+    })
+  }
+
+  let adminRecord = null
+  let isAdmin = false
+  if (data.user?.email_confirmed_at) {
+    if (supabaseReady()) {
+      try {
+        const adminRows = await db(`admin_users?user_id=eq.${encodeURIComponent(data.user.id)}`)
+        if (adminRows && adminRows.length > 0 && adminRows[0].is_active !== false) {
+          adminRecord = adminRows[0]
+          isAdmin = true
+        }
+      } catch (err) {
+        console.warn('Admin status lookup failed during token refresh:', err.message)
+      }
+    } else {
+      adminRecord = getMemoryStaffUser(data.user.id) || getMemoryStaffUser(data.user.email)
+      if (adminRecord && adminRecord.is_active !== false) {
+        isAdmin = true
+      }
+    }
+  }
+
+  if (!adminRecord && data.user?.email_confirmed_at) {
+    adminRecord = getMemoryStaffUser(data.user.id) || getMemoryStaffUser(data.user.email)
+    if (adminRecord && adminRecord.is_active !== false) {
+      isAdmin = true
     }
   }
 
