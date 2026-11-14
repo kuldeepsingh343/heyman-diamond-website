@@ -481,7 +481,7 @@ function App() {
 
       <CustomerExperience />
 
-      <ReviewsSection />
+      <ReviewsSection currentUser={currentUser} />
 
       <section className="instagram-section" id="instagram">
         <InstagramReels />

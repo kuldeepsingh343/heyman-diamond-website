@@ -1,5 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import {
   handleGetReviews,
   handleCreateReview,
@@ -157,3 +159,25 @@ test('Reviews Service — Status Toggle (published / hidden)', async () => {
   assert.equal(patchRes.statusCode, 200)
   assert.equal(patchRes.body?.status, 'hidden')
 })
+
+test('Reviews Section — Verified account UI logic and Sign In prompt verification', () => {
+  const tsx = readFileSync(resolve(process.cwd(), 'src/ReviewsSection.tsx'), 'utf8')
+  const css = readFileSync(resolve(process.cwd(), 'src/ReviewsSection.css'), 'utf8')
+
+  // When logged in: displays account badge, does not render name or email inputs
+  assert.match(tsx, /isLoggedIn\s*\?\s*\(/)
+  assert.match(tsx, /className="reviews-account-badge"/)
+  assert.match(tsx, /className="reviews-account-verified"/)
+  assert.doesNotMatch(tsx, /<input[^>]*id="review-name"/)
+  assert.doesNotMatch(tsx, /<input[^>]*id="review-email"/)
+
+  // When not logged in: renders Sign In to Leave a Review button linked to #signin
+  assert.match(tsx, /href="#signin"/)
+  assert.match(tsx, /className="reviews-submit-btn reviews-signin-prompt-btn"/)
+  assert.match(tsx, /Sign In to Leave a Review/)
+
+  // CSS contains styles for both verified identity badge and sign-in button
+  assert.match(css, /\.reviews-account-badge/)
+  assert.match(css, /\.reviews-signin-prompt-btn/)
+})
+

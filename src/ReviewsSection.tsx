@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
+import type { UserProfile } from './AuthPages'
 import './ReviewsSection.css'
 
 export interface ReviewItem {
@@ -9,6 +10,10 @@ export interface ReviewItem {
   remarks: string
   submitted_at: string
   reply?: string | null
+}
+
+interface ReviewsSectionProps {
+  currentUser?: UserProfile | null
 }
 
 const googleReviews = [
@@ -63,15 +68,67 @@ const fallbackReviews: ReviewItem[] = [
   },
 ]
 
-export default function ReviewsSection() {
+export default function ReviewsSection({ currentUser }: ReviewsSectionProps = {}) {
   const [reviews, setReviews] = useState<ReviewItem[]>(fallbackReviews)
   const [showAllReviews, setShowAllReviews] = useState(false)
   const [rating, setRating] = useState(0)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
   const [remarks, setRemarks] = useState('')
   const [status, setStatus] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Resolve current logged-in user from prop or localStorage
+  const [localUser, setLocalUser] = useState<UserProfile | null>(() => {
+    if (currentUser) return currentUser
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = localStorage.getItem('hmd_user')
+      const token = localStorage.getItem('hmd_access_token')
+      return token && raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })
+
+  useEffect(() => {
+    if (currentUser !== undefined) {
+      setLocalUser(currentUser)
+    }
+  }, [currentUser])
+
+  useEffect(() => {
+    const syncUser = () => {
+      try {
+        const raw = localStorage.getItem('hmd_user')
+        const token = localStorage.getItem('hmd_access_token')
+        setLocalUser(token && raw ? JSON.parse(raw) : null)
+      } catch {
+        setLocalUser(null)
+      }
+    }
+    window.addEventListener('storage', syncUser)
+    window.addEventListener('hmd-auth-changed', syncUser)
+    return () => {
+      window.removeEventListener('storage', syncUser)
+      window.removeEventListener('hmd-auth-changed', syncUser)
+    }
+  }, [])
+
+  // Restore saved draft if user navigated to sign in and returned
+  useEffect(() => {
+    try {
+      const draft = sessionStorage.getItem('hmd_review_draft')
+      if (draft) {
+        const parsed = JSON.parse(draft)
+        if (parsed.remarks) setRemarks(parsed.remarks)
+        if (parsed.rating) setRating(parsed.rating)
+        sessionStorage.removeItem('hmd_review_draft')
+      }
+    } catch {}
+  }, [])
+
+  const effectiveUser = currentUser || localUser
+  const isLoggedIn = Boolean(effectiveUser && effectiveUser.email)
+  const displayName = effectiveUser?.full_name?.trim() || effectiveUser?.email?.split('@')[0] || 'Valued Client'
 
   // Fetch verified reviews from backend API on mount
   useEffect(() => {
@@ -97,18 +154,29 @@ export default function ReviewsSection() {
   async function submitReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setStatus('')
+    if (!isLoggedIn) {
+      setStatus('Please sign in to your account before submitting a review.')
+      return
+    }
     if (rating < 1) {
       setStatus('Please select a star rating before submitting.')
       return
     }
     setSubmitting(true)
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('hmd_access_token') : null
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const submitName = effectiveUser?.full_name?.trim() || effectiveUser?.email?.split('@')[0] || 'Verified Client'
+      const submitEmail = effectiveUser?.email?.trim() || ''
+
       const response = await fetch('/api/reviews', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
+          name: submitName,
+          email: submitEmail,
           remarks: remarks.trim(),
           rating,
         }),
@@ -122,8 +190,6 @@ export default function ReviewsSection() {
         setReviews((prev) => [data.review, ...prev.filter((r) => r.id !== data.review.id)])
       }
       setStatus('Thank you! Your review has been posted and is now live on our website.')
-      setName('')
-      setEmail('')
       setRemarks('')
       setRating(0)
     } catch (err: unknown) {
@@ -189,7 +255,9 @@ export default function ReviewsSection() {
           <form className="reviews-form-card" onSubmit={submitReview}>
             <h3>Leave a review</h3>
             <p className="form-intro">
-              Share your thoughts with our team. Your email address will not be displayed publicly.
+              {isLoggedIn
+                ? 'Share your thoughts with our team. Your review will be published under your verified account.'
+                : 'Share your thoughts with our team. Please sign in to submit your verified review.'}
             </p>
 
             <div className="reviews-field">
@@ -223,36 +291,47 @@ export default function ReviewsSection() {
               </div>
             </div>
 
-            <div className="reviews-field">
-              <label htmlFor="review-name">YOUR NAME *</label>
-              <input
-                id="review-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoComplete="name"
-                maxLength={120}
-                placeholder="Enter your name"
-                required
-              />
-            </div>
+            {/* When logged in: automatically use verified account identity, no need to ask name & email */}
+            {isLoggedIn ? (
+              <div className="reviews-account-badge">
+                <div className="reviews-account-avatar" aria-hidden="true">
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+                <div className="reviews-account-details">
+                  <div className="reviews-account-header">
+                    <strong>{displayName}</strong>
+                    <span className="reviews-account-verified">✓ Verified Account</span>
+                  </div>
+                  <span className="reviews-account-email">{effectiveUser?.email}</span>
+                </div>
+              </div>
+            ) : null}
 
-            <div className="reviews-field">
-              <label htmlFor="review-email">EMAIL ADDRESS *</label>
-              <input
-                id="review-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                maxLength={254}
-                placeholder="you@example.com"
-                required
-              />
-            </div>
-
-            <button className="reviews-submit-btn" type="submit" disabled={submitting}>
-              {submitting ? 'Submitting…' : 'Submit Review'}
-            </button>
+            {/* If logged in: Submit button. If not logged in: Sign-in button */}
+            {isLoggedIn ? (
+              <button className="reviews-submit-btn" type="submit" disabled={submitting}>
+                {submitting ? 'Submitting…' : 'Submit Review'}
+              </button>
+            ) : (
+              <div className="reviews-signin-prompt-wrap">
+                <a
+                  href="#signin"
+                  className="reviews-submit-btn reviews-signin-prompt-btn"
+                  onClick={() => {
+                    try {
+                      if (remarks || rating) {
+                        sessionStorage.setItem('hmd_review_draft', JSON.stringify({ remarks, rating }))
+                      }
+                    } catch {}
+                  }}
+                >
+                  Sign In to Leave a Review
+                </a>
+                <p className="reviews-signin-help-text">
+                  Don't have an account? <a href="#signup-customer" className="reviews-inline-link">Create an account</a> to post verified feedback.
+                </p>
+              </div>
+            )}
 
             {status && (
               <p className="form-status" role="status" aria-live="polite" style={{ marginTop: '14px', fontSize: '13px', color: '#6d5a31' }}>

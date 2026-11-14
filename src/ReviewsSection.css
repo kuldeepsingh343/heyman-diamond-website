@@ -219,6 +219,111 @@
   cursor: not-allowed;
 }
 
+/* Verified Account Identity Card in Reviews */
+.reviews-account-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fbf9f4;
+  border: 1px solid #dfd8c8;
+  border-radius: 4px;
+  margin-bottom: 18px;
+}
+
+.reviews-account-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #23221c;
+  color: #f7df99;
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reviews-account-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.reviews-account-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reviews-account-header strong {
+  font-size: 13.5px;
+  color: #1a1a12;
+  font-weight: 700;
+}
+
+.reviews-account-verified {
+  font-size: 10px;
+  font-weight: 700;
+  color: #1b7340;
+  background: #e8f5ed;
+  border: 1px solid #a8deb8;
+  padding: 1px 7px;
+  border-radius: 999px;
+  line-height: 1.4;
+}
+
+.reviews-account-email {
+  font-size: 11.5px;
+  color: #77746b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sign-in prompt for unauthenticated users */
+.reviews-signin-prompt-wrap {
+  margin-top: 6px;
+}
+
+.reviews-signin-prompt-btn {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  background: #23221c;
+  color: #f7df99 !important;
+  border-color: #23221c;
+  line-height: 1.4;
+}
+
+.reviews-signin-prompt-btn:hover {
+  background: #a58a50;
+  border-color: #a58a50;
+  color: #ffffff !important;
+}
+
+.reviews-signin-help-text {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: #77746b;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.reviews-inline-link {
+  color: #a58a50;
+  font-weight: 600;
+  text-decoration: underline;
+  transition: color 0.15s ease;
+}
+
+.reviews-inline-link:hover {
+  color: #1a1a12;
+}
+
 .reviews-privacy-note {
   margin: 16px 0 0;
   font-size: 10px;

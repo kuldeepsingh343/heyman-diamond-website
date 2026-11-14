@@ -1,4 +1,5 @@
 import { db, json, bodyJson, supabaseReady } from './shared.mjs'
+import { authenticatedUser } from './auth.mjs'
 
 const reviewRate = new Map()
 
@@ -97,8 +98,9 @@ export async function handleCreateReview(req, res) {
   history.push(now)
   reviewRate.set(ip, history)
 
-  const name = String(input.name || '').trim()
-  const email = String(input.email || '').trim().toLowerCase()
+  const authUser = await authenticatedUser(req).catch(() => null)
+  const name = String(input.name || authUser?.full_name || authUser?.email?.split('@')[0] || '').trim()
+  const email = String(input.email || authUser?.email || '').trim().toLowerCase()
   const remarks = String(input.remarks || '').trim()
   const rating = Number(input.rating)
 
