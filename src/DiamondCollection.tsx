@@ -85,6 +85,44 @@ const categoryFilters = [
 ]
 
 
+// Interleaves items across categories so "All Collections" showcases a balanced variety
+// of Certified, Solitaires, Match Pairs, Round Melee, and Loose Fancy from Page 1 onwards.
+function interleaveByCategory(list: PublicDiamondItem[]): PublicDiamondItem[] {
+  if (list.length <= 1) return list
+  const groups: Record<string, PublicDiamondItem[]> = {}
+  const categoryOrder: string[] = []
+
+  for (const item of list) {
+    const cat = item.category || 'Certified Diamonds'
+    if (!groups[cat]) {
+      groups[cat] = []
+      categoryOrder.push(cat)
+    }
+    groups[cat].push(item)
+  }
+
+  if (categoryOrder.length <= 1) return list
+
+  const result: PublicDiamondItem[] = []
+  let hasMore = true
+  let index = 0
+
+  while (hasMore) {
+    hasMore = false
+    for (const cat of categoryOrder) {
+      if (index < groups[cat].length) {
+        result.push(groups[cat][index])
+        if (index + 1 < groups[cat].length) {
+          hasMore = true
+        }
+      }
+    }
+    index++
+  }
+
+  return result
+}
+
 export default function DiamondCollection({ currentUser, onCartChange }: DiamondCollectionProps) {
   const [items, setItems] = useState<PublicDiamondItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -291,12 +329,17 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
     return true
   })
 
+  // When browsing 'All Collections', interleave categories so stones from every collection
+  // (Certified, Solitaire Non-Certified, Matched Pairs, Round Melee, Loose Fancy)
+  // appear balanced right from Page 1 rather than being separated by batch timestamps.
+  const displayItems = selectedCategory === 'all' ? interleaveByCategory(filteredItems) : filteredItems
+
   // 9 diamonds per page
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / DIAMONDS_PER_PAGE))
+  const totalPages = Math.max(1, Math.ceil(displayItems.length / DIAMONDS_PER_PAGE))
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages)
   const startIndex = (safeCurrentPage - 1) * DIAMONDS_PER_PAGE
-  const endIndex = Math.min(startIndex + DIAMONDS_PER_PAGE, filteredItems.length)
-  const paginatedItems = filteredItems.slice(startIndex, endIndex)
+  const endIndex = Math.min(startIndex + DIAMONDS_PER_PAGE, displayItems.length)
+  const paginatedItems = displayItems.slice(startIndex, endIndex)
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage)
@@ -380,7 +423,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
           <div className="diamond-catalog-title-box">
             <h3>Live Diamond Inventory</h3>
             <span className="diamond-count-pill">
-              {filteredItems.length} {filteredItems.length === 1 ? 'Stone Available' : 'Stones Available'}
+              {displayItems.length} {displayItems.length === 1 ? 'Stone Available' : 'Stones Available'}
             </span>
           </div>
 
@@ -468,7 +511,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
             <p>{error}</p>
             <a href="#contact" className="button-primary">Talk to Our Sales Team</a>
           </div>
-        ) : filteredItems.length === 0 ? (
+        ) : displayItems.length === 0 ? (
           <div className="diamond-empty-state">
             <div className="empty-state-gem-icon">💎</div>
             <h4>
@@ -710,7 +753,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
             {totalPages > 1 && (
               <nav className="diamond-pagination" aria-label="Diamond inventory pagination">
                 <div className="diamond-pagination-summary">
-                  Showing <strong>{startIndex + 1}–{endIndex}</strong> of <strong>{filteredItems.length}</strong> diamonds (Page {safeCurrentPage} of {totalPages})
+                  Showing <strong>{startIndex + 1}–{endIndex}</strong> of <strong>{displayItems.length}</strong> diamonds (Page {safeCurrentPage} of {totalPages})
                 </div>
 
                 <div className="diamond-pagination-controls">

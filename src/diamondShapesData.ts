@@ -90,7 +90,7 @@ export const DIAMOND_SHAPES: ShapeDefinition[] = [
     name: 'Baguette',
     group: 'Step Cut',
     description: 'Clean rectangular step cut with architectural art-deco reflections.',
-    aliases: ['baguette', 'bag', 'bg', 'straight baguette'],
+    aliases: ['baguette', 'bag', 'bg', 'straight baguette', 'bagutte'],
   },
 
   // ── Row 2 from Reference ──
@@ -99,7 +99,7 @@ export const DIAMOND_SHAPES: ShapeDefinition[] = [
     name: 'Tapered Baguette',
     group: 'Step Cut',
     description: 'Trapezoidal step cut tapering gracefully, ideal for three-stone rings.',
-    aliases: ['tapered baguette', 'tapered-baguette', 'tb', 'taper baguette'],
+    aliases: ['tapered baguette', 'tapered-baguette', 'tb', 'taper baguette', 't bagutte', 'tapered bagutte'],
   },
   {
     id: 'heart',
@@ -113,14 +113,14 @@ export const DIAMOND_SHAPES: ShapeDefinition[] = [
     name: 'Trilliant',
     group: 'Geometric',
     description: 'Curved triangular brilliant cut featuring dramatic optic dispersion.',
-    aliases: ['trilliant', 'trillion', 'tr', 'trielle'],
+    aliases: ['trilliant', 'trillion', 'tr', 'trielle', 'b trilliant', 'b.trilliant', 'b.trillliant'],
   },
   {
     id: 'triangle',
     name: 'Triangle',
     group: 'Geometric',
     description: 'Sharp geometric equilateral cut with architectural symmetry.',
-    aliases: ['triangle', 'triangular'],
+    aliases: ['triangle', 'triangular', 'tringle', 's.tringle', 's tringle', 's triangle', 'b.tringle', 'b tringle'],
   },
   {
     id: 'rose-cut',

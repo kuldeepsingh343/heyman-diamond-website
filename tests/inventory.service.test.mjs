@@ -12,6 +12,7 @@ import {
   setFlomizConfig,
   cleanFlomizBaseUrl,
   handleUploadInventory,
+  handleGetCatalog,
 } from '../server/services/inventory.mjs'
 import { handleRefreshToken } from '../server/services/auth.mjs'
 
@@ -315,6 +316,57 @@ test('Auth Service — handleRefreshToken validates refresh token', async () => 
   assert.equal(sc1, 400)
   assert.match(JSON.parse(b1).error, /Refresh token is required/i)
 })
+
+test('Inventory Catalog — handleGetCatalog returns full inventory without truncation when unpaginated, and handles Matched Pairs', async () => {
+  // Query without page/perPage params (e.g. /api/inventory)
+  const fullUrl = new URL('http://localhost:3000/api/inventory')
+  let fullStatusCode = null
+  let fullBody = ''
+  const fullRes = {
+    writeHead(code) { fullStatusCode = code },
+    end(data) { fullBody = data || '' },
+  }
+  await handleGetCatalog({}, fullRes, fullUrl, null)
+  assert.equal(fullStatusCode, 200)
+  const fullJson = JSON.parse(fullBody)
+  // When no pagination is specified, items.length must match totalRecords (not artificially capped at 24)
+  assert.equal(fullJson.items.length, fullJson.totalRecords)
+  assert.equal(fullJson.totalPages, 1)
+
+  // Query with category=Matched Pairs and category=Match Pairs
+  for (const catVal of ['Matched Pairs', 'Match Pairs']) {
+    const catUrl = new URL(`http://localhost:3000/api/inventory?category=${encodeURIComponent(catVal)}`)
+    let catCode = null
+    let catBody = ''
+    const catRes = {
+      writeHead(code) { catCode = code },
+      end(data) { catBody = data || '' },
+    }
+    await handleGetCatalog({}, catRes, catUrl, null)
+    assert.equal(catCode, 200)
+    const catJson = JSON.parse(catBody)
+    assert.ok(catJson.items.length > 0)
+    for (const item of catJson.items) {
+      assert.match(item.category, /Match/i)
+    }
+  }
+
+  // Explicit pagination still works when requested
+  const pagedUrl = new URL('http://localhost:3000/api/inventory?page=1&perPage=2')
+  let pagedCode = null
+  let pagedBody = ''
+  const pagedRes = {
+    writeHead(code) { pagedCode = code },
+    end(data) { pagedBody = data || '' },
+  }
+  await handleGetCatalog({}, pagedRes, pagedUrl, null)
+  assert.equal(pagedCode, 200)
+  const pagedJson = JSON.parse(pagedBody)
+  assert.equal(pagedJson.items.length, 2)
+  assert.equal(pagedJson.perPage, 2)
+  assert.ok(pagedJson.totalPages >= 1)
+})
+
 
 
 

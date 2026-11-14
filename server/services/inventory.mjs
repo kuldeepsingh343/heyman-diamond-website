@@ -1079,8 +1079,11 @@ export async function handleGetCatalog(req, res, url, user = null) {
       return json(res, 503, { error: 'Diamond inventory is not connected yet.' })
     }
 
+    const hasPaging = url.searchParams.has('page') || url.searchParams.has('perPage')
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10))
-    const perPage = Math.min(100, Math.max(1, parseInt(url.searchParams.get('perPage') || '24', 10)))
+    const perPage = url.searchParams.has('perPage')
+      ? Math.max(1, parseInt(url.searchParams.get('perPage'), 10))
+      : 24
     const categoryParam = url.searchParams.get('category')
 
     let activeItems = []
@@ -1090,10 +1093,12 @@ export async function handleGetCatalog(req, res, url, user = null) {
     // 1. Fetch published diamonds from database if Supabase is connected
     if (supabaseReady()) {
       try {
-        let dbQuery = 'diamonds_inventory?select=*&status=eq.published&deleted_at=is.null&order=created_at.desc&limit=500'
+        let dbQuery = 'diamonds_inventory?select=*&status=eq.published&deleted_at=is.null&order=created_at.desc&limit=10000'
         if (categoryParam && categoryParam !== 'all') {
           if (categoryParam === 'Solitaire Non-Certified Diamonds' || categoryParam === 'Color Non-Certified Diamonds') {
             dbQuery += `&or=(category.eq.${encodeURIComponent('Solitaire Non-Certified Diamonds')},category.eq.${encodeURIComponent('Color Non-Certified Diamonds')})`
+          } else if (categoryParam === 'Matched Pairs' || categoryParam === 'Match Pairs') {
+            dbQuery += `&or=(category.eq.${encodeURIComponent('Matched Pairs')},category.eq.${encodeURIComponent('Match Pairs')})`
           } else {
             dbQuery += `&category=eq.${encodeURIComponent(categoryParam)}`
           }
@@ -1114,7 +1119,9 @@ export async function handleGetCatalog(req, res, url, user = null) {
             return {
               id: r.id,
               sku: r.sku,
-              category: r.category === 'Color Non-Certified Diamonds' ? 'Solitaire Non-Certified Diamonds' : (r.category || 'Certified Diamonds'),
+              category: r.category === 'Color Non-Certified Diamonds'
+                ? 'Solitaire Non-Certified Diamonds'
+                : (r.category === 'Match Pairs' ? 'Matched Pairs' : (r.category || 'Certified Diamonds')),
               shape: r.shape,
               carat: parseFloat(r.carat) || 0,
               color: r.color,
@@ -1176,10 +1183,14 @@ export async function handleGetCatalog(req, res, url, user = null) {
         })
       if (categoryParam && categoryParam !== 'all') {
         const isNonCert = categoryParam === 'Solitaire Non-Certified Diamonds' || categoryParam === 'Color Non-Certified Diamonds'
+        const isMatchedPairs = categoryParam === 'Matched Pairs' || categoryParam === 'Match Pairs'
         activeItems = activeItems.filter(item => {
           const cat = item.category || 'Certified Diamonds'
           if (isNonCert) {
             return cat === 'Solitaire Non-Certified Diamonds' || cat === 'Color Non-Certified Diamonds'
+          }
+          if (isMatchedPairs) {
+            return cat === 'Matched Pairs' || cat === 'Match Pairs'
           }
           return cat.toLowerCase() === categoryParam.toLowerCase()
         })
@@ -1266,17 +1277,18 @@ export async function handleGetCatalog(req, res, url, user = null) {
       return copy
     })
 
-    const startIndex = (page - 1) * perPage
-    const paginated = sanitized.slice(startIndex, startIndex + perPage)
+    const itemsToReturn = hasPaging
+      ? sanitized.slice((page - 1) * perPage, (page - 1) * perPage + perPage)
+      : sanitized
 
     return json(res, 200, {
-      items: paginated,
+      items: itemsToReturn,
       source,
       cached: isCached,
       page,
-      perPage,
+      perPage: hasPaging ? perPage : sanitized.length,
       totalRecords: filtered.length,
-      totalPages: Math.ceil(filtered.length / perPage),
+      totalPages: hasPaging ? Math.ceil(filtered.length / perPage) : 1,
       isDealerPricing: isApprovedDealer,
       dealerPendingApproval: isDealerPending,
     })
