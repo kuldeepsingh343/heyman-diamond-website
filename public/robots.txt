@@ -1,0 +1,19 @@
+# Robots.txt for Hey Man Diamond LLC
+# https://heymandiamond.com
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /*?*token=
+Disallow: /*?*key=
+Disallow: /#account
+Disallow: /#signin
+Disallow: /#signup-customer
+Disallow: /#signup-dealer
+Disallow: /#reset-password
+Disallow: /#staff-diamonds
+Disallow: /#admin-users
+
+# Sitemap locations
+Sitemap: https://heymandiamond.com/sitemap.xml
+Sitemap: https://www.heymandiamond.com/sitemap.xml

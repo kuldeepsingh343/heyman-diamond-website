@@ -119,4 +119,26 @@ test('API smoke checks', async t => {
     // Even if static file does not exist, it should not fail with dotfile error
     assert.ok(response.status === 404 || response.status === 200)
   })
+
+  await t.test('serves robots.txt with text/plain mime type and sitemap reference', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/robots.txt`)
+    assert.equal(response.status, 200)
+    assert.equal(response.headers.get('content-type'), 'text/plain; charset=utf-8')
+    assert.equal(response.headers.get('cache-control'), 'no-cache')
+    const text = await response.text()
+    assert.ok(text.includes('User-agent: *'))
+    assert.ok(text.includes('Sitemap: https://heymandiamond.com/sitemap.xml'))
+    assert.ok(text.includes('Disallow: /api/'))
+  })
+
+  await t.test('serves sitemap.xml with application/xml mime type and valid entries', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/sitemap.xml`)
+    assert.equal(response.status, 200)
+    assert.equal(response.headers.get('content-type'), 'application/xml; charset=utf-8')
+    assert.equal(response.headers.get('cache-control'), 'no-cache')
+    const xml = await response.text()
+    assert.ok(xml.includes('<?xml version="1.0" encoding="UTF-8"?>'))
+    assert.ok(xml.includes('<loc>https://heymandiamond.com/</loc>'))
+    assert.ok(xml.includes('<loc>https://heymandiamond.com/#collection</loc>'))
+  })
 })

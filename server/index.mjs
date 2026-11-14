@@ -405,10 +405,21 @@ const server = createServer(async (req, res) => {
 
     // ── Static Frontend Assets Gateway ───────────────────────────────────────
     const requestedPath = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)
-    const assetPath = resolve(DIST_DIR, `.${requestedPath}`)
+    let assetPath = resolve(DIST_DIR, `.${requestedPath}`)
     if (assetPath === DIST_DIR || assetPath.startsWith(DIST_DIR + sep)) {
       try {
-        const file = await readFile(assetPath)
+        let file
+        try {
+          file = await readFile(assetPath)
+        } catch (err) {
+          const publicFallback = resolve(process.cwd(), 'public', `.${requestedPath}`)
+          if (publicFallback.startsWith(resolve(process.cwd(), 'public') + sep)) {
+            file = await readFile(publicFallback)
+            assetPath = publicFallback
+          } else {
+            throw err
+          }
+        }
         const types = {
           '.html': 'text/html; charset=utf-8',
           '.js': 'text/javascript; charset=utf-8',
@@ -420,10 +431,15 @@ const server = createServer(async (req, res) => {
           '.webp': 'image/webp',
           '.woff': 'font/woff',
           '.woff2': 'font/woff2',
+          '.xml': 'application/xml; charset=utf-8',
+          '.txt': 'text/plain; charset=utf-8',
+          '.json': 'application/json; charset=utf-8',
         }
+        const ext = extname(assetPath)
+        const isVolatile = ['.html', '.xml', '.txt', '.json'].includes(ext)
         res.writeHead(200, {
-          'Content-Type': types[extname(assetPath)] || 'application/octet-stream',
-          'Cache-Control': extname(assetPath) === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+          'Content-Type': types[ext] || 'application/octet-stream',
+          'Cache-Control': isVolatile ? 'no-cache' : 'public, max-age=31536000, immutable',
           ...SECURITY_HEADERS,
         })
         return res.end(file)
