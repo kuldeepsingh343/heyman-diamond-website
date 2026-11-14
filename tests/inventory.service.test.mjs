@@ -243,6 +243,68 @@ test('Inventory Upload — Supports large spreadsheet uploads (> 100KB) without 
   assert.equal(jsonRes.importedCount, 2500)
 })
 
+test('Inventory Upload — Mode "overwrite" updates matching SKUs and adds new ones', async () => {
+  const admin = {
+    user: { id: 'admin-mode-test-1', email: 'director@heymandiamond.com' },
+    role: 'super_admin',
+    permissions: { can_manage_inventory: true },
+  }
+
+  // Initial upload of stone D-100 with price 1000
+  const initialCsv = 'SKU,Shape,Carat,Color,Clarity,Cut,Price,Wholesale Price\nD-100,Round,1.00,D,VVS1,Ideal,1000,750'
+  async function* gen1() { yield Buffer.from(JSON.stringify({ fileContent: initialCsv, mode: 'overwrite' })) }
+  const req1 = gen1()
+  req1.headers = { 'content-type': 'application/json' }
+  let sc1 = null; let b1 = ''
+  await handleUploadInventory(req1, { writeHead(c) { sc1 = c }, end(d) { b1 = d || '' } }, admin)
+  assert.equal(sc1, 200)
+
+  // Re-upload with overwrite mode: update D-100 price to 1250 and add D-101
+  const updateCsv = 'SKU,Shape,Carat,Color,Clarity,Cut,Price,Wholesale Price\nD-100,Round,1.00,D,VVS1,Ideal,1250,900\nD-101,Oval,2.00,E,VS1,Excellent,2000,1500'
+  async function* gen2() { yield Buffer.from(JSON.stringify({ fileContent: updateCsv, mode: 'overwrite' })) }
+  const req2 = gen2()
+  req2.headers = { 'content-type': 'application/json' }
+  let sc2 = null; let b2 = ''
+  await handleUploadInventory(req2, { writeHead(c) { sc2 = c }, end(d) { b2 = d || '' } }, admin)
+  assert.equal(sc2, 200)
+  const json2 = JSON.parse(b2)
+  assert.equal(json2.success, true)
+  assert.equal(json2.mode, 'overwrite')
+  assert.equal(json2.overwrittenCount, 1)
+  assert.equal(json2.newCount, 1)
+})
+
+test('Inventory Upload — Mode "skip_duplicate" preserves existing stones and skips duplicate SKUs', async () => {
+  const admin = {
+    user: { id: 'admin-mode-test-2', email: 'director@heymandiamond.com' },
+    role: 'super_admin',
+    permissions: { can_manage_inventory: true },
+  }
+
+  // Upload D-200 with initial price 2000
+  const initialCsv = 'SKU,Shape,Carat,Color,Clarity,Cut,Price,Wholesale Price\nD-200,Round,1.50,F,VVS2,Ideal,2000,1500'
+  async function* gen1() { yield Buffer.from(JSON.stringify({ fileContent: initialCsv, mode: 'overwrite' })) }
+  const req1 = gen1()
+  req1.headers = { 'content-type': 'application/json' }
+  let sc1 = null; let b1 = ''
+  await handleUploadInventory(req1, { writeHead(c) { sc1 = c }, end(d) { b1 = d || '' } }, admin)
+  assert.equal(sc1, 200)
+
+  // Upload again with mode: 'skip_duplicate', attempting to alter D-200 price to 9999 and introducing D-201
+  const duplicateCsv = 'SKU,Shape,Carat,Color,Clarity,Cut,Price,Wholesale Price\nD-200,Round,1.50,F,VVS2,Ideal,9999,8888\nD-201,Emerald,3.00,G,VS2,Excellent,3500,2800'
+  async function* gen2() { yield Buffer.from(JSON.stringify({ fileContent: duplicateCsv, mode: 'skip_duplicate' })) }
+  const req2 = gen2()
+  req2.headers = { 'content-type': 'application/json' }
+  let sc2 = null; let b2 = ''
+  await handleUploadInventory(req2, { writeHead(c) { sc2 = c }, end(d) { b2 = d || '' } }, admin)
+  assert.equal(sc2, 200)
+  const json2 = JSON.parse(b2)
+  assert.equal(json2.success, true)
+  assert.equal(json2.mode, 'skip_duplicate')
+  assert.equal(json2.importedCount, 1) // Only D-201 imported
+  assert.equal(json2.skippedDuplicatesCount, 1) // D-200 skipped
+})
+
 test('Auth Service — handleRefreshToken validates refresh token', async () => {
   async function* gen1() { yield Buffer.from(JSON.stringify({})) }
   const req1 = gen1()

@@ -374,6 +374,7 @@ export default function AuthPages({
   const [diamondFilterStatus, setDiamondFilterStatus] = useState('all')
   const [diamondSearch, setDiamondSearch] = useState('')
   const [uploadCategory, setUploadCategory] = useState('all')
+  const [uploadMode, setUploadMode] = useState<'overwrite' | 'skip_duplicate'>('overwrite')
   const [syncingFlomiz, setSyncingFlomiz] = useState(false)
   const [flomizSyncMsg, setFlomizSyncMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
   const [savedDiamondId, setSavedDiamondId] = useState<string | null>(null)
@@ -2152,7 +2153,7 @@ export default function AuthPages({
         },
         body: JSON.stringify({
           fileContent: text,
-          mode: 'append',
+          mode: uploadMode,
           defaultCategory: uploadCategory,
         }),
       })
@@ -2872,6 +2873,18 @@ export default function AuthPages({
                         <option value="Solitaire Non-Certified Diamonds">Solitaire Non-Certified Diamonds (Pink, Yellow, Blue, Green &amp; White)</option>
                         <option value="Matched Pairs">Matched Pairs (Earring &amp; Layout Pairs)</option>
                         <option value="Certified Diamonds">Certified Diamonds (Solitaires)</option>
+                      </select>
+                    </div>
+
+                    <div className="upload-category-selector" style={{ marginTop: '0', marginBottom: '16px' }}>
+                      <label htmlFor="upload-mode-select">Duplicate / Existing Inventory Handling:</label>
+                      <select
+                        id="upload-mode-select"
+                        value={uploadMode}
+                        onChange={(e) => setUploadMode(e.target.value as 'overwrite' | 'skip_duplicate')}
+                      >
+                        <option value="overwrite">Overwrite Inventory</option>
+                        <option value="skip_duplicate">Skip Duplicate</option>
                       </select>
                     </div>
 

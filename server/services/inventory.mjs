@@ -1309,7 +1309,10 @@ export async function handleUploadInventory(req, res, admin) {
 
     const input = await bodyJson(req, 50 * 1024 * 1024)
     const content = input.content || input.fileContent || input.csv
-    const mode = input.mode === 'replace' ? 'replace' : 'append'
+    const rawMode = String(input.mode || '').toLowerCase().trim()
+    const mode = rawMode === 'skip_duplicate' || rawMode === 'skip_duplicates' || rawMode === 'skip'
+      ? 'skip_duplicate'
+      : (rawMode === 'replace' ? 'replace' : 'overwrite')
 
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
       return json(res, 400, { error: 'Spreadsheet content (CSV or TSV string) is required.' })
@@ -1358,14 +1361,45 @@ export async function handleUploadInventory(req, res, admin) {
       })
     }
 
-    if (mode === 'replace') {
+    let newItems = []
+    const skippedDuplicates = []
+    let overwrittenCount = 0
+    let newCount = 0
+
+    if (mode === 'skip_duplicate') {
+      const existingSkuSet = new Set(memoryInventory.map(item => item.sku))
+      if (supabaseReady()) {
+        try {
+          const existingDbRows = await db('diamonds_inventory?select=sku')
+          if (Array.isArray(existingDbRows)) {
+            for (const r of existingDbRows) if (r.sku) existingSkuSet.add(r.sku)
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      for (const item of result.items) {
+        if (existingSkuSet.has(item.sku)) {
+          skippedDuplicates.push(item.sku)
+          result.skipped.push({ row: 0, sku: item.sku, reason: 'Duplicate SKU skipped (existing inventory preserved).' })
+        } else {
+          newItems.push(item)
+          existingSkuSet.add(item.sku)
+        }
+      }
+
+      memoryInventory = [...memoryInventory, ...newItems]
+    } else if (mode === 'replace') {
       memoryInventory = result.items
+      newItems = result.items
     } else {
-      // Append mode: update matching SKUs or add new ones without overwriting manual discounts
+      // Overwrite mode: update matching SKUs or add new ones without overwriting manual discounts
       const existingSkuMap = new Map(memoryInventory.map(item => [item.sku, item]))
       for (const item of result.items) {
         const existing = existingSkuMap.get(item.sku)
         if (existing) {
+          overwrittenCount++
           if (item.customerDiscountPrice === null && item.customerDiscountPercent === null) {
             item.customerDiscountPrice = existing.customerDiscountPrice ?? null
             item.customerDiscountPercent = existing.customerDiscountPercent ?? null
@@ -1374,17 +1408,22 @@ export async function handleUploadInventory(req, res, admin) {
             item.dealerDiscountPrice = existing.dealerDiscountPrice ?? null
             item.dealerDiscountPercent = existing.dealerDiscountPercent ?? null
           }
+        } else {
+          newCount++
         }
         existingSkuMap.set(item.sku, item)
       }
       memoryInventory = Array.from(existingSkuMap.values())
+      newItems = result.items
     }
 
     // Attempt persistence to Supabase if database is available
     let dbPersisted = false
-    if (supabaseReady()) {
+    const itemsToPersist = mode === 'skip_duplicate' ? newItems : result.items
+
+    if (supabaseReady() && itemsToPersist.length > 0) {
       try {
-        const dbRows = result.items.map(item => ({
+        const dbRows = itemsToPersist.map(item => ({
           sku: item.sku,
           category: item.category || (defaultCat !== 'all' ? defaultCat : 'Loose Fancy Diamonds'),
           shape: item.shape,
@@ -1413,11 +1452,15 @@ export async function handleUploadInventory(req, res, admin) {
 
         // Chunk into batches of 200 to ensure seamless persistence for 1000+ items without database timeouts
         const BATCH_SIZE = 200
+        const preferHeader = mode === 'skip_duplicate'
+          ? 'resolution=ignore-duplicates'
+          : 'resolution=merge-duplicates'
+
         for (let i = 0; i < dbRows.length; i += BATCH_SIZE) {
           const chunk = dbRows.slice(i, i + BATCH_SIZE)
           await db('diamonds_inventory', {
             method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates' },
+            headers: { Prefer: preferHeader },
             body: JSON.stringify(chunk),
           })
         }
@@ -1425,16 +1468,30 @@ export async function handleUploadInventory(req, res, admin) {
       } catch (dbErr) {
         console.warn('Note: Diamonds table sync to Supabase skipped:', dbErr.message)
       }
+    } else if (mode === 'skip_duplicate' && itemsToPersist.length === 0) {
+      dbPersisted = true
+    }
+
+    let responseMsg = ''
+    if (mode === 'skip_duplicate') {
+      responseMsg = `Successfully imported ${newItems.length} diamonds (${skippedDuplicates.length} duplicates skipped). Total active stock: ${memoryInventory.length}.`
+    } else if (mode === 'replace') {
+      responseMsg = `Successfully replaced catalog with ${result.items.length} diamonds. Total active stock: ${memoryInventory.length}.`
+    } else {
+      responseMsg = `Successfully processed ${result.items.length} diamonds (${newCount} new, ${overwrittenCount} overwritten). Total active stock: ${memoryInventory.length}.`
     }
 
     return json(res, 200, {
       success: true,
       mode,
-      importedCount: result.items.length,
+      importedCount: mode === 'skip_duplicate' ? newItems.length : result.items.length,
+      overwrittenCount,
+      newCount,
+      skippedDuplicatesCount: skippedDuplicates.length,
       skippedCount: result.skipped.length,
       totalCatalogCount: memoryInventory.length,
       dbPersisted,
-      message: `Successfully imported ${result.items.length} diamonds. Total active stock: ${memoryInventory.length}.`,
+      message: responseMsg,
       skipped: result.skipped.slice(0, 10), // Return first 10 skipped warnings if any
     })
   } catch (error) {
