@@ -22,14 +22,23 @@ The system employs a server-mediated architecture where the React SPA frontend c
 | 9 | Synthetic Customer Auth Flow Validation | Test customer signup, Mailjet confirmation receipt, link activation, and signin | M4 | ORIGINAL_REQUEST §R3 |
 | 10 | Synthetic Dealer Auth Flow Validation | Test dealer signup, pending review status, admin approval, and post-approval signin | M4 | ORIGINAL_REQUEST §R3 |
 | 11 | Zero-Pollution Database Cleanup | Automated cascade cleanup of synthetic test accounts respecting foreign key constraints | M4 | Survey Explorer 3 |
+| 12 | Live Diamond Inventory & 9-Item Pagination | Paginated 9-stone grid with category interleaving (Certified, Solitaires, Matched Pairs on Page 1) | M5 | Production Feature |
+| 13 | Spreadsheet Upload Duplicate Handling | Overwrite existing vs skip duplicates options for inventory batch uploads | M5 | Production Feature |
+| 14 | Diamond Social Sharing & Deep Linking | WhatsApp, SMS, Email, Copy Link, and Web Share API with `?sku=` modal auto-open | M6 | Production Feature |
+| 15 | Verified Reviews & Auth-Gated Feedback | Login required for review submission; auto-populates verified user badge without redundant inputs | M7 | Production Feature |
+| 16 | SEO Sitemap & Robots Configuration | `public/sitemap.xml`, `public/robots.txt`, `<link rel="canonical">`, and server static MIME types | M8 | Production Feature |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Supabase Custom SMTP Configuration | Configure Mailjet SMTP (`in-v3.mailjet.com:587`) for Supabase project `qdjqdbuozbgghasmeksw` and document parameters | none | IN_PROGRESS (Remediating) |
-| M2 | DNS & Custom Domain Migration Plan | Specify exact InMotion/Cloudflare DNS records, email decoupling (`mail` A record + MX), and Mailjet SPF/DKIM preservation | none | IN_PROGRESS (Remediating) |
-| M3 | Codebase URL & Auth Verification Fixes | Make redirect URLs configurable in `server/index.mjs`, create `src/routeUtils.ts`, and fix hash routing & error banner | none | IN_PROGRESS (Remediating) |
-| M4 | Live Customer & Dealer Auth Verification | Execute 7-phase operational testing protocol on Render test deployment (`https://hey-man-diamond-test.onrender.com`) and zero pollution | M1, M2, M3 | IN_PROGRESS (Remediating) |
+| M1 | Supabase Custom SMTP Configuration | Configure Mailjet SMTP (`in-v3.mailjet.com:587`) for Supabase project `qdjqdbuozbgghasmeksw` and document parameters | none | COMPLETED |
+| M2 | DNS & Custom Domain Migration Plan | Specify exact InMotion/Cloudflare DNS records, email decoupling (`mail` A record + MX), and Mailjet SPF/DKIM preservation | none | COMPLETED |
+| M3 | Codebase URL & Auth Verification Fixes | Make redirect URLs configurable in `server/index.mjs`, create `src/routeUtils.ts`, and fix hash routing & error banner | none | COMPLETED |
+| M4 | Live Customer & Dealer Auth Verification | Execute 7-phase operational testing protocol on Render test deployment (`https://hey-man-diamond-test.onrender.com`) and zero pollution | M1, M2, M3 | COMPLETED |
+| M5 | Live Diamond Inventory & Spreadsheets | Uncapped inventory sync, spreadsheet upload with overwrite/skip options, 9-stone pagination, and category interleaving | M3 | COMPLETED |
+| M6 | Diamond Social Sharing & Deep Links | WhatsApp, SMS, Email, Copy Link, and native share options with deep link auto-open | M5 | COMPLETED |
+| M7 | Verified Reviews & Auth-Gated Feedback | Auth gate for review submissions, verified user badge, and staff review moderation | M3, M4 | COMPLETED |
+| M8 | SEO Infrastructure & Static Server Types | `public/sitemap.xml`, `public/robots.txt`, canonical links, and server static MIME handling | M3, M5 | COMPLETED |
 
 ## Interface Contracts
 ### Supabase Auth ↔ Mailjet SMTP
