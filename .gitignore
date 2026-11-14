@@ -23,10 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local environment files and secrets
-.env
-.env.*
-!.env.example
+# Environment files, secrets, and local configurations
+.env*
+*.env
+*.env.*
 .flomiz_config.json
 *.flomiz_config.json
 
