@@ -1334,5 +1334,143 @@
   }
 }
 
+/* ── Luxury Diamond Media Modal Share Options ── */
+.media-modal-share {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #ebe4d6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-share-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-share-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7a6128;
+}
+
+.modal-share-copied {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #1b7340;
+  background: #e8f5ed;
+  border: 1px solid #a8deb8;
+  padding: 2px 8px;
+  border-radius: 999px;
+  animation: fadeInModal 0.2s ease-out forwards;
+}
+
+.modal-share-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  line-height: 1;
+}
+
+.share-btn--whatsapp {
+  background: #25D366;
+  color: #ffffff;
+  border: 1px solid #20ba5a;
+}
+
+.share-btn--whatsapp:hover {
+  background: #1eb956;
+  border-color: #1aa04a;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.share-btn--sms {
+  background: #007aff;
+  color: #ffffff;
+  border: 1px solid #0069dc;
+}
+
+.share-btn--sms:hover {
+  background: #0066d6;
+  border-color: #0056b3;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.share-btn--email {
+  background: #ffffff;
+  color: #3b3930;
+  border: 1px solid #dcd5c7;
+}
+
+.share-btn--email:hover {
+  background: #fbf8f2;
+  border-color: #b8a77d;
+  color: #1c1b17;
+  transform: translateY(-1px);
+}
+
+.share-btn--copy {
+  background: #fbf9f5;
+  color: #2b2820;
+  border: 1px solid #dcd5c4;
+}
+
+.share-btn--copy:hover {
+  background: #1c1b17;
+  color: #f7df99;
+  border-color: #1c1b17;
+  transform: translateY(-1px);
+}
+
+.share-btn--more {
+  background: #f3efe6;
+  color: #433f37;
+  border: 1px solid #d8d0c0;
+}
+
+.share-btn--more:hover {
+  background: #1c1b17;
+  color: #ffffff;
+  border-color: #1c1b17;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 480px) {
+  .modal-share-row {
+    gap: 6px;
+  }
+  .share-btn {
+    padding: 7px 10px;
+    font-size: 11.5px;
+    flex: 1 1 calc(50% - 6px);
+    justify-content: center;
+  }
+}
+
+
 
 

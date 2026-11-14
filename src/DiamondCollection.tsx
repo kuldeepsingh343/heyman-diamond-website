@@ -135,6 +135,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [addedSku, setAddedSku] = useState<string | null>(null)
   const [activeMediaDiamond, setActiveMediaDiamond] = useState<PublicDiamondItem | null>(null)
+  const [copiedLink, setCopiedLink] = useState(false)
   const [mediaTab, setMediaTab] = useState<'video' | 'photo'>('video')
   const [diamondGallery, setDiamondGallery] = useState<{
     id: string
@@ -219,6 +220,66 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   useEffect(() => {
     setCurrentPage(1)
   }, [selectedCategory, selectedShape, searchQuery])
+
+  // Auto-open diamond modal if URL contains ?sku=, ?diamond=, or #diamond-
+  useEffect(() => {
+    if (items.length === 0 || typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const targetSku = params.get('sku') || params.get('diamond') || (window.location.hash.startsWith('#diamond-') ? window.location.hash.replace('#diamond-', '') : null)
+    if (targetSku) {
+      const found = items.find(i => i.sku.toLowerCase() === targetSku.toLowerCase())
+      if (found) {
+        setActiveMediaDiamond(found)
+        const target = document.getElementById('diamond-catalog-grid')
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth' })
+        }
+      }
+    }
+  }, [items])
+
+  const getDiamondShareUrl = (diamond: PublicDiamondItem) => {
+    if (typeof window === 'undefined') return ''
+    return `${window.location.origin}/?sku=${encodeURIComponent(diamond.sku)}#collection`
+  }
+
+  const getDiamondShareText = (diamond: PublicDiamondItem) => {
+    return `Check out this ${diamond.carat}ct ${diamond.shape} Diamond (${diamond.color} / ${diamond.clarity}, SKU: ${diamond.sku}) at Hey Man Diamond LLC!`
+  }
+
+  const handleCopyLink = (diamond: PublicDiamondItem) => {
+    const url = getDiamondShareUrl(diamond)
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(url)
+        .then(() => {
+          setCopiedLink(true)
+          setTimeout(() => setCopiedLink(false), 2500)
+        })
+        .catch(() => {
+          setToastMessage(`Diamond link: ${url}`)
+          setTimeout(() => setToastMessage(null), 3000)
+        })
+    } else {
+      setToastMessage(`Diamond link: ${url}`)
+      setTimeout(() => setToastMessage(null), 3000)
+    }
+  }
+
+  const handleNativeShare = async (diamond: PublicDiamondItem) => {
+    const url = getDiamondShareUrl(diamond)
+    const text = getDiamondShareText(diamond)
+    if (navigator?.share) {
+      try {
+        await navigator.share({
+          title: `${diamond.carat}ct ${diamond.shape} Diamond | Hey Man Diamond LLC`,
+          text,
+          url,
+        })
+      } catch {
+        // User dismissed share sheet
+      }
+    }
+  }
 
   const handleSelectCategoryCard = (categoryKey: string) => {
     setLoading(true)
@@ -1027,6 +1088,100 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                   >
                     Contact Diamond Specialist
                   </a>
+                </div>
+
+                {/* ── Share Options (WhatsApp, SMS, Email, Copy Link) ── */}
+                <div className="media-modal-share">
+                  <div className="modal-share-header">
+                    <span className="modal-share-label">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="18" cy="5" r="3"></circle>
+                        <circle cx="6" cy="12" r="3"></circle>
+                        <circle cx="18" cy="19" r="3"></circle>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                      </svg>
+                      Share this Diamond:
+                    </span>
+                    {copiedLink && <span className="modal-share-copied">✓ Link Copied!</span>}
+                  </div>
+
+                  <div className="modal-share-row">
+                    {/* WhatsApp */}
+                    <a
+                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`${getDiamondShareText(activeMediaDiamond)} ${getDiamondShareUrl(activeMediaDiamond)}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="share-btn share-btn--whatsapp"
+                      title="Share on WhatsApp"
+                      aria-label="Share on WhatsApp"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.592 2.654-.697c.969.53 1.83.82 2.806.82h.005c3.18 0 5.767-2.586 5.768-5.766 0-1.54-.6-2.988-1.688-4.076-1.088-1.089-2.535-1.686-4.085-1.686zm3.385 8.167c-.14.394-.814.747-1.13.785-.297.037-.681.057-2.146-.554-1.874-.781-3.08-2.693-3.174-.819-.093-.125-.75-1-.75-1.907 0-.907.474-1.353.643-1.536.168-.184.368-.23.491-.23.123 0 .246.002.353.007.112.006.262-.043.41.313.153.368.523 1.275.569 1.368.046.092.077.2.016.323-.061.123-.092.2-.184.307-.092.108-.194.241-.277.324-.093.092-.19.192-.082.378.108.185.479.79 1.028 1.28.707.63 1.303.825 1.488.917.185.092.292.077.4-.046.108-.124.462-.539.585-.724.123-.184.246-.153.415-.092.169.062 1.077.508 1.262.6.185.093.308.139.354.216.046.077.046.446-.094.84zM12 2C6.477 2 2 6.477 2 12c0 1.81.487 3.513 1.336 4.981L2.05 22l5.179-1.258A9.954 9.954 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                      </svg>
+                      <span>WhatsApp</span>
+                    </a>
+
+                    {/* Text Message / SMS */}
+                    <a
+                      href={`sms:?&body=${encodeURIComponent(`${getDiamondShareText(activeMediaDiamond)} ${getDiamondShareUrl(activeMediaDiamond)}`)}`}
+                      className="share-btn share-btn--sms"
+                      title="Share via Text Message"
+                      aria-label="Share via Text Message"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                      </svg>
+                      <span>Message</span>
+                    </a>
+
+                    {/* Email */}
+                    <a
+                      href={`mailto:?subject=${encodeURIComponent(`${activeMediaDiamond.carat}ct ${activeMediaDiamond.shape} Diamond - Hey Man Diamond LLC`)}&body=${encodeURIComponent(`${getDiamondShareText(activeMediaDiamond)}\n\nView complete details & 360° video:\n${getDiamondShareUrl(activeMediaDiamond)}`)}`}
+                      className="share-btn share-btn--email"
+                      title="Share via Email"
+                      aria-label="Share via Email"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                      </svg>
+                      <span>Email</span>
+                    </a>
+
+                    {/* Copy Link */}
+                    <button
+                      type="button"
+                      className="share-btn share-btn--copy"
+                      onClick={() => handleCopyLink(activeMediaDiamond)}
+                      title="Copy Diamond Link"
+                      aria-label="Copy Diamond Link"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                      </svg>
+                      <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+                    </button>
+
+                    {/* Native Device Share Sheet (AirDrop, Apps, etc.) */}
+                    {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                      <button
+                        type="button"
+                        className="share-btn share-btn--more"
+                        onClick={() => handleNativeShare(activeMediaDiamond)}
+                        title="More Sharing Options"
+                        aria-label="More Sharing Options"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="12" r="1"></circle>
+                          <circle cx="19" cy="12" r="1"></circle>
+                          <circle cx="5" cy="12" r="1"></circle>
+                        </svg>
+                        <span>More...</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
