@@ -92,6 +92,8 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedShape, setSelectedShape] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const DIAMONDS_PER_PAGE = 9
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [addedSku, setAddedSku] = useState<string | null>(null)
   const [activeMediaDiamond, setActiveMediaDiamond] = useState<PublicDiamondItem | null>(null)
@@ -174,6 +176,11 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
       active = false
     }
   }, [selectedCategory])
+
+  // Reset to page 1 whenever category, shape, or search query changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedCategory, selectedShape, searchQuery])
 
   const handleSelectCategoryCard = (categoryKey: string) => {
     setLoading(true)
@@ -283,6 +290,34 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
     }
     return true
   })
+
+  // 9 diamonds per page
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / DIAMONDS_PER_PAGE))
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages)
+  const startIndex = (safeCurrentPage - 1) * DIAMONDS_PER_PAGE
+  const endIndex = Math.min(startIndex + DIAMONDS_PER_PAGE, filteredItems.length)
+  const paginatedItems = filteredItems.slice(startIndex, endIndex)
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage)
+    const target = document.getElementById('diamond-catalog-grid')
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const getPageNumbers = (): (number | string)[] => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+    if (safeCurrentPage <= 4) {
+      return [1, 2, 3, 4, 5, '...', totalPages]
+    }
+    if (safeCurrentPage >= totalPages - 3) {
+      return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+    }
+    return [1, '...', safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1, '...', totalPages]
+  }
 
   return (
     <section className="collection diamond-collection-section" id="collection">
@@ -482,8 +517,9 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
             </div>
           </div>
         ) : (
-          <div className="public-diamond-grid">
-            {filteredItems.map(item => {
+          <>
+            <div className="public-diamond-grid">
+              {paginatedItems.map(item => {
               const displayCustomerPrice = item.customerPrice || item.price || 0
               const displayDealerPrice = item.dealerPrice || item.wholesalePrice || 0
 
@@ -669,7 +705,57 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                 </article>
               )
             })}
-          </div>
+            </div>
+
+            {totalPages > 1 && (
+              <nav className="diamond-pagination" aria-label="Diamond inventory pagination">
+                <div className="diamond-pagination-summary">
+                  Showing <strong>{startIndex + 1}–{endIndex}</strong> of <strong>{filteredItems.length}</strong> diamonds (Page {safeCurrentPage} of {totalPages})
+                </div>
+
+                <div className="diamond-pagination-controls">
+                  <button
+                    type="button"
+                    className="pagination-btn pagination-prev"
+                    disabled={safeCurrentPage === 1}
+                    onClick={() => handlePageChange(safeCurrentPage - 1)}
+                    aria-label="Previous page"
+                  >
+                    ‹ Previous
+                  </button>
+
+                  <div className="pagination-numbers">
+                    {getPageNumbers().map((page, idx) =>
+                      page === '...' ? (
+                        <span key={`ellipsis-${idx}`} className="pagination-ellipsis">…</span>
+                      ) : (
+                        <button
+                          key={`page-${page}`}
+                          type="button"
+                          className={`pagination-number-btn ${safeCurrentPage === page ? 'pagination-number-btn--active' : ''}`}
+                          onClick={() => handlePageChange(Number(page))}
+                          aria-current={safeCurrentPage === page ? 'page' : undefined}
+                          aria-label={`Page ${page}`}
+                        >
+                          {page}
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="pagination-btn pagination-next"
+                    disabled={safeCurrentPage === totalPages}
+                    onClick={() => handlePageChange(safeCurrentPage + 1)}
+                    aria-label="Next page"
+                  >
+                    Next ›
+                  </button>
+                </div>
+              </nav>
+            )}
+          </>
         )}
       </div>
 

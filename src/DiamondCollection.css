@@ -1217,4 +1217,122 @@
   line-height: 1;
 }
 
+/* ── Diamond Inventory Pagination ── */
+.diamond-pagination {
+  margin-top: 42px;
+  padding: 24px 20px;
+  background: #ffffff;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 4px 20px rgba(41, 40, 32, 0.04);
+}
+
+.diamond-pagination-summary {
+  font-size: 13px;
+  color: #7a756b;
+  letter-spacing: 0.02em;
+}
+
+.diamond-pagination-summary strong {
+  color: #1c1b17;
+  font-weight: 700;
+}
+
+.diamond-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pagination-btn {
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2b2820;
+  background: #fbf9f5;
+  border: 1px solid #dcd5c4;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #1c1b17;
+  color: #f7df99;
+  border-color: #1c1b17;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: #f3efe6;
+  border-color: #e5ded0;
+}
+
+.pagination-numbers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pagination-number-btn {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #433f37;
+  background: #ffffff;
+  border: 1px solid #e2ddd3;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pagination-number-btn:hover {
+  border-color: #d4af37;
+  color: #7a6128;
+  background: #fdfcf9;
+}
+
+.pagination-number-btn--active {
+  background: #1c1b17 !important;
+  color: #f7df99 !important;
+  border-color: #1c1b17 !important;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(28, 27, 23, 0.25);
+}
+
+.pagination-ellipsis {
+  padding: 0 6px;
+  font-size: 14px;
+  color: #9e978a;
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .diamond-pagination {
+    padding: 18px 12px;
+  }
+  .pagination-number-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+  .pagination-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
+
+
 
