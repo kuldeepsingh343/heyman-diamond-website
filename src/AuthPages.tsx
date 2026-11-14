@@ -2468,6 +2468,10 @@ export default function AuthPages({
                           alt={`${item.shape} ${item.carat}ct Diamond`}
                           className="card-diamond-image"
                           loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null
+                            e.currentTarget.src = '/diamond-placeholder.svg'
+                          }}
                         />
                         <div className="card-media-overlay">
                           {item.videoUrl && (
@@ -3150,6 +3154,10 @@ export default function AuthPages({
                                       src={getDiamondMedia(d).imageUrl}
                                       alt=""
                                       style={{ width: '44px', height: '44px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #e2ddd3', background: '#fdfbf7', flexShrink: 0 }}
+                                      onError={(e) => {
+                                        e.currentTarget.onerror = null
+                                        e.currentTarget.src = '/diamond-placeholder.svg'
+                                      }}
                                     />
                                     <div>
                                       <strong>{d.sku}</strong>

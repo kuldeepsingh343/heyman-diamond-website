@@ -638,8 +638,28 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
       dealerDiscountPrice,
       dealerDiscountPercent,
       measurements: getVal('measurements') || 'N/A',
-      imageUrl: getVal('imageUrl') || null,
-      videoUrl: getVal('videoUrl') || null,
+      imageUrl: (() => {
+        let rawImg = (getVal('imageUrl') || '').trim()
+        const rawVid = (getVal('videoUrl') || '').trim()
+        const clean = rawImg.split('?')[0].split('#')[0].toLowerCase()
+        const isImage = clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.png') || clean.endsWith('.webp') || rawImg.includes('V360Images.aspx')
+        const isHtmlViewer = !isImage && (rawImg.toLowerCase().includes('.html') || rawImg.toLowerCase().includes('.htm'))
+        if (isHtmlViewer && !rawVid) {
+          return null
+        }
+        return rawImg || null
+      })(),
+      videoUrl: (() => {
+        const rawImg = (getVal('imageUrl') || '').trim()
+        let rawVid = (getVal('videoUrl') || '').trim()
+        const clean = rawImg.split('?')[0].split('#')[0].toLowerCase()
+        const isImage = clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.png') || clean.endsWith('.webp') || rawImg.includes('V360Images.aspx')
+        const isHtmlViewer = !isImage && (rawImg.toLowerCase().includes('.html') || rawImg.toLowerCase().includes('.htm'))
+        if (!rawVid && isHtmlViewer) {
+          rawVid = rawImg
+        }
+        return rawVid || null
+      })(),
       status: 'published',
       source: 'excel_upload',
       updatedAt: new Date().toISOString(),
@@ -718,7 +738,6 @@ export function generateInventoryTemplate() {
     '1950',
     '',
     '',
-    '1950',
     '10.12 x 7.15 x 4.48 mm',
     '',
     '',
@@ -738,6 +757,10 @@ export function generateInventoryTemplate() {
     'N/A',
     '45',
     '32',
+    '',
+    '',
+    '',
+    '',
     '2.4 mm',
     '',
     '',
@@ -757,6 +780,10 @@ export function generateInventoryTemplate() {
     'LG629100122',
     '1400',
     '1050',
+    '',
+    '',
+    '',
+    '',
     '7.80 x 5.20 x 3.25 mm',
     '',
     '',

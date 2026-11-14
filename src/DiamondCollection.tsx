@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { UserProfile } from './AuthPages'
 import './DiamondCollection.css'
-import { getDiamondMedia } from './diamondUtils'
+import { getDiamondMedia, isDirectVideoFile } from './diamondUtils'
 import DiamondShapeFilter from './DiamondShapeFilter'
 import { DIAMOND_SHAPES } from './diamondShapesData'
 
@@ -506,13 +506,17 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                     }}
                     role="button"
                     tabIndex={0}
-                    title="Click to view high-resolution photo & 360° video"
+                    title="Click to view stone media & specifications"
                   >
                     <img
                       src={getDiamondMedia(item).imageUrl}
                       alt={`${item.shape} ${item.carat}ct Diamond`}
                       className="card-diamond-image"
                       loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = '/diamond-placeholder.svg'
+                      }}
                     />
                     <div className="card-media-overlay">
                       {item.videoUrl ? (
@@ -522,13 +526,22 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                           </svg>
                           360° Video
                         </span>
-                      ) : (
+                      ) : getDiamondMedia(item).hasActualImage ? (
                         <span className="card-photo-pill">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12" aria-hidden="true">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                             <circle cx="12" cy="12" r="3"></circle>
                           </svg>
                           View Photo
+                        </span>
+                      ) : (
+                        <span className="card-photo-pill" style={{ opacity: 0.9 }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                          </svg>
+                          View Specs
                         </span>
                       )}
                     </div>
@@ -706,9 +719,42 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                 <div className="media-display-area">
                   {diamondGallery.length > 0 ? (
                     diamondGallery[activeGalleryIndex]?.type === 'video' ? (
+                      isDirectVideoFile(diamondGallery[activeGalleryIndex].public_url) ? (
+                        <video
+                          key={diamondGallery[activeGalleryIndex].id}
+                          src={diamondGallery[activeGalleryIndex].public_url}
+                          controls
+                          autoPlay
+                          loop
+                          playsInline
+                          className="media-modal-video"
+                        />
+                      ) : (
+                        <iframe
+                          key={diamondGallery[activeGalleryIndex].id}
+                          src={diamondGallery[activeGalleryIndex].public_url}
+                          title={diamondGallery[activeGalleryIndex]?.alt_text || `${activeMediaDiamond.shape} 360° Diamond Viewer`}
+                          className="media-modal-iframe"
+                          allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      )
+                    ) : (
+                      <img
+                        key={diamondGallery[activeGalleryIndex]?.id}
+                        src={diamondGallery[activeGalleryIndex]?.public_url}
+                        alt={diamondGallery[activeGalleryIndex]?.alt_text || `${activeMediaDiamond.shape} Diamond`}
+                        className="media-modal-img"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null
+                          e.currentTarget.src = '/diamond-placeholder.svg'
+                        }}
+                      />
+                    )
+                  ) : mediaTab === 'video' && activeMediaDiamond.videoUrl ? (
+                    isDirectVideoFile(activeMediaDiamond.videoUrl) ? (
                       <video
-                        key={diamondGallery[activeGalleryIndex].id}
-                        src={diamondGallery[activeGalleryIndex].public_url}
+                        src={activeMediaDiamond.videoUrl}
                         controls
                         autoPlay
                         loop
@@ -716,27 +762,23 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                         className="media-modal-video"
                       />
                     ) : (
-                      <img
-                        key={diamondGallery[activeGalleryIndex]?.id}
-                        src={diamondGallery[activeGalleryIndex]?.public_url}
-                        alt={diamondGallery[activeGalleryIndex]?.alt_text || `${activeMediaDiamond.shape} Diamond`}
-                        className="media-modal-img"
+                      <iframe
+                        src={activeMediaDiamond.videoUrl}
+                        title={`${activeMediaDiamond.shape} 360° Diamond Viewer`}
+                        className="media-modal-iframe"
+                        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
                       />
                     )
-                  ) : mediaTab === 'video' && activeMediaDiamond.videoUrl ? (
-                    <video
-                      src={activeMediaDiamond.videoUrl}
-                      controls
-                      autoPlay
-                      loop
-                      playsInline
-                      className="media-modal-video"
-                    />
                   ) : (
                     <img
                       src={getDiamondMedia(activeMediaDiamond).imageUrl}
                       alt={`${activeMediaDiamond.shape} Diamond`}
                       className="media-modal-img"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = '/diamond-placeholder.svg'
+                      }}
                     />
                   )}
                 </div>

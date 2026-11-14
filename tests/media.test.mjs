@@ -274,3 +274,86 @@ test('Feature 3: Media Upload Confirm, Reorder, Set Primary and Delete Lifecycle
   assert.equal(resGetAfterDelete.json.items[0].id, item2.id)
 })
 
+test('Feature 3: Content-Security-Policy includes frame-src for 360 viewer iframes', async () => {
+  const { CSP_HEADER } = await import('../server/services/shared.mjs')
+  assert.match(CSP_HEADER, /frame-src 'self' https: blob:/, 'CSP must allow frame-src for 360 viewer iframes')
+  assert.match(CSP_HEADER, /img-src 'self' data: blob: https:/, 'CSP must allow img-src https: for CDN images')
+})
+
+test('Feature 3: Diamond Media Resolver strictly avoids false diamond stock photos', async () => {
+  const {
+    getDiamondMedia,
+    isDirectVideoFile,
+    isInteractiveVideoViewer,
+    DIAMOND_PLACEHOLDER_SVG,
+  } = await import('../src/diamondUtils.ts')
+
+  // 1. Diamonds with no image URL return the neutral placeholder SVG (never stock photos)
+  const noImageStones = [
+    { shape: 'Round', category: 'Certified Diamonds' },
+    { shape: 'Emerald', category: 'Solitaire Non-Certified Diamonds' },
+    { shape: 'Trilliant', category: 'Matched Pairs' },
+    { shape: 'Oval', category: 'Loose Fancy Diamonds' },
+    { shape: 'Round', category: 'Round Melee Diamonds' },
+  ]
+
+  for (const stone of noImageStones) {
+    const res = getDiamondMedia(stone)
+    assert.equal(res.imageUrl, DIAMOND_PLACEHOLDER_SVG, `Stone ${stone.shape} in ${stone.category} must not show stock photo`)
+    assert.equal(res.isFallback, true)
+    assert.equal(res.hasActualImage, false)
+    assert.doesNotMatch(res.imageUrl, /\.jpg$/, 'Must never return .jpg stock photos')
+    assert.doesNotMatch(res.imageUrl, /unsplash/, 'Must never return unsplash stock photos')
+  }
+
+  // 2. Diamond with genuine image URL retains genuine image
+  const genuineStone = {
+    shape: 'Round',
+    imageUrl: 'https://view.gem360.in/imaged/0809261803-HM-398/still.jpg',
+    videoUrl: 'https://view.gem360.in/gem360.html?d=0809261803-HM-398',
+  }
+  const genuineRes = getDiamondMedia(genuineStone)
+  assert.equal(genuineRes.imageUrl, 'https://view.gem360.in/imaged/0809261803-HM-398/still.jpg')
+  assert.equal(genuineRes.isFallback, false)
+  assert.equal(genuineRes.hasActualImage, true)
+  assert.equal(genuineRes.hasActualVideo, true)
+  assert.equal(genuineRes.isVideoViewer, true)
+
+  // 3. Diamond with video URL but NO image URL
+  const videoOnlyStone = {
+    shape: 'Round',
+    videoUrl: 'https://dnaimages.s3.ap-south-1.amazonaws.com/videos/Vision360.html?d=749593252&v=6&btn=1,2,3,5,6',
+  }
+  const videoOnlyRes = getDiamondMedia(videoOnlyStone)
+  assert.equal(videoOnlyRes.imageUrl, DIAMOND_PLACEHOLDER_SVG)
+  assert.equal(videoOnlyRes.isFallback, true)
+  assert.equal(videoOnlyRes.hasActualImage, false)
+  assert.equal(videoOnlyRes.hasActualVideo, true)
+  assert.equal(videoOnlyRes.isVideoViewer, true)
+
+  // 4. Misplaced HTML viewer in imageUrl gets routed safely
+  const misplacedViewerStone = {
+    shape: 'Emerald',
+    imageUrl: 'https://view.gem360.in/gem360/2009230847-HD-10344/gem360-2009230847-HD-10344.html',
+    videoUrl: null,
+  }
+  const misplacedRes = getDiamondMedia(misplacedViewerStone)
+  assert.equal(misplacedRes.imageUrl, DIAMOND_PLACEHOLDER_SVG)
+  assert.equal(misplacedRes.hasActualImage, false)
+  assert.equal(misplacedRes.hasActualVideo, true)
+  assert.equal(misplacedRes.videoUrl, 'https://view.gem360.in/gem360/2009230847-HD-10344/gem360-2009230847-HD-10344.html')
+  assert.equal(misplacedRes.isVideoViewer, true)
+
+  // 5. isDirectVideoFile vs isInteractiveVideoViewer classifications
+  assert.equal(isDirectVideoFile('https://cdn.example.com/stone.mp4'), true)
+  assert.equal(isDirectVideoFile('https://cdn.example.com/stone.webm?token=123'), true)
+  assert.equal(isDirectVideoFile('https://view.gem360.in/gem360.html?d=123'), false)
+  assert.equal(isDirectVideoFile('https://dnaimages.s3.ap-south-1.amazonaws.com/videos/Vision360.html?d=749593252'), false)
+
+  assert.equal(isInteractiveVideoViewer('https://view.gem360.in/gem360.html?d=123'), true)
+  assert.equal(isInteractiveVideoViewer('https://dnaimages.s3.ap-south-1.amazonaws.com/videos/Vision360.html?d=749593252'), true)
+  assert.equal(isInteractiveVideoViewer('https://v360.in/viewer4.0/vision360.html?d=xyz'), true)
+  assert.equal(isInteractiveVideoViewer('https://cdn.example.com/stone.mp4'), false)
+})
+
+
