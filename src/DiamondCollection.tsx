@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { UserProfile } from './AuthPages'
 import './DiamondCollection.css'
 import { getDiamondMedia, isDirectVideoFile } from './diamondUtils'
@@ -123,6 +123,23 @@ function interleaveByCategory(list: PublicDiamondItem[]): PublicDiamondItem[] {
   return result
 }
 
+function getLabBadgeText(item: { lab?: string; category?: string } | null | undefined): string {
+  if (!item) return 'Fine Diamond'
+  const lab = (item.lab || '').trim()
+  const hasValidLab = lab && lab !== 'N/A' && lab.toUpperCase() !== 'NONE'
+  if (hasValidLab) {
+    return `${lab} Certified`
+  }
+  const cat = (item.category || '').toLowerCase()
+  if (cat.includes('non-certified') || cat.includes('non certified')) {
+    return 'Non-Certified'
+  }
+  if (cat.includes('pair')) {
+    return 'Matched Pair'
+  }
+  return 'Certified Stone'
+}
+
 export default function DiamondCollection({ currentUser, onCartChange }: DiamondCollectionProps) {
   const [items, setItems] = useState<PublicDiamondItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -154,10 +171,21 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const isPendingDealer =
     currentUser?.account_type === 'dealer' && currentUser?.dealer_status !== 'approved'
 
+  const hasAutoOpenedRef = useRef(false)
+
   const closeMediaModal = () => {
     setActiveMediaDiamond(null)
     setDiamondGallery([])
     setActiveGalleryIndex(0)
+    // Clear sku query parameter so category switching does not unexpectedly re-open the modal
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has('sku') || url.searchParams.has('diamond')) {
+        url.searchParams.delete('sku')
+        url.searchParams.delete('diamond')
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+      }
+    }
   }
 
   // Fetch gallery media when active diamond modal opens
@@ -221,14 +249,17 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
     setCurrentPage(1)
   }, [selectedCategory, selectedShape, searchQuery])
 
-  // Auto-open diamond modal if URL contains ?sku=, ?diamond=, or #diamond-
+  // Auto-open diamond modal once if URL contains ?sku=, ?diamond=, or #diamond-
   useEffect(() => {
-    if (items.length === 0 || typeof window === 'undefined') return
+    if (items.length === 0 || typeof window === 'undefined' || hasAutoOpenedRef.current) return
     const params = new URLSearchParams(window.location.search)
-    const targetSku = params.get('sku') || params.get('diamond') || (window.location.hash.startsWith('#diamond-') ? window.location.hash.replace('#diamond-', '') : null)
+    const hashIndex = window.location.hash.indexOf('?')
+    const hashParams = new URLSearchParams(hashIndex >= 0 ? window.location.hash.slice(hashIndex) : '')
+    const targetSku = params.get('sku') || params.get('diamond') || hashParams.get('sku') || hashParams.get('diamond') || (window.location.hash.startsWith('#diamond-') ? window.location.hash.replace('#diamond-', '') : null)
     if (targetSku) {
       const found = items.find(i => i.sku.toLowerCase() === targetSku.toLowerCase())
       if (found) {
+        hasAutoOpenedRef.current = true
         setActiveMediaDiamond(found)
         const target = document.getElementById('diamond-catalog-grid')
         if (target) {
@@ -244,7 +275,9 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   }
 
   const getDiamondShareText = (diamond: PublicDiamondItem) => {
-    return `Check out this ${diamond.carat}ct ${diamond.shape} Diamond (${diamond.color} / ${diamond.clarity}, SKU: ${diamond.sku}) at Hey Man Diamond LLC!`
+    const isPair = (diamond.category || '').toLowerCase().includes('pair')
+    const descriptor = isPair ? 'Matched Pair' : 'Diamond'
+    return `Check out this ${diamond.carat}ct ${diamond.shape} ${descriptor} (${diamond.color} / ${diamond.clarity}, SKU: ${diamond.sku}) at Hey Man Diamond LLC!`
   }
 
   const handleCopyLink = (diamond: PublicDiamondItem) => {
@@ -632,7 +665,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                   {/* Top Badges */}
                   <div className="card-top-badges">
                     <span className="lab-badge">
-                      {item.lab && item.lab !== 'N/A' ? `${item.lab} Certified` : 'Certified Stone'}
+                      {getLabBadgeText(item)}
                     </span>
                     <span className="category-tag-badge">{item.category || 'Fine Diamond'}</span>
                   </div>
@@ -643,6 +676,13 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                     onClick={() => {
                       setActiveMediaDiamond(item)
                       setMediaTab(item.videoUrl ? 'video' : 'photo')
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setActiveMediaDiamond(item)
+                        setMediaTab(item.videoUrl ? 'video' : 'photo')
+                      }
                     }}
                     role="button"
                     tabIndex={0}
@@ -887,7 +927,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
             <div className="media-modal-grid">
               {/* Left: Media Display Pane */}
               <div className="media-modal-viewer">
-                {diamondGallery.length === 0 && activeMediaDiamond.videoUrl && (
+                {diamondGallery.length === 0 && activeMediaDiamond.videoUrl && getDiamondMedia(activeMediaDiamond).hasActualImage && (
                   <div className="media-modal-tabs">
                     <button
                       type="button"
@@ -998,12 +1038,12 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
               {/* Right: Stone Profile & Direct Quote Actions */}
               <div className="media-modal-details">
                 <div className="media-modal-eyebrow">
-                  <span>{activeMediaDiamond.lab && activeMediaDiamond.lab !== 'N/A' ? `${activeMediaDiamond.lab} Certified` : 'Certified Lab Diamond'}</span>
+                  <span>{getLabBadgeText(activeMediaDiamond)}</span>
                   <span className="media-modal-sku">SKU: {activeMediaDiamond.sku}</span>
                 </div>
 
                 <h3 className="media-modal-title">
-                  {activeMediaDiamond.carat} Carat {activeMediaDiamond.shape} Diamond
+                  {activeMediaDiamond.carat} Carat {activeMediaDiamond.shape} {(activeMediaDiamond.category || '').toLowerCase().includes('pair') ? 'Matched Pair' : 'Diamond'}
                 </h3>
 
                 <div className="media-modal-specs-table">

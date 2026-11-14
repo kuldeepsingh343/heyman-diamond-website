@@ -619,7 +619,7 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
       id: rowId,
       sku,
       category,
-      shape: shape.charAt(0).toUpperCase() + shape.slice(1).toLowerCase(),
+      shape: shape.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' '),
       carat,
       color,
       clarity,
@@ -833,7 +833,7 @@ export function normalizeFlomizProduct(raw) {
   if (!sku) return null
 
   const shapeRaw = String(raw.Shape || 'Round').trim()
-  const shape = shapeRaw.charAt(0).toUpperCase() + shapeRaw.slice(1).toLowerCase()
+  const shape = shapeRaw.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
 
   const carat = parseFloat(raw.AvailableForSale ?? raw.Stock ?? 0)
   const wholesaleTotal = parseFloat(raw.TotalPrice) || (parseFloat(raw.PricePerCarat) * (carat || 1)) || 0

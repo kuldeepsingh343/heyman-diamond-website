@@ -112,7 +112,17 @@ const server = createServer(async (req, res) => {
 
   try {
     // ── System Health ────────────────────────────────────────────────────────
-    if (req.method === 'GET' && url.pathname === '/api/health') {
+    if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/api/health') {
+      if (req.method === 'HEAD') {
+        const cors = res?._corsHeaders || {}
+        res.writeHead(200, {
+          ...cors,
+          ...SECURITY_HEADERS,
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        })
+        return res.end()
+      }
       return json(res, 200, {
         status: 'ok',
         databaseConfigured: supabaseReady(),
