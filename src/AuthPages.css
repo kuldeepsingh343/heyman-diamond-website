@@ -4694,3 +4694,14 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Google reCAPTCHA v2 */
+.recaptcha-wrapper {
+  margin: 18px 0 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 78px;
+  width: 100%;
+  overflow-x: auto;
+}

@@ -124,13 +124,13 @@ export const headers = getCorsHeaders()
 
 export const CSP_HEADER = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
   "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
-  "frame-src 'self' https: blob:",
-  "connect-src 'self' https://*.supabase.co https://*.flomiz.com https://heymandiamond.com https://*.heymandiamond.com http://localhost:* https://*.cdninstagram.com https://*.fbcdn.net",
+  "frame-src 'self' https: blob: https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/",
+  "connect-src 'self' https://*.supabase.co https://*.flomiz.com https://heymandiamond.com https://*.heymandiamond.com http://localhost:* https://*.cdninstagram.com https://*.fbcdn.net https://www.google.com/recaptcha/",
   "frame-ancestors 'self'",
   "object-src 'none'",
   "base-uri 'self'",

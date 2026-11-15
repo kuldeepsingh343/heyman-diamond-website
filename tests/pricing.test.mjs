@@ -14,7 +14,11 @@ import {
   handleUpdateAdminDiamond,
   handleGetCatalog,
   getEffectiveDiamondPrice,
+  resetMemoryInventory,
 } from '../server/services/inventory.mjs'
+
+// Ensure clean seed inventory before pricing tests run
+resetMemoryInventory(true)
 
 import {
   handleCreateQuote,

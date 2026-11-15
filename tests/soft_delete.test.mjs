@@ -10,6 +10,7 @@ import {
   handleGetCatalog,
   handleUploadInventory,
   getInventoryItemBySku,
+  resetMemoryInventory,
 } from '../server/services/inventory.mjs'
 
 function createMockRes() {
@@ -157,5 +158,9 @@ test('Soft Delete — Admin listing and Restoration', async () => {
     stagedRes.json.items.some(i => i.sku === targetSku),
     'Restored diamond must appear in active admin inventory'
   )
+
+  // Reset status back to published for clean test state isolation
+  restoredItem.status = 'published'
+  resetMemoryInventory(true)
 })
 

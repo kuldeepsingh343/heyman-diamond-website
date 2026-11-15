@@ -397,6 +397,12 @@ export default function AuthPages({
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
+  // ── reCAPTCHA state ─────────────────────────────────────────────────────
+  const [captchaToken, setCaptchaToken] = useState('')
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null)
+  const recaptchaWidgetIdRef = useRef<number | null>(null)
+  const recaptchaSiteKey = (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string) || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
+
   // ── async / UX state ────────────────────────────────────────────────────
   const [status, setStatus] = useState<{ text: string; kind: 'info' | 'error' | 'success' }>(getInitialStatus)
   const [busy, setBusy] = useState(false)
@@ -2147,6 +2153,62 @@ export default function AuthPages({
     }
   }, [user, effectiveTab])
 
+  // ── Google reCAPTCHA v2 Lifecycle ─────────────────────────────────────────
+  useEffect(() => {
+    if (user) return
+
+    let active = true
+
+    const tryRender = () => {
+      if (!active || !recaptchaContainerRef.current) return
+      const grecaptcha = (window as unknown as { grecaptcha?: { render: (el: HTMLElement, opts: unknown) => number; reset: (id: number) => void } }).grecaptcha
+      if (grecaptcha && typeof grecaptcha.render === 'function') {
+        if (recaptchaContainerRef.current.children.length === 0) {
+          try {
+            recaptchaWidgetIdRef.current = grecaptcha.render(recaptchaContainerRef.current, {
+              sitekey: recaptchaSiteKey,
+              callback: (token: string) => {
+                if (active) setCaptchaToken(token)
+              },
+              'expired-callback': () => {
+                if (active) setCaptchaToken('')
+              },
+              'error-callback': () => {
+                if (active) setCaptchaToken('')
+              },
+            })
+          } catch {
+            // Container already has widget rendered or DOM unavailable
+          }
+        }
+      }
+    }
+
+    const timer = setInterval(() => {
+      const grecaptcha = (window as unknown as { grecaptcha?: { render: (el: HTMLElement, opts: unknown) => number } }).grecaptcha
+      if (grecaptcha && typeof grecaptcha.render === 'function') {
+        clearInterval(timer)
+        tryRender()
+      }
+    }, 100)
+
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [user, signup, mode, recaptchaSiteKey])
+
+  // Reset reCAPTCHA on route or form tab change
+  useEffect(() => {
+    setCaptchaToken('')
+    const grecaptcha = (window as unknown as { grecaptcha?: { reset: (id: number) => void } }).grecaptcha
+    if (recaptchaWidgetIdRef.current !== null && grecaptcha && typeof grecaptcha.reset === 'function') {
+      try {
+        grecaptcha.reset(recaptchaWidgetIdRef.current)
+      } catch {}
+    }
+  }, [signup, mode])
+
   // ── client-side validation for signup ─────────────────────────────────────
   function validate(): string | null {
     if (signup) {
@@ -2165,6 +2227,8 @@ export default function AuthPages({
       return 'Password must be at least 8 characters long.'
     if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password))
       return 'Password must contain uppercase letters, lowercase letters, and numbers.'
+    if (!captchaToken)
+      return 'Please verify that you are human by checking the CAPTCHA box.'
     return null
   }
 
@@ -2182,8 +2246,8 @@ export default function AuthPages({
     try {
       const endpoint = signup ? '/api/auth/signup' : '/api/auth/signin'
       const body = signup
-        ? { fullName: fullName.trim(), address: address.trim(), phone: phone.trim(), email: email.trim(), gender, password, companyName: companyName.trim(), accountType: dealer ? 'dealer' : 'customer' }
-        : { email: email.trim(), password }
+        ? { fullName: fullName.trim(), address: address.trim(), phone: phone.trim(), email: email.trim(), gender, password, companyName: companyName.trim(), accountType: dealer ? 'dealer' : 'customer', captchaToken }
+        : { email: email.trim(), password, captchaToken }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -2222,6 +2286,15 @@ export default function AuthPages({
         setCanResend(true)
       }
     } catch (error) {
+      if (recaptchaWidgetIdRef.current !== null) {
+        const grecaptcha = (window as unknown as { grecaptcha?: { reset: (id: number) => void } }).grecaptcha
+        if (grecaptcha && typeof grecaptcha.reset === 'function') {
+          try {
+            grecaptcha.reset(recaptchaWidgetIdRef.current)
+          } catch {}
+        }
+      }
+      setCaptchaToken('')
       setStatus({ text: error instanceof Error ? error.message : 'Something went wrong.', kind: 'error' })
     } finally {
       setBusy(false)
@@ -6605,6 +6678,10 @@ export default function AuthPages({
               </a>
             </div>
           )}
+
+          <div className="recaptcha-wrapper">
+            <div ref={recaptchaContainerRef} />
+          </div>
 
           <button type="submit" disabled={busy}>
             {busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}
