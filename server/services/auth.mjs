@@ -856,10 +856,17 @@ export async function handleOAuth(req, res, url) {
   if (!['google', 'apple'].includes(provider)) {
     return json(res, 400, { error: 'Invalid provider. Supported providers: google, apple' })
   }
-  const redirectUrl = getAuthRedirectUrl(req)
+  const rawIntent = (url.searchParams.get('intent') || '').toLowerCase()
+  const intent = rawIntent === 'signup' ? 'signup' : 'signin'
+
+  const baseRedirect = getAuthRedirectUrl(req)
+  const originPart = baseRedirect.split('#')[0].replace(/\/$/, '')
+  const redirectTarget = intent === 'signup'
+    ? `${originPart}/#signup-customer?intent=signup`
+    : `${originPart}/#signin?intent=signin`
 
   try {
-    const probe = await fetch(`${getSupabaseUrl()}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectUrl)}`, {
+    const probe = await fetch(`${getSupabaseUrl()}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectTarget)}`, {
       method: 'GET',
       redirect: 'manual',
     })
@@ -873,15 +880,189 @@ export async function handleOAuth(req, res, url) {
     }
 
     const location = probe.headers.get('location')
-    const targetUrl = location || `${getSupabaseUrl()}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectUrl)}`
+    const targetUrl = location || `${getSupabaseUrl()}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectTarget)}`
     return json(res, 200, {
       enabled: true,
       provider,
+      intent,
       url: targetUrl,
     })
   } catch (err) {
     return json(res, 500, { error: 'Failed to initialize OAuth.' })
   }
+}
+
+export async function handleOAuthCallback(req, res) {
+  if (req.method !== 'POST') {
+    return json(res, 405, { error: 'Method not allowed.' })
+  }
+  let body
+  try {
+    body = await bodyJson(req)
+  } catch (err) {
+    return json(res, err.statusCode || 400, { error: err.message || 'Invalid request body.' })
+  }
+
+  const accessToken = typeof body.accessToken === 'string' ? body.accessToken.trim() : ''
+  const intent = body.intent === 'signup' ? 'signup' : 'signin'
+
+  if (!accessToken) {
+    return json(res, 400, { error: 'Access token is required.' })
+  }
+
+  // 1. Verify token by calling Supabase GoTrue /auth/v1/user
+  let user = null
+  if (getSupabaseUrl() && getSupabaseAnonKey()) {
+    try {
+      const userRes = await fetch(`${getSupabaseUrl()}/auth/v1/user`, {
+        headers: { apikey: getSupabaseAnonKey(), Authorization: `Bearer ${accessToken}` },
+      })
+      if (userRes.ok) {
+        user = await userRes.json()
+      }
+    } catch (err) {
+      console.warn('OAuth callback user verification network error:', err.message)
+    }
+  }
+
+  if (!user || !user.id) {
+    return json(res, 401, { error: 'Invalid or expired session. Please sign in again.' })
+  }
+
+  // 2. Check if user is an existing registered user
+  let isExistingRegistered = false
+  let profileRow = null
+
+  if (supabaseReady()) {
+    try {
+      const adminRows = await db(`admin_users?user_id=eq.${encodeURIComponent(user.id)}`).catch(() => [])
+      if (Array.isArray(adminRows) && adminRows.length > 0 && adminRows[0].is_active !== false) {
+        isExistingRegistered = true
+      }
+
+      const profileRows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}`).catch(() => [])
+      if (Array.isArray(profileRows) && profileRows.length > 0) {
+        profileRow = profileRows[0]
+        if (profileRow.is_registered === true || profileRow.phone || profileRow.address || profileRow.gender) {
+          isExistingRegistered = true
+        }
+      }
+    } catch (dbErr) {
+      console.warn('OAuth callback profile check error:', dbErr.message)
+    }
+  }
+
+  if (user.user_metadata?.is_registered === true) {
+    isExistingRegistered = true
+  }
+
+  // 3. Handle scenarios based on intent & registration status:
+
+  // Scenario 2: User clicked "Sign in with Google", but has NO registered account!
+  if (intent === 'signin' && !isExistingRegistered) {
+    // Delete newly auto-created user from auth.users using Service Role Key
+    // This permanently prevents ghost accounts from polluting auth.users!
+    if (supabaseReady()) {
+      try {
+        await fetch(`${getSupabaseUrl()}/auth/v1/admin/users/${user.id}`, {
+          method: 'DELETE',
+          headers: {
+            apikey: getSupabaseServiceRoleKey(),
+            Authorization: `Bearer ${getSupabaseServiceRoleKey()}`,
+          },
+        })
+      } catch (delErr) {
+        console.warn('Failed to delete unregistered auto-created OAuth user:', delErr.message)
+      }
+    }
+
+    return json(res, 200, {
+      success: false,
+      notRegistered: true,
+      message: 'No account found for this Google account. Please sign up first.',
+    })
+  }
+
+  // Scenario 1: User clicked "Sign in with Google", and account exists!
+  if (intent === 'signin' && isExistingRegistered) {
+    return json(res, 200, {
+      success: true,
+      isNew: false,
+      alreadyExisted: false,
+      message: 'Signed in successfully.',
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: profileRow?.full_name || user.user_metadata?.full_name || user.email.split('@')[0],
+      },
+    })
+  }
+
+  // Scenario 4: User clicked "Sign up with Google", but account already exists!
+  if (intent === 'signup' && isExistingRegistered) {
+    return json(res, 200, {
+      success: true,
+      isNew: false,
+      alreadyExisted: true,
+      message: 'You already have an account, so we signed you in.',
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: profileRow?.full_name || user.user_metadata?.full_name || user.email.split('@')[0],
+      },
+    })
+  }
+
+  // Scenario 3: User clicked "Sign up with Google", and account is new!
+  if (intent === 'signup' && !isExistingRegistered) {
+    const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0]
+    if (supabaseReady()) {
+      try {
+        await db(`profiles?id=eq.${encodeURIComponent(user.id)}`, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({
+            full_name: fullName,
+            account_type: 'customer',
+            dealer_status: 'not_applied',
+            is_registered: true,
+          }),
+        })
+        await fetch(`${getSupabaseUrl()}/auth/v1/admin/users/${user.id}`, {
+          method: 'PUT',
+          headers: {
+            apikey: getSupabaseServiceRoleKey(),
+            Authorization: `Bearer ${getSupabaseServiceRoleKey()}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_metadata: {
+              ...user.user_metadata,
+              full_name: fullName,
+              account_type: 'customer',
+              is_registered: true,
+            },
+          }),
+        }).catch(() => {})
+      } catch (err) {
+        console.warn('Failed to complete Google signup registration in profiles:', err.message)
+      }
+    }
+
+    return json(res, 200, {
+      success: true,
+      isNew: true,
+      alreadyExisted: false,
+      message: 'Your account has been created successfully! Welcome to Hey Man Diamond.',
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: fullName,
+      },
+    })
+  }
+
+  return json(res, 200, { success: true })
 }
 
 export async function handleCheckRegistered(req, res, url) {
@@ -911,8 +1092,8 @@ export async function handleCheckRegistered(req, res, url) {
       }
     }
 
-    const profileRows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}&select=account_type`).catch(() => [])
-    if (profileRows?.[0]?.account_type) {
+    const profileRows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}&select=account_type,is_registered,phone,address,gender`).catch(() => [])
+    if (profileRows?.[0]?.is_registered === true || profileRows?.[0]?.phone || profileRows?.[0]?.address || profileRows?.[0]?.gender) {
       return json(res, 200, { registered: true })
     }
 

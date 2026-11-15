@@ -8,6 +8,7 @@ export interface AuthStatusResult {
   kind: 'info' | 'error' | 'success'
   accessToken?: string
   refreshToken?: string
+  intent?: 'signin' | 'signup'
 }
 
 export interface UserLike {
@@ -119,6 +120,12 @@ export function parseAuthStatusFromHash(hash?: string): AuthStatusResult {
   if (accessToken) {
     const isSignupConfirm = params.get('type') === 'signup'
     const isRecovery = params.get('type') === 'recovery'
+    let intent: 'signin' | 'signup' | undefined
+    if (rawHash.includes('intent=signup') || rawHash.includes('signup-customer')) {
+      intent = 'signup'
+    } else if (rawHash.includes('intent=signin') || rawHash.includes('signin')) {
+      intent = 'signin'
+    }
     return {
       text: isRecovery
         ? 'Verification successful. Please enter your new password below.'
@@ -128,6 +135,7 @@ export function parseAuthStatusFromHash(hash?: string): AuthStatusResult {
       kind: isRecovery ? 'info' : 'success',
       accessToken,
       refreshToken: refreshToken ?? undefined,
+      intent,
     }
   }
 

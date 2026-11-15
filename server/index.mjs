@@ -26,6 +26,7 @@ import {
   handleGetProfile,
   handleUpdateProfile,
   handleOAuth,
+  handleOAuthCallback,
   handleCheckRegistered,
   requireAdmin,
   authenticatedUser,
@@ -153,6 +154,9 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/auth/oauth') {
       return await handleOAuth(req, res, url)
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/oauth-callback') {
+      return await handleOAuthCallback(req, res)
     }
     if (req.method === 'GET' && url.pathname === '/api/auth/check-registered') {
       return await handleCheckRegistered(req, res, url)

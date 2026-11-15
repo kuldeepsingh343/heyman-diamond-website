@@ -309,6 +309,7 @@ export default function AuthPages({
   const [busy, setBusy] = useState(false)
   const [resendBusy, setResendBusy] = useState(false)
   const [canResend, setCanResend] = useState(false)
+  const [needsSignupPrompt, setNeedsSignupPrompt] = useState(false)
 
   // ── profile editing state ───────────────────────────────────────────────
   const [editName, setEditName] = useState(user?.full_name || '')
@@ -1642,48 +1643,85 @@ export default function AuthPages({
   useEffect(() => {
     const token = localStorage.getItem('hmd_access_token')
     if (token && !user) {
-      fetch('/api/user/profile', {
-        headers: { Authorization: `Bearer ${token}` },
+      let intent: 'signin' | 'signup' = 'signin'
+      try {
+        const savedIntent = sessionStorage.getItem('hmd_social_intent')
+        if (savedIntent === 'signup' || savedIntent === 'signin') {
+          intent = savedIntent
+        }
+      } catch {}
+
+      const hashStatus = parseAuthStatusFromHash(window.location.hash)
+      if (hashStatus.intent) {
+        intent = hashStatus.intent
+      } else if (window.location.hash.includes('signup') || window.location.search.includes('intent=signup')) {
+        intent = 'signup'
+      }
+
+      fetch('/api/auth/oauth-callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: token, intent }),
       })
         .then(res => res.json())
-        .then(data => {
-          if (data?.email) {
-            // If user logged in with Google/Apple but is NOT an existing registered customer or admin:
-            if (data.is_registered === false) {
-              localStorage.removeItem('hmd_access_token')
-              localStorage.removeItem('hmd_refresh_token')
-              localStorage.removeItem('hmd_user')
-              localStorage.removeItem('hmd_cart')
-              sessionStorage.removeItem('hmd_guest_cart_active')
-              updateUserSession(null)
-              setEmail(data.email)
-              if (data.full_name) {
-                setFullName(data.full_name)
-              }
-              setStatus({
-                text: 'This email is not registered. Please sign up first to create your customer account.',
-                kind: 'error',
-              })
-              window.location.hash = '#signup-customer'
-              return
-            }
+        .then(oauthData => {
+          try {
+            sessionStorage.removeItem('hmd_social_intent')
+          } catch {}
 
-            const profile: UserProfile = {
-              email: data.email,
-              full_name: data.full_name || data.email.split('@')[0],
-              phone: data.phone || '',
-              address: data.address || '',
-              gender: data.gender || 'prefer_not_to_say',
-              account_type: data.account_type || 'customer',
-              dealer_status: data.dealer_status || 'not_applied',
-              permissions: data.permissions,
-              role_title: data.role_title,
-            }
-            localStorage.setItem('hmd_user', JSON.stringify(profile))
-            updateUserSession(profile)
+          if (oauthData?.notRegistered) {
+            localStorage.removeItem('hmd_access_token')
+            localStorage.removeItem('hmd_refresh_token')
+            localStorage.removeItem('hmd_user')
+            localStorage.removeItem('hmd_cart')
+            sessionStorage.removeItem('hmd_guest_cart_active')
+            updateUserSession(null)
+            setStatus({
+              text: 'No account found for this Google account. Please sign up first.',
+              kind: 'error',
+            })
+            setNeedsSignupPrompt(true)
+            window.location.hash = '#signin'
+            return
           }
+
+          if (oauthData?.alreadyExisted) {
+            setStatus({
+              text: 'You already have an account, so we signed you in.',
+              kind: 'info',
+            })
+          } else if (oauthData?.isNew) {
+            setStatus({
+              text: oauthData.message || 'Your account has been created successfully! Welcome to Hey Man Diamond.',
+              kind: 'success',
+            })
+          }
+
+          return fetch('/api/user/profile', {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data?.email) {
+                const profile: UserProfile = {
+                  email: data.email,
+                  full_name: data.full_name || data.email.split('@')[0],
+                  phone: data.phone || '',
+                  address: data.address || '',
+                  gender: data.gender || 'prefer_not_to_say',
+                  account_type: data.account_type || 'customer',
+                  dealer_status: data.dealer_status || 'not_applied',
+                  permissions: data.permissions,
+                  role_title: data.role_title,
+                }
+                localStorage.setItem('hmd_user', JSON.stringify(profile))
+                updateUserSession(profile)
+              }
+            })
         })
-        .catch(() => {})
+        .catch(err => {
+          console.warn('OAuth callback verification error:', err)
+        })
     }
   }, [user, updateUserSession])
 
@@ -1994,6 +2032,8 @@ export default function AuthPages({
   }
 
   async function handleSocialLogin(provider: 'Google' | 'Apple') {
+    const intent = signup ? 'signup' : 'signin'
+
     // 1. If currently on sign-in page and user entered an email, pre-check if registered
     if (!signup && email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setBusy(true)
@@ -2005,10 +2045,10 @@ export default function AuthPages({
           if (!checkData.registered) {
             setBusy(false)
             setStatus({
-              text: 'This email is not registered. Please sign up first to create your customer account.',
+              text: 'No account found for this Google account. Please sign up first.',
               kind: 'error',
             })
-            window.location.hash = '#signup-customer'
+            setNeedsSignupPrompt(true)
             return
           }
         }
@@ -2018,7 +2058,7 @@ export default function AuthPages({
     }
 
     try {
-      sessionStorage.setItem('hmd_social_intent', signup ? 'signup' : 'signin')
+      sessionStorage.setItem('hmd_social_intent', intent)
     } catch {
       // Ignore private mode sessionStorage restrictions
     }
@@ -2026,7 +2066,7 @@ export default function AuthPages({
     setBusy(true)
     setStatus({ text: `Connecting to ${provider}…`, kind: 'info' })
     try {
-      const res = await fetch(`/api/auth/oauth?provider=${provider.toLowerCase()}`)
+      const res = await fetch(`/api/auth/oauth?provider=${provider.toLowerCase()}&intent=${intent}`)
       const data = await res.json()
       if (data.enabled && data.url) {
         window.location.href = data.url
@@ -5322,6 +5362,33 @@ export default function AuthPages({
           <p className={statusClass} role="status" aria-live="polite">
             {status.text}
           </p>
+        )}
+
+        {needsSignupPrompt && (
+          <div style={{ marginTop: '12px', textAlign: 'center' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              style={{
+                width: '100%',
+                padding: '12px 20px',
+                backgroundColor: 'var(--color-navy, #0f1f1a)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: '0.95rem',
+              }}
+              onClick={() => {
+                setNeedsSignupPrompt(false)
+                setStatus({ text: '', kind: 'info' })
+                window.location.hash = '#signup-customer'
+              }}
+            >
+              Sign Up for an Account →
+            </button>
+          </div>
         )}
 
         {canResend && (
