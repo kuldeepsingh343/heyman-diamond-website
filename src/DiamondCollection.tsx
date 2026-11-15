@@ -332,19 +332,50 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
 
   const addToCart = (diamond: PublicDiamondItem) => {
     try {
-      const effectivePrice = isApprovedDealer
-        ? (diamond.wholesalePrice || diamond.dealerPrice || diamond.customerPrice || diamond.price || 0)
-        : (diamond.customerPrice || diamond.price || 0)
+      const listPrice = isApprovedDealer
+        ? Number(diamond.listPrice || diamond.dealerPrice || diamond.wholesalePrice || diamond.price || 0)
+        : Number(diamond.listPrice || diamond.customerPrice || diamond.price || 0)
+
+      const discountPrice = diamond.discountPrice != null && Number(diamond.discountPrice) > 0
+        ? Number(diamond.discountPrice)
+        : null
+
+      const effectivePrice = (discountPrice != null && discountPrice < listPrice)
+        ? discountPrice
+        : Number(diamond.price || listPrice)
+
+      const discountPercent = diamond.discountPercent != null
+        ? Number(diamond.discountPercent)
+        : (listPrice > effectivePrice ? Math.round(((listPrice - effectivePrice) / listPrice) * 100) : null)
 
       const currentCart = JSON.parse(localStorage.getItem('hmd_cart') || '[]')
       const existing = currentCart.find((c: { sku: string }) => c.sku === diamond.sku)
       let nextCart
       if (existing) {
-        nextCart = currentCart.map((c: { sku: string; quantity: number; price?: number }) =>
-          c.sku === diamond.sku ? { ...c, quantity: (c.quantity || 1) + 1, price: effectivePrice } : c
+        nextCart = currentCart.map((c: { sku: string; quantity: number; price?: number; listPrice?: number; discountPrice?: number | null; discountPercent?: number | null }) =>
+          c.sku === diamond.sku
+            ? {
+                ...c,
+                quantity: (c.quantity || 1) + 1,
+                price: effectivePrice,
+                listPrice: listPrice > effectivePrice ? listPrice : (c.listPrice || listPrice),
+                discountPrice: discountPrice,
+                discountPercent: discountPercent,
+              }
+            : c
         )
       } else {
-        nextCart = [...currentCart, { ...diamond, price: effectivePrice, quantity: 1 }]
+        nextCart = [
+          ...currentCart,
+          {
+            ...diamond,
+            price: effectivePrice,
+            listPrice: listPrice > effectivePrice ? listPrice : effectivePrice,
+            discountPrice: discountPrice,
+            discountPercent: discountPercent,
+            quantity: 1,
+          },
+        ]
       }
       sessionStorage.setItem('hmd_guest_cart_active', 'true')
       localStorage.setItem('hmd_cart', JSON.stringify(nextCart))

@@ -90,7 +90,12 @@ export interface DiamondItem {
   lab: string
   certificateNumber: string
   price: number
+  listPrice?: number
+  discountPrice?: number | null
+  discountPercent?: number | null
+  customerPrice?: number
   wholesalePrice?: number
+  dealerPrice?: number
   measurements?: string
   status?: string
   imageUrl?: string | null
@@ -1588,12 +1593,43 @@ export default function AuthPages({
   }
 
   const addToCart = (diamond: DiamondItem) => {
+    const listPrice = Number(diamond.listPrice || diamond.customerPrice || diamond.price || 0)
+    const discountPrice = diamond.discountPrice != null && Number(diamond.discountPrice) > 0
+      ? Number(diamond.discountPrice)
+      : null
+    const effectivePrice = (discountPrice != null && discountPrice < listPrice)
+      ? discountPrice
+      : Number(diamond.price || listPrice)
+    const discountPercent = diamond.discountPercent != null
+      ? Number(diamond.discountPercent)
+      : (listPrice > effectivePrice ? Math.round(((listPrice - effectivePrice) / listPrice) * 100) : null)
+
     const existing = cart.find(c => c.sku === diamond.sku)
     let nextCart: CartItem[]
     if (existing) {
-      nextCart = cart.map(c => c.sku === diamond.sku ? { ...c, quantity: c.quantity + 1 } : c)
+      nextCart = cart.map(c => c.sku === diamond.sku
+        ? {
+            ...c,
+            quantity: c.quantity + 1,
+            price: effectivePrice,
+            listPrice: listPrice > effectivePrice ? listPrice : (c.listPrice || listPrice),
+            discountPrice: discountPrice,
+            discountPercent: discountPercent,
+          }
+        : c
+      )
     } else {
-      nextCart = [...cart, { ...diamond, quantity: 1 }]
+      nextCart = [
+        ...cart,
+        {
+          ...diamond,
+          price: effectivePrice,
+          listPrice: listPrice > effectivePrice ? listPrice : effectivePrice,
+          discountPrice: discountPrice,
+          discountPercent: discountPercent,
+          quantity: 1,
+        },
+      ]
     }
     updateCart(nextCart)
     setCartMsg({ text: `Added ${diamond.shape} ${diamond.carat}ct (${diamond.sku}) to your cart.`, kind: 'success' })
@@ -1616,7 +1652,9 @@ export default function AuthPages({
             color: diamond.color,
             clarity: diamond.clarity,
             cut: diamond.cut || 'Excellent',
-            price: diamond.price,
+            price: effectivePrice,
+            listPrice: listPrice > effectivePrice ? listPrice : undefined,
+            discountPercent: discountPercent || undefined,
             certificateNumber: diamond.certificateNumber || '',
             imageUrl: diamond.imageUrl || null,
           },
@@ -1649,6 +1687,39 @@ export default function AuthPages({
       })
       .finally(() => setLoadingCatalog(false))
   }
+
+  // Synchronize cart with latest catalog prices and discounts so existing cart items auto-update
+  useEffect(() => {
+    if (catalogItems.length === 0 || cart.length === 0) return
+    let changed = false
+    const syncedCart = cart.map(item => {
+      const match = catalogItems.find(c => c.sku === item.sku)
+      if (!match) return item
+      const listPrice = Number(match.listPrice || match.customerPrice || match.price || 0)
+      const discountPrice = match.discountPrice != null && Number(match.discountPrice) > 0 ? Number(match.discountPrice) : null
+      const effectivePrice = (discountPrice != null && discountPrice < listPrice)
+        ? discountPrice
+        : Number(match.price || listPrice)
+      const discountPercent = match.discountPercent != null
+        ? Number(match.discountPercent)
+        : (listPrice > effectivePrice ? Math.round(((listPrice - effectivePrice) / listPrice) * 100) : null)
+
+      if (item.price !== effectivePrice || item.listPrice !== listPrice || item.discountPrice !== discountPrice || item.discountPercent !== discountPercent) {
+        changed = true
+        return {
+          ...item,
+          price: effectivePrice,
+          listPrice: listPrice > effectivePrice ? listPrice : effectivePrice,
+          discountPrice: discountPrice,
+          discountPercent: discountPercent,
+        }
+      }
+      return item
+    })
+    if (changed) {
+      updateCart(syncedCart)
+    }
+  }, [catalogItems])
 
   const loadOrders = () => {
     setLoadingOrders(true)
@@ -2311,7 +2382,15 @@ export default function AuthPages({
   }
 
   const statusClass = `auth-status auth-status--${status.kind}`
-  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  const cartListTotal = cart.reduce((sum, item) => {
+    const list = (item.listPrice && item.listPrice > item.price) ? item.listPrice : item.price
+    return sum + (list * (item.quantity || 1))
+  }, 0)
+  const cartTotal = cart.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0)
+  const cartTotalDiscount = Math.max(0, cartListTotal - cartTotal)
+  const cartTotalDiscountPercent = cartListTotal > 0 && cartTotalDiscount > 0
+    ? Math.round((cartTotalDiscount / cartListTotal) * 100)
+    : 0
   const filteredCatalog = selectedShape === 'all'
     ? catalogItems
     : catalogItems.filter(item => item.shape.toLowerCase() === selectedShape.toLowerCase())
@@ -2630,7 +2709,23 @@ export default function AuthPages({
                       </div>
 
                       <div className="diamond-card-footer">
-                        <div className="diamond-card-price">${item.price.toLocaleString()}</div>
+                        {item.listPrice && item.listPrice > item.price ? (
+                          <div className="discount-price-display" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span className="price-list-struck" style={{ textDecoration: 'line-through', color: '#888', fontSize: '13px' }}>
+                              ${item.listPrice.toLocaleString()}
+                            </span>
+                            <span className="price-value price-value--discounted" style={{ color: '#b33939', fontWeight: 700, fontSize: '16px' }}>
+                              ${item.price.toLocaleString()}
+                            </span>
+                            {item.discountPercent && (
+                              <span className="discount-tag-badge" style={{ background: '#fee', color: '#b33939', border: '1px solid #f8c8c8', fontSize: '11px', fontWeight: 700, padding: '2px 6px', borderRadius: '3px' }}>
+                                {Math.round(item.discountPercent)}% OFF
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="diamond-card-price">${item.price.toLocaleString()}</div>
+                        )}
                         <button
                           type="button"
                           className={`button-primary add-cart-btn ${addedCatalogSku === item.sku ? 'card-add-btn--added' : ''}`}
@@ -2734,57 +2829,87 @@ export default function AuthPages({
                       </tr>
                     </thead>
                     <tbody>
-                      {cart.map(item => (
-                        <tr key={item.sku}>
-                          <td>
-                            <strong>{item.shape} {item.carat} ct</strong>
-                            <div style={{ fontSize: '11px', color: '#77746b' }}>
-                              Color {item.color} · Clarity {item.clarity} · Cut {item.cut}
-                            </div>
-                            <div style={{ fontSize: '10px', color: '#999' }}>SKU: {item.sku}</div>
-                          </td>
-                          <td>
-                            <span className="lab-tag">{item.lab}</span>
-                            <div style={{ fontSize: '11px' }}>{item.certificateNumber}</div>
-                          </td>
-                          <td>${item.price.toLocaleString()}</td>
-                          <td>
-                            <div className="cart-qty-control" aria-label={`Quantity for ${item.shape} ${item.carat}ct`}>
+                      {cart.map(item => {
+                        const isDiscounted = Boolean(item.listPrice && item.listPrice > item.price)
+                        const discountPct = item.discountPercent ?? (isDiscounted && item.listPrice ? Math.round(((item.listPrice - item.price) / item.listPrice) * 100) : null)
+                        const lineListTotal = (item.listPrice && item.listPrice > item.price ? item.listPrice : item.price) * (item.quantity || 1)
+                        const linePayableTotal = item.price * (item.quantity || 1)
+                        const lineSavings = lineListTotal - linePayableTotal
+
+                        return (
+                          <tr key={item.sku}>
+                            <td>
+                              <strong>{item.shape} {item.carat} ct</strong>
+                              <div style={{ fontSize: '11px', color: '#77746b' }}>
+                                Color {item.color} · Clarity {item.clarity} · Cut {item.cut}
+                              </div>
+                              <div style={{ fontSize: '10px', color: '#999' }}>SKU: {item.sku}</div>
+                            </td>
+                            <td>
+                              <span className="lab-tag">{item.lab}</span>
+                              <div style={{ fontSize: '11px' }}>{item.certificateNumber}</div>
+                            </td>
+                            <td>
+                              {isDiscounted ? (
+                                <div className="cart-price-cell">
+                                  <span className="cart-price-struck">${item.listPrice!.toLocaleString()}</span>
+                                  <span className="cart-price-discounted">${item.price.toLocaleString()}</span>
+                                  {discountPct && (
+                                    <span className="cart-discount-badge">{discountPct}% OFF</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span>${item.price.toLocaleString()}</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="cart-qty-control" aria-label={`Quantity for ${item.shape} ${item.carat}ct`}>
+                                <button
+                                  type="button"
+                                  className="cart-qty-btn cart-qty-btn--minus"
+                                  onClick={() => updateItemQuantity(item.sku, -1)}
+                                  disabled={item.quantity <= 1}
+                                  aria-label="Decrease quantity"
+                                >
+                                  −
+                                </button>
+                                <span className="cart-qty-val" aria-live="polite">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="cart-qty-btn cart-qty-btn--plus"
+                                  onClick={() => updateItemQuantity(item.sku, 1)}
+                                  disabled={item.quantity >= 100}
+                                  aria-label="Increase quantity"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td>
+                              {isDiscounted ? (
+                                <div className="cart-line-total-cell">
+                                  <span className="cart-price-struck">${lineListTotal.toLocaleString()}</span>
+                                  <strong className="cart-line-total-discounted">${linePayableTotal.toLocaleString()}</strong>
+                                  <div className="cart-line-savings">Save ${lineSavings.toLocaleString()}</div>
+                                </div>
+                              ) : (
+                                <strong>${linePayableTotal.toLocaleString()}</strong>
+                              )}
+                            </td>
+                            <td>
                               <button
                                 type="button"
-                                className="cart-qty-btn cart-qty-btn--minus"
-                                onClick={() => updateItemQuantity(item.sku, -1)}
-                                disabled={item.quantity <= 1}
-                                aria-label="Decrease quantity"
+                                className="cart-remove-btn"
+                                onClick={() => removeFromCart(item.sku)}
                               >
-                                −
+                                Remove
                               </button>
-                              <span className="cart-qty-val" aria-live="polite">
-                                {item.quantity}
-                              </span>
-                              <button
-                                type="button"
-                                className="cart-qty-btn cart-qty-btn--plus"
-                                onClick={() => updateItemQuantity(item.sku, 1)}
-                                disabled={item.quantity >= 100}
-                                aria-label="Increase quantity"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </td>
-                          <td><strong>${(item.price * item.quantity).toLocaleString()}</strong></td>
-                          <td>
-                            <button
-                              type="button"
-                              className="cart-remove-btn"
-                              onClick={() => removeFromCart(item.sku)}
-                            >
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
 
@@ -2860,10 +2985,27 @@ export default function AuthPages({
 
                   <div className="cart-summary-box">
                     <h4 className="cart-summary-title">Order Quote Summary</h4>
-                    <div className="cart-breakdown-row">
-                      <span>Subtotal ({cart.reduce((s, i) => s + i.quantity, 0)} {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? 'stone' : 'stones'}):</span>
-                      <strong>${cartTotal.toLocaleString()}</strong>
-                    </div>
+                    {cartTotalDiscount > 0 ? (
+                      <>
+                        <div className="cart-breakdown-row">
+                          <span>Original Retail Value ({cart.reduce((s, i) => s + (i.quantity || 1), 0)} {cart.reduce((s, i) => s + (i.quantity || 1), 0) === 1 ? 'stone' : 'stones'}):</span>
+                          <span className="cart-breakdown-struck">${cartListTotal.toLocaleString()}</span>
+                        </div>
+                        <div className="cart-breakdown-row cart-breakdown-row--savings">
+                          <span className="cart-savings-label">
+                            🎉 Promotional Discount ({cartTotalDiscountPercent}% OFF):
+                          </span>
+                          <strong className="cart-savings-amount">
+                            -${cartTotalDiscount.toLocaleString()}
+                          </strong>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="cart-breakdown-row">
+                        <span>Subtotal ({cart.reduce((s, i) => s + (i.quantity || 1), 0)} {cart.reduce((s, i) => s + (i.quantity || 1), 0) === 1 ? 'stone' : 'stones'}):</span>
+                        <strong>${cartTotal.toLocaleString()}</strong>
+                      </div>
+                    )}
                     <div className="cart-breakdown-row">
                       <span>Insured Armored Courier Shipping:</span>
                       <span className="cart-free-tag">Complimentary ($0.00)</span>
@@ -2873,7 +3015,12 @@ export default function AuthPages({
                       <span className="cart-tax-note">Calculated upon Sales Confirmation</span>
                     </div>
                     <div className="cart-total-line">
-                      <span>Estimated Total Quote:</span>
+                      <div className="cart-total-label-wrap">
+                        <span>Estimated Total to Pay:</span>
+                        {cartTotalDiscount > 0 && (
+                          <small className="cart-total-subtext">You save ${cartTotalDiscount.toLocaleString()} today</small>
+                        )}
+                      </div>
                       <strong className="cart-grand-total">${cartTotal.toLocaleString()}</strong>
                     </div>
                     <p className="cart-quote-disclaimer">

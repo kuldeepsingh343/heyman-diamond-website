@@ -829,6 +829,90 @@
   border-color: #b33939;
 }
 
+/* Cart Pricing & Line Item Discounts */
+.cart-price-cell,
+.cart-line-total-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cart-price-struck {
+  font-size: 11px;
+  color: #8c887b;
+  text-decoration: line-through;
+  font-weight: 500;
+}
+
+.cart-price-discounted {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #b33939;
+}
+
+.cart-discount-badge {
+  display: inline-block;
+  background: #fee;
+  color: #b33939;
+  border: 1px solid #f8c8c8;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  align-self: flex-start;
+  margin-top: 1px;
+}
+
+.cart-line-total-discounted {
+  font-size: 14px;
+  font-weight: 700;
+  color: #b33939;
+}
+
+.cart-line-savings {
+  font-size: 11px;
+  color: #2e6930;
+  font-weight: 600;
+}
+
+.cart-breakdown-struck {
+  color: #8c887b;
+  text-decoration: line-through;
+  font-size: 13px;
+}
+
+.cart-breakdown-row--savings {
+  color: #2e6930;
+  background: #edf7ed;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border-left: 3px solid #2e6930;
+}
+
+.cart-savings-label {
+  color: #2e6930;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.cart-savings-amount {
+  color: #2e6930;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.cart-total-label-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cart-total-subtext {
+  font-size: 11px;
+  color: #2e6930;
+  font-weight: 600;
+}
+
 .cart-qty-control {
   display: inline-flex;
   align-items: center;

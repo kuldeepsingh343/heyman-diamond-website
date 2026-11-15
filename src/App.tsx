@@ -21,6 +21,8 @@ export interface AddedToCartEventDetail {
     clarity?: string
     cut?: string
     price: number
+    listPrice?: number
+    discountPercent?: number
     certificateNumber?: string
     imageUrl?: string | null
   }
@@ -348,7 +350,23 @@ function App() {
                   SKU: {cartToast.diamond.sku} {cartToast.diamond.certificateNumber ? `· Cert: ${cartToast.diamond.certificateNumber}` : ''}
                 </div>
                 <div className="amazon-toast-item-price">
-                  ${cartToast.diamond.price.toLocaleString()}
+                  {cartToast.diamond.listPrice && cartToast.diamond.listPrice > cartToast.diamond.price ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ textDecoration: 'line-through', color: '#888', fontSize: '12px' }}>
+                        ${cartToast.diamond.listPrice.toLocaleString()}
+                      </span>
+                      <strong style={{ color: '#b33939', fontSize: '14px' }}>
+                        ${cartToast.diamond.price.toLocaleString()}
+                      </strong>
+                      {cartToast.diamond.discountPercent && (
+                        <span style={{ background: '#fee', color: '#b33939', border: '1px solid #f8c8c8', fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '3px' }}>
+                          {cartToast.diamond.discountPercent}% OFF
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span>${cartToast.diamond.price.toLocaleString()}</span>
+                  )}
                 </div>
               </div>
             </div>
