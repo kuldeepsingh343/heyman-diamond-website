@@ -58,23 +58,25 @@ begin
 end;
 $function$;
 
--- 3. Narrowed, safe backfill for existing legitimate users
--- Ghost accounts without orders, quotes, applications, or verified profiles are excluded.
+-- 3. Objective, safe backfill for existing legitimate users
+-- Covers all accounts that have confirmed their email & signed in, staff/admins,
+-- customers with quotes/orders, dealers, or profiles with contact info.
+-- Unconfirmed accounts without logins or verified emails remain is_registered = false.
 update public.profiles p
 set is_registered = true
 from auth.users u
 where p.id = u.id
   and (
-    -- Staff & administrators
-    exists (select 1 from public.admin_users au where au.user_id = u.id)
-    -- Customers with activity (submitted quotes or orders)
+    -- Any account that has confirmed their email and signed in at least once
+    (u.email_confirmed_at is not null and u.last_sign_in_at is not null)
+    -- Any account with administrative or staff privileges
+    or exists (select 1 from public.admin_users au where au.user_id = u.id)
+    -- Any customer who submitted a quote request or placed an order
     or exists (select 1 from public.quote_requests qr where qr.user_id = u.id)
     or exists (select 1 from public.orders o where o.user_id = u.id)
-    -- Customers with submitted dealer applications
+    -- Any dealer who submitted an application
     or exists (select 1 from public.dealer_applications da where da.user_id = u.id)
-    -- Completed customer profiles with explicit contact details
+    -- Any user who provided contact details during registration
     or (p.phone is not null and p.phone <> '')
     or (p.address is not null and p.address <> '')
-    -- Specific known verified users:
-    or u.email in ('thebeanrestaurant@gmail.com', 'analyticalresolutions@gmail.com', 'amy@heymandiamond.com')
   );
