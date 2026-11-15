@@ -369,6 +369,37 @@ test('Inventory Catalog — handleGetCatalog returns full inventory without trun
   assert.ok(pagedJson.totalPages >= 1)
 })
 
+test('Inventory Service — Wholesale Price (USD) and Template Header Compatibility', () => {
+  // Test using the exact generated CSV template headers and NC-1799 values
+  const csv = [
+    'SKU,Category,Shape,Carat,Color,Clarity,Cut,Polish,Symmetry,Fluorescence,Lab,Certificate Number,Price (USD),Customer Discount Price,Customer Discount %,Wholesale Price (USD),Dealer Discount Price,Dealer Discount %,Measurements,Image URL,Video URL',
+    'NC-1799,Solitaire Non-Certified Diamonds,Pear,2.52,F,VS2,Very Good,Very Good,Excellent,NONE,NONE,NC-1799,2016,1008,50,352.8,,,12 X 7.78,https://v360.in/test.jpg,',
+    'HM-151,Certified Diamonds,Cushion,1.60,F,VS2,Very Good,Excellent,Excellent,NONE,IGI,LG-640483103,"$1,280.00","$640.00",50%,"$216.00",,,8.16 X 6.11,,',
+  ].join('\n')
+
+  const parsed = parseDiamondSpreadsheet(csv, 'all')
+  assert.equal(parsed.items.length, 2)
+  assert.equal(parsed.skipped.length, 0)
+
+  const nc1799 = parsed.items.find(i => i.sku === 'NC-1799')
+  assert.ok(nc1799)
+  assert.equal(nc1799.price, 2016)
+  assert.equal(nc1799.customerDiscountPrice, 1008)
+  assert.equal(nc1799.customerDiscountPercent, 50)
+  // Crucial: Wholesale price MUST be the exact uploaded $352.8 and NOT the 25% fallback $1,512
+  assert.equal(nc1799.wholesalePrice, 352.8)
+  assert.equal(nc1799.dealerPrice, 352.8)
+
+  const hm151 = parsed.items.find(i => i.sku === 'HM-151')
+  assert.ok(hm151)
+  assert.equal(hm151.price, 1280)
+  assert.equal(hm151.customerDiscountPrice, 640)
+  assert.equal(hm151.customerDiscountPercent, 50)
+  assert.equal(hm151.wholesalePrice, 216)
+  assert.equal(hm151.dealerPrice, 216)
+})
+
+
 
 
 

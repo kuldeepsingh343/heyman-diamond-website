@@ -546,7 +546,14 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
     throw new Error('Spreadsheet must contain a header row and at least one diamond row.')
   }
 
-  const rawHeaders = rows[0].map(h => String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''))
+  const normalizeHeader = (h) => {
+    return String(h || '')
+      .replace(/%/g, 'pct')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]/g, '')
+  }
+  const rawHeaders = rows[0].map(normalizeHeader)
 
   // Mapping aliases to standard diamond fields
   const fieldAliases = {
@@ -562,12 +569,37 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
     fluorescence: ['fluorescence', 'fluor', 'flour', 'flr'],
     lab: ['lab', 'certlab', 'gradinglab', 'laboratory'],
     certificateNumber: ['certificatenumber', 'certnumber', 'certno', 'cert', 'reportnumber', 'reportno', 'reportnum'],
-    price: ['price', 'customerprice', 'retailprice', 'priceusd', 'amount', 'totalprice', 'saleprice'],
-    customerDiscountPrice: ['customerdiscountprice', 'discountprice', 'customerdiscount', 'retaildiscountprice'],
-    customerDiscountPercent: ['customerdiscountpercent', 'discountpercent', 'discountpct', 'customerdiscountpct'],
-    wholesalePrice: ['wholesaleprice', 'dealerprice', 'tradeprice', 'b2bprice', 'cost'],
-    dealerDiscountPrice: ['dealerdiscountprice', 'wholesalediscountprice', 'dealerdiscount', 'b2bdiscountprice'],
-    dealerDiscountPercent: ['dealerdiscountpercent', 'wholesalediscountpercent', 'dealerdiscountpct', 'b2bdiscountpct'],
+    price: ['price', 'customerprice', 'retailprice', 'priceusd', 'customerpriceusd', 'retailpriceusd', 'amount', 'totalprice', 'saleprice', 'listprice', 'listpriceusd'],
+    customerDiscountPrice: ['customerdiscountprice', 'customerdiscountpriceusd', 'discountprice', 'discountpriceusd', 'retaildiscountprice', 'retaildiscountpriceusd'],
+    customerDiscountPercent: ['customerdiscountpercent', 'customerdiscountpct', 'discountpercent', 'discountpct', 'customerdiscount', 'discount'],
+    wholesalePrice: [
+      'wholesaleprice',
+      'wholesalepriceusd',
+      'dealerprice',
+      'dealerpriceusd',
+      'wholesalerate',
+      'wholesalerateusd',
+      'dealerrate',
+      'dealerrateusd',
+      'wholesale',
+      'wholesaleusd',
+      'dealer',
+      'dealerusd',
+      'tradeprice',
+      'tradepriceusd',
+      'traderate',
+      'traderateusd',
+      'b2bprice',
+      'b2bpriceusd',
+      'b2brate',
+      'b2brateusd',
+      'cost',
+      'costusd',
+      'costprice',
+      'costpriceusd',
+    ],
+    dealerDiscountPrice: ['dealerdiscountprice', 'dealerdiscountpriceusd', 'wholesalediscountprice', 'wholesalediscountpriceusd', 'b2bdiscountprice', 'b2bdiscountpriceusd'],
+    dealerDiscountPercent: ['dealerdiscountpercent', 'dealerdiscountpct', 'wholesalediscountpercent', 'wholesalediscountpct', 'dealerdiscount', 'wholesalediscount', 'b2bdiscountpercent', 'b2bdiscountpct'],
     measurements: ['measurements', 'dimensions', 'measurement', 'size_mm'],
     imageUrl: ['imageurl', 'image', 'picture', 'photo', 'photourl'],
     videoUrl: ['videourl', 'video', '360video', 'movie'],
@@ -585,6 +617,16 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
     throw new Error('Spreadsheet must contain at least "Carat" and "Shape" columns.')
   }
 
+  const parseNumber = (val) => {
+    if (val === null || val === undefined) return null
+    const str = String(val).trim()
+    if (str === '') return null
+    const clean = str.replace(/[^0-9.-]/g, '')
+    if (!clean) return null
+    const num = parseFloat(clean)
+    return isNaN(num) ? null : num
+  }
+
   const validItems = []
   const skippedRows = []
 
@@ -593,19 +635,20 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
     const getVal = key => (headerIndices[key] !== undefined ? row[headerIndices[key]] || '' : '')
 
     const rawCarat = getVal('carat')
-    const carat = parseFloat(rawCarat)
+    const carat = parseNumber(rawCarat)
     const shape = getVal('shape') || 'Round'
     const color = (getVal('color') || 'G').toUpperCase()
     const clarity = (getVal('clarity') || 'VS1').toUpperCase()
     const cut = getVal('cut') || 'Excellent'
 
-    if (isNaN(carat) || carat <= 0) {
+    if (carat === null || carat <= 0) {
       skippedRows.push({ row: rowIndex + 1, reason: `Invalid carat weight: "${rawCarat}"` })
       continue
     }
 
-    const price = parseFloat(getVal('price')) || 0
-    const wholesalePrice = parseFloat(getVal('wholesalePrice')) || (price > 0 ? Math.round(price * 0.75) : 0)
+    const price = parseNumber(getVal('price')) || 0
+    const rawWholesale = parseNumber(getVal('wholesalePrice'))
+    const wholesalePrice = rawWholesale !== null ? rawWholesale : (price > 0 ? Math.round(price * 0.75) : 0)
     const sku = getVal('sku') || `HMD-UPL-${Date.now().toString().slice(-6)}-${rowIndex}`
 
     let customerDiscountPrice = null
@@ -613,9 +656,9 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
     let dealerDiscountPrice = null
     let dealerDiscountPercent = null
 
-    const rawCustDiscPrice = getVal('customerDiscountPrice')
-    const rawCustDiscPct = getVal('customerDiscountPercent')
-    if ((rawCustDiscPrice && String(rawCustDiscPrice).trim() !== '') || (rawCustDiscPct && String(rawCustDiscPct).trim() !== '')) {
+    const rawCustDiscPrice = parseNumber(getVal('customerDiscountPrice'))
+    const rawCustDiscPct = parseNumber(getVal('customerDiscountPercent'))
+    if (rawCustDiscPrice !== null || rawCustDiscPct !== null) {
       try {
         const disc = computeDiscount(price, rawCustDiscPrice, rawCustDiscPct)
         customerDiscountPrice = disc.discountPrice
@@ -626,9 +669,9 @@ export function parseDiamondSpreadsheet(fileContent, defaultCategory = 'all') {
       }
     }
 
-    const rawDealDiscPrice = getVal('dealerDiscountPrice')
-    const rawDealDiscPct = getVal('dealerDiscountPercent')
-    if ((rawDealDiscPrice && String(rawDealDiscPrice).trim() !== '') || (rawDealDiscPct && String(rawDealDiscPct).trim() !== '')) {
+    const rawDealDiscPrice = parseNumber(getVal('dealerDiscountPrice'))
+    const rawDealDiscPct = parseNumber(getVal('dealerDiscountPercent'))
+    if (rawDealDiscPrice !== null || rawDealDiscPct !== null) {
       try {
         const disc = computeDiscount(wholesalePrice, rawDealDiscPrice, rawDealDiscPct)
         dealerDiscountPrice = disc.discountPrice

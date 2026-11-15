@@ -85,6 +85,14 @@ const categoryFilters = [
 ]
 
 
+function formatDisplayPrice(val: number | null | undefined): string {
+  if (val == null || isNaN(val)) return '0'
+  return val.toLocaleString(undefined, {
+    minimumFractionDigits: val % 1 !== 0 ? 2 : 0,
+    maximumFractionDigits: 2,
+  })
+}
+
 // Interleaves items across categories so "All Collections" showcases a balanced variety
 // of Certified, Solitaires, Match Pairs, Round Melee, and Loose Fancy from Page 1 onwards.
 function interleaveByCategory(list: PublicDiamondItem[]): PublicDiamondItem[] {
@@ -808,13 +816,13 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                         <span className="price-label">Customer Price</span>
                         {item.discountPrice && item.discountPercent && item.listPrice && item.listPrice > item.discountPrice ? (
                           <div className="discount-price-display">
-                            <span className="price-list-struck">${item.listPrice.toLocaleString()}</span>
-                            <span className="price-value price-value--discounted">${item.discountPrice.toLocaleString()}</span>
+                            <span className="price-list-struck">${formatDisplayPrice(item.listPrice)}</span>
+                            <span className="price-value price-value--discounted">${formatDisplayPrice(item.discountPrice)}</span>
                             <span className="discount-tag-badge">{Math.round(item.discountPercent)}% OFF</span>
                           </div>
                         ) : (
                           <div className="price-value">
-                            ${displayCustomerPrice.toLocaleString()}
+                            ${formatDisplayPrice(displayCustomerPrice)}
                           </div>
                         )}
                       </div>
@@ -827,13 +835,13 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                           <span className="dealer-label">💎 Dealer Wholesale Rate</span>
                           {item.discountPrice && item.discountPercent && item.listPrice && item.listPrice > item.discountPrice ? (
                             <div className="discount-price-display">
-                              <span className="price-list-struck">${item.listPrice.toLocaleString()}</span>
-                              <span className="dealer-price-value dealer-price-value--discounted">${item.discountPrice.toLocaleString()}</span>
+                              <span className="price-list-struck">${formatDisplayPrice(item.listPrice)}</span>
+                              <span className="dealer-price-value dealer-price-value--discounted">${formatDisplayPrice(item.discountPrice)}</span>
                               <span className="discount-tag-badge discount-tag-badge--dealer">{Math.round(item.discountPercent)}% OFF</span>
                             </div>
                           ) : (
                             <div className="dealer-price-value">
-                              ${displayDealerPrice.toLocaleString()}
+                              ${formatDisplayPrice(displayDealerPrice)}
                             </div>
                           )}
                           <small className="dealer-discount-badge">Approved Trade Partner Rate</small>
@@ -1114,13 +1122,13 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                       <span className="modal-price-label">Customer Price</span>
                       {activeMediaDiamond.discountPrice && activeMediaDiamond.discountPercent && activeMediaDiamond.listPrice && activeMediaDiamond.listPrice > activeMediaDiamond.discountPrice ? (
                         <div className="modal-discount-wrap">
-                          <span className="modal-price-struck">${activeMediaDiamond.listPrice.toLocaleString()}</span>
-                          <span className="modal-price-value modal-price-value--discounted">${activeMediaDiamond.discountPrice.toLocaleString()}</span>
+                          <span className="modal-price-struck">${formatDisplayPrice(activeMediaDiamond.listPrice)}</span>
+                          <span className="modal-price-value modal-price-value--discounted">${formatDisplayPrice(activeMediaDiamond.discountPrice)}</span>
                           <span className="discount-tag-badge">{Math.round(activeMediaDiamond.discountPercent)}% OFF</span>
                         </div>
                       ) : (
                         <span className="modal-price-value">
-                          ${(activeMediaDiamond.customerPrice || activeMediaDiamond.price || 0).toLocaleString()}
+                          ${formatDisplayPrice(activeMediaDiamond.customerPrice || activeMediaDiamond.price || 0)}
                         </span>
                       )}
                     </div>
@@ -1130,13 +1138,13 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                       <span className="modal-price-label">💎 Dealer Wholesale Rate</span>
                       {activeMediaDiamond.discountPrice && activeMediaDiamond.discountPercent && activeMediaDiamond.listPrice && activeMediaDiamond.listPrice > activeMediaDiamond.discountPrice ? (
                         <div className="modal-discount-wrap">
-                          <span className="modal-price-struck">${activeMediaDiamond.listPrice.toLocaleString()}</span>
-                          <span className="modal-price-value modal-price-value--dealer modal-price-value--discounted">${activeMediaDiamond.discountPrice.toLocaleString()}</span>
+                          <span className="modal-price-struck">${formatDisplayPrice(activeMediaDiamond.listPrice)}</span>
+                          <span className="modal-price-value modal-price-value--dealer modal-price-value--discounted">${formatDisplayPrice(activeMediaDiamond.discountPrice)}</span>
                           <span className="discount-tag-badge discount-tag-badge--dealer">{Math.round(activeMediaDiamond.discountPercent)}% OFF</span>
                         </div>
                       ) : (
                         <span className="modal-price-value modal-price-value--dealer">
-                          ${(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || activeMediaDiamond.price || 0).toLocaleString()}
+                          ${formatDisplayPrice(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || activeMediaDiamond.price || 0)}
                         </span>
                       )}
                     </div>
