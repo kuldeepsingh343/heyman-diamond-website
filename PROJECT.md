@@ -5,21 +5,21 @@ The system employs a server-mediated architecture where the React SPA frontend c
 - **Frontend**: React 19 SPA with hash-based routing (`/#home`, `/#signup-customer`, `/#signup-dealer`, `/#signin`).
 - **Backend API**: Node.js HTTP server serving static files from `dist/` and providing `/api/*` endpoints. Interacts directly with Supabase GoTrue Auth REST API (`/auth/v1/*`) and PostgREST (`/rest/v1/*`) using `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ANON_KEY`.
 - **Database & Auth**: Supabase project `heyman-diamond-website` (`qdjqdbuozbgghasmeksw`, `us-east-1`). Client table and function privileges are 100% revoked from `anon` and `authenticated`. RBAC is stored in `public.profiles` (`account_type`: `'customer'` | `'dealer'`, `dealer_status`: `'not_applied'` | `'pending_review'` | `'approved'`), `public.dealer_applications`, and `public.admin_users`.
-- **Email Delivery**: Supabase GoTrue handles transactional emails (confirmation, recovery) via Mailjet Custom SMTP relay (`in-v3.mailjet.com:587`), lifting the default 3-emails/hour rate limit.
+- **Email Delivery**: Supabase GoTrue handles transactional emails (confirmation, recovery) via custom SMTP server using sender email `sales@heymandiamond.com`, lifting the default 3-emails/hour rate limit.
 - **DNS & Hosting (Documentation Only for Future Migration)**: Custom domain (`heymandiamond.com` / `heymandiamondllc.com`) currently hosts the client's legacy live site. **CRITICAL USER CONSTRAINT**: Do NOT make live requests to, probe, or attempt to modify DNS for `heymandiamond.com` or `heymandiamondllc.com`. All testing and verification MUST strictly target the test environment (`https://hey-man-diamond-test.onrender.com` or `http://localhost:3000`). The DNS migration guide is strictly documentation for future cutover after client sign-off.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Custom SMTP Parameters | Exact Mailjet host, port, encryption, and sender email parameters | M1 | ORIGINAL_REQUEST §R1 |
-| 2 | Supabase SMTP Configuration Guide | Step-by-step instructions to configure Mailjet SMTP in Supabase project `qdjqdbuozbgghasmeksw` | M1 | ORIGINAL_REQUEST §R1 |
+| 1 | Custom SMTP Parameters | Company SMTP host, port, credentials, and sender email `sales@heymandiamond.com` | M1 | ORIGINAL_REQUEST §R1 |
+| 2 | Supabase SMTP Configuration Guide | Step-by-step instructions to configure company SMTP in Supabase project `qdjqdbuozbgghasmeksw` | M1 | ORIGINAL_REQUEST §R1 |
 | 3 | Rate-Limit Removal Verification | Lift 3-emails/hour rate limit for signup and confirmation resends | M1 | ORIGINAL_REQUEST §R1 |
-| 4 | Email Routing Decoupling | Convert `mail.` from CNAME to A record and update MX to isolate email from apex web changes | M2 | ORIGINAL_REQUEST §R2 |
-| 5 | Mailjet SPF & DKIM Preservation | Merge SPF with `include:spf.mailjet.com` and preserve active `mailjet._domainkey` DKIM record | M2 | ORIGINAL_REQUEST §R2 |
+| 4 | Email Routing Decoupling | Preserve `mail.` A record and MX to isolate email from apex web changes | M2 | ORIGINAL_REQUEST §R2 |
+| 5 | Domain SPF & DKIM Integrity | Maintain active company email SPF and DKIM records for `sales@heymandiamond.com` | M2 | ORIGINAL_REQUEST §R2 |
 | 6 | Render Custom Domain DNS Records | Exact A and CNAME records to point domain from InMotion/Cloudflare to Render | M2 | ORIGINAL_REQUEST §R2 |
 | 7 | Configurable Server Redirect & Origins | Support custom domain and Render URL dynamically for auth redirects and CORS | M3 | Survey Explorer 1 & 3 |
 | 8 | Hash Route Token Matching Fix | Fix `src/App.tsx` and `src/routeUtils.ts` so `#access_token=...` and `#error=...` mount `AuthPages` properly | M3 | Survey Explorer 1 |
-| 9 | Synthetic Customer Auth Flow Validation | Test customer signup, Mailjet confirmation receipt, link activation, and signin | M4 | ORIGINAL_REQUEST §R3 |
+| 9 | Synthetic Customer Auth Flow Validation | Test customer signup, confirmation receipt from `sales@heymandiamond.com`, link activation, and signin | M4 | ORIGINAL_REQUEST §R3 |
 | 10 | Synthetic Dealer Auth Flow Validation | Test dealer signup, pending review status, admin approval, and post-approval signin | M4 | ORIGINAL_REQUEST §R3 |
 | 11 | Zero-Pollution Database Cleanup | Automated cascade cleanup of synthetic test accounts respecting foreign key constraints | M4 | Survey Explorer 3 |
 | 12 | Live Diamond Inventory & 9-Item Pagination | Paginated 9-stone grid with category interleaving (Certified, Solitaires, Matched Pairs on Page 1) | M5 | Production Feature |
@@ -31,8 +31,8 @@ The system employs a server-mediated architecture where the React SPA frontend c
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Supabase Custom SMTP Configuration | Configure Mailjet SMTP (`in-v3.mailjet.com:587`) for Supabase project `qdjqdbuozbgghasmeksw` and document parameters | none | COMPLETED |
-| M2 | DNS & Custom Domain Migration Plan | Specify exact InMotion/Cloudflare DNS records, email decoupling (`mail` A record + MX), and Mailjet SPF/DKIM preservation | none | COMPLETED |
+| M1 | Supabase Custom SMTP Configuration | Configure company SMTP server (`sales@heymandiamond.com`) for Supabase project `qdjqdbuozbgghasmeksw` | none | COMPLETED |
+| M2 | DNS & Custom Domain Migration Plan | Specify exact DNS records, email preservation (`mail` A record + MX for `sales@heymandiamond.com`) | none | COMPLETED |
 | M3 | Codebase URL & Auth Verification Fixes | Make redirect URLs configurable in `server/index.mjs`, create `src/routeUtils.ts`, and fix hash routing & error banner | none | COMPLETED |
 | M4 | Live Customer & Dealer Auth Verification | Execute 7-phase operational testing protocol on Render test deployment (`https://hey-man-diamond-test.onrender.com`) and zero pollution | M1, M2, M3 | COMPLETED |
 | M5 | Live Diamond Inventory & Spreadsheets | Uncapped inventory sync, spreadsheet upload with overwrite/skip options, 9-stone pagination, and category interleaving | M3 | COMPLETED |
@@ -41,19 +41,18 @@ The system employs a server-mediated architecture where the React SPA frontend c
 | M8 | SEO Infrastructure & Static Server Types | `public/sitemap.xml`, `public/robots.txt`, canonical links, and server static MIME handling | M3, M5 | COMPLETED |
 
 ## Interface Contracts
-### Supabase Auth ↔ Mailjet SMTP
-- Host: `in-v3.mailjet.com`
+### Supabase Auth ↔ Company SMTP Server
+- Host: `mail.heymandiamond.com` (or designated company SMTP host)
 - Port: `587` (StartTLS) or `465` (SSL)
-- User: Mailjet API Key
-- Pass: Mailjet Secret Key
-- Sender: `no-reply@heymandiamond.com` (or verified sender on `heymandiamondllc.com`)
-- Sender Name: `Heyman Diamond`
+- User: `sales@heymandiamond.com`
+- Pass: Company SMTP Password
+- Sender Email: `sales@heymandiamond.com`
+- Sender Name: `Heyman Diamond LLC`
 
-### InMotion / Cloudflare DNS ↔ Mailjet & Render (For Future Cutover)
+### InMotion / Cloudflare DNS ↔ Email & Render (For Future Cutover)
 - `mail.heymandiamond.com`: `A` -> `213.165.230.74`
 - `heymandiamond.com`: `MX 0` -> `mail.heymandiamond.com.`
-- `heymandiamond.com`: `TXT` -> `v=spf1 +mx +a +ip4:213.165.230.74 +ip4:23.235.219.240 +include:relay.mailchannels.net include:spf.mailjet.com ~all`
-- `mailjet._domainkey.heymandiamond.com`: `TXT` -> Existing active Cloudflare DKIM record MUST BE LEFT UNTOUCHED. If migrating DNS, copy full untruncated 392-character 2048-bit SPKI key directly from Mailjet Dashboard (noting RFC 1035 255-octet chunking).
+- `heymandiamond.com`: `TXT` -> `v=spf1 +mx +a +ip4:213.165.230.74 +ip4:23.235.219.240 +include:relay.mailchannels.net ~all`
 - `heymandiamond.com`: `A` -> `216.24.57.1` (or CNAME flattening to `hey-man-diamond-test.onrender.com` on Cloudflare, set to DNS only / Grey Cloud during initial certificate issuance).
 - `www.heymandiamond.com`: `CNAME` -> `hey-man-diamond-test.onrender.com` (set to DNS only / Grey Cloud during initial certificate issuance).
 
