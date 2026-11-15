@@ -1286,28 +1286,19 @@ export async function handleGetCatalog(req, res, url, user = null) {
     let isDealerPending = false
 
     if (user) {
-      let accountType = 'customer'
-      let dealerStatus = 'not_applied'
+      let accountType = user.account_type || user.user_metadata?.account_type || 'customer'
+      let dealerStatus = user.dealer_status || user.user_metadata?.dealer_status || 'not_applied'
 
       if (user.id && supabaseReady()) {
         try {
           const profileRows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}&select=account_type,dealer_status`)
           if (Array.isArray(profileRows) && profileRows.length > 0) {
-            accountType = profileRows[0].account_type || 'customer'
-            dealerStatus = profileRows[0].dealer_status || 'not_applied'
-          } else if (user.account_type) {
-            accountType = user.account_type
-            dealerStatus = user.dealer_status || 'not_applied'
+            accountType = profileRows[0].account_type || accountType
+            dealerStatus = profileRows[0].dealer_status || dealerStatus
           }
         } catch {
-          if (user.account_type) {
-            accountType = user.account_type
-            dealerStatus = user.dealer_status || 'not_applied'
-          }
+          // ignore
         }
-      } else if (user.account_type) {
-        accountType = user.account_type
-        dealerStatus = user.dealer_status || 'not_applied'
       }
 
       isApprovedDealer = accountType === 'dealer' && dealerStatus === 'approved'
@@ -1325,6 +1316,8 @@ export async function handleGetCatalog(req, res, url, user = null) {
         copy.discountPercent = copy.dealerDiscountPercent
         copy.wholesalePrice = copy.dealerPrice
         copy.dealerPrice = copy.dealerPrice
+        copy.dealerDiscountPrice = copy.dealerDiscountPrice
+        copy.dealerDiscountPercent = copy.dealerDiscountPercent
 
         // Strictly purge retail customer prices & discounts
         delete copy.customerPrice
@@ -1341,6 +1334,9 @@ export async function handleGetCatalog(req, res, url, user = null) {
         copy.listPrice = copy.customerPrice
         copy.discountPrice = copy.customerDiscountPrice
         copy.discountPercent = copy.customerDiscountPercent
+        copy.customerPrice = copy.customerPrice
+        copy.customerDiscountPrice = copy.customerDiscountPrice
+        copy.customerDiscountPercent = copy.customerDiscountPercent
 
         // Strictly purge wholesale dealer prices & discounts
         delete copy.wholesalePrice

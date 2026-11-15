@@ -24,8 +24,12 @@ export interface PublicDiamondItem {
   discountPrice?: number | null
   discountPercent?: number | null
   customerPrice?: number
+  customerDiscountPrice?: number | null
+  customerDiscountPercent?: number | null
   wholesalePrice?: number
   dealerPrice?: number
+  dealerDiscountPrice?: number | null
+  dealerDiscountPercent?: number | null
   measurements?: string
   imageUrl?: string | null
   videoUrl?: string | null
@@ -250,7 +254,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
     return () => {
       active = false
     }
-  }, [selectedCategory])
+  }, [selectedCategory, currentUser?.account_type, currentUser?.dealer_status])
 
   // Reset to page 1 whenever category, shape, or search query changes
   useEffect(() => {
@@ -341,20 +345,20 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const addToCart = (diamond: PublicDiamondItem) => {
     try {
       const listPrice = isApprovedDealer
-        ? Number(diamond.listPrice || diamond.dealerPrice || diamond.wholesalePrice || diamond.price || 0)
-        : Number(diamond.listPrice || diamond.customerPrice || diamond.price || 0)
+        ? Number(diamond.dealerPrice || diamond.wholesalePrice || diamond.listPrice || 0)
+        : Number(diamond.customerPrice || diamond.listPrice || diamond.price || 0)
 
-      const discountPrice = diamond.discountPrice != null && Number(diamond.discountPrice) > 0
-        ? Number(diamond.discountPrice)
-        : null
+      const discountPrice = isApprovedDealer
+        ? (diamond.dealerDiscountPrice != null && Number(diamond.dealerDiscountPrice) > 0 ? Number(diamond.dealerDiscountPrice) : null)
+        : (diamond.customerDiscountPrice != null && Number(diamond.customerDiscountPrice) > 0 ? Number(diamond.customerDiscountPrice) : (diamond.discountPrice != null && Number(diamond.discountPrice) > 0 ? Number(diamond.discountPrice) : null))
 
       const effectivePrice = (discountPrice != null && discountPrice < listPrice)
         ? discountPrice
-        : Number(diamond.price || listPrice)
+        : (listPrice || Number(diamond.price || 0))
 
-      const discountPercent = diamond.discountPercent != null
-        ? Number(diamond.discountPercent)
-        : (listPrice > effectivePrice ? Math.round(((listPrice - effectivePrice) / listPrice) * 100) : null)
+      const discountPercent = isApprovedDealer
+        ? (diamond.dealerDiscountPercent != null ? Number(diamond.dealerDiscountPercent) : null)
+        : (diamond.customerDiscountPercent != null ? Number(diamond.customerDiscountPercent) : (diamond.discountPercent != null ? Number(diamond.discountPercent) : (listPrice > effectivePrice ? Math.round(((listPrice - effectivePrice) / listPrice) * 100) : null)))
 
       const currentCart = JSON.parse(localStorage.getItem('hmd_cart') || '[]')
       const existing = currentCart.find((c: { sku: string }) => c.sku === diamond.sku)
@@ -814,9 +818,15 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                     {!isApprovedDealer && (
                       <div className="customer-price-box">
                         <span className="price-label">Customer Price</span>
-                        {item.discountPrice && item.discountPercent && item.listPrice && item.listPrice > item.discountPrice ? (
+                        {item.customerDiscountPrice && item.customerDiscountPercent && displayCustomerPrice && displayCustomerPrice > item.customerDiscountPrice ? (
                           <div className="discount-price-display">
-                            <span className="price-list-struck">${formatDisplayPrice(item.listPrice)}</span>
+                            <span className="price-list-struck">${formatDisplayPrice(displayCustomerPrice)}</span>
+                            <span className="price-value price-value--discounted">${formatDisplayPrice(item.customerDiscountPrice)}</span>
+                            <span className="discount-tag-badge">{Math.round(item.customerDiscountPercent)}% OFF</span>
+                          </div>
+                        ) : item.discountPrice && item.discountPercent && displayCustomerPrice && displayCustomerPrice > item.discountPrice ? (
+                          <div className="discount-price-display">
+                            <span className="price-list-struck">${formatDisplayPrice(displayCustomerPrice)}</span>
                             <span className="price-value price-value--discounted">${formatDisplayPrice(item.discountPrice)}</span>
                             <span className="discount-tag-badge">{Math.round(item.discountPercent)}% OFF</span>
                           </div>
@@ -833,11 +843,11 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                       {isApprovedDealer ? (
                         <div className="dealer-price-unlocked">
                           <span className="dealer-label">💎 Dealer Wholesale Rate</span>
-                          {item.discountPrice && item.discountPercent && item.listPrice && item.listPrice > item.discountPrice ? (
+                          {item.dealerDiscountPrice && item.dealerDiscountPercent && displayDealerPrice && displayDealerPrice > item.dealerDiscountPrice ? (
                             <div className="discount-price-display">
-                              <span className="price-list-struck">${formatDisplayPrice(item.listPrice)}</span>
-                              <span className="dealer-price-value dealer-price-value--discounted">${formatDisplayPrice(item.discountPrice)}</span>
-                              <span className="discount-tag-badge discount-tag-badge--dealer">{Math.round(item.discountPercent)}% OFF</span>
+                              <span className="price-list-struck">${formatDisplayPrice(displayDealerPrice)}</span>
+                              <span className="dealer-price-value dealer-price-value--discounted">${formatDisplayPrice(item.dealerDiscountPrice)}</span>
+                              <span className="discount-tag-badge discount-tag-badge--dealer">{Math.round(item.dealerDiscountPercent)}% OFF</span>
                             </div>
                           ) : (
                             <div className="dealer-price-value">
@@ -1120,7 +1130,13 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                   {!isApprovedDealer && (
                     <div className="modal-price-box">
                       <span className="modal-price-label">Customer Price</span>
-                      {activeMediaDiamond.discountPrice && activeMediaDiamond.discountPercent && activeMediaDiamond.listPrice && activeMediaDiamond.listPrice > activeMediaDiamond.discountPrice ? (
+                      {activeMediaDiamond.customerDiscountPrice && activeMediaDiamond.customerDiscountPercent && (activeMediaDiamond.customerPrice || activeMediaDiamond.price) && (activeMediaDiamond.customerPrice || activeMediaDiamond.price)! > activeMediaDiamond.customerDiscountPrice ? (
+                        <div className="modal-discount-wrap">
+                          <span className="modal-price-struck">${formatDisplayPrice(activeMediaDiamond.customerPrice || activeMediaDiamond.price)}</span>
+                          <span className="modal-price-value modal-price-value--discounted">${formatDisplayPrice(activeMediaDiamond.customerDiscountPrice)}</span>
+                          <span className="discount-tag-badge">{Math.round(activeMediaDiamond.customerDiscountPercent)}% OFF</span>
+                        </div>
+                      ) : activeMediaDiamond.discountPrice && activeMediaDiamond.discountPercent && activeMediaDiamond.listPrice && activeMediaDiamond.listPrice > activeMediaDiamond.discountPrice ? (
                         <div className="modal-discount-wrap">
                           <span className="modal-price-struck">${formatDisplayPrice(activeMediaDiamond.listPrice)}</span>
                           <span className="modal-price-value modal-price-value--discounted">${formatDisplayPrice(activeMediaDiamond.discountPrice)}</span>
@@ -1136,15 +1152,15 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                   {isApprovedDealer && (
                     <div className="modal-price-box modal-price-box--dealer">
                       <span className="modal-price-label">💎 Dealer Wholesale Rate</span>
-                      {activeMediaDiamond.discountPrice && activeMediaDiamond.discountPercent && activeMediaDiamond.listPrice && activeMediaDiamond.listPrice > activeMediaDiamond.discountPrice ? (
+                      {activeMediaDiamond.dealerDiscountPrice && activeMediaDiamond.dealerDiscountPercent && (activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice) && (activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice)! > activeMediaDiamond.dealerDiscountPrice ? (
                         <div className="modal-discount-wrap">
-                          <span className="modal-price-struck">${formatDisplayPrice(activeMediaDiamond.listPrice)}</span>
-                          <span className="modal-price-value modal-price-value--dealer modal-price-value--discounted">${formatDisplayPrice(activeMediaDiamond.discountPrice)}</span>
-                          <span className="discount-tag-badge discount-tag-badge--dealer">{Math.round(activeMediaDiamond.discountPercent)}% OFF</span>
+                          <span className="modal-price-struck">${formatDisplayPrice(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice)}</span>
+                          <span className="modal-price-value modal-price-value--dealer modal-price-value--discounted">${formatDisplayPrice(activeMediaDiamond.dealerDiscountPrice)}</span>
+                          <span className="discount-tag-badge discount-tag-badge--dealer">{Math.round(activeMediaDiamond.dealerDiscountPercent)}% OFF</span>
                         </div>
                       ) : (
                         <span className="modal-price-value modal-price-value--dealer">
-                          ${formatDisplayPrice(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || activeMediaDiamond.price || 0)}
+                          ${formatDisplayPrice(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || 0)}
                         </span>
                       )}
                     </div>
