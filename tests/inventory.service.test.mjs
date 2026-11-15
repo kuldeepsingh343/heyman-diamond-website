@@ -13,6 +13,7 @@ import {
   cleanFlomizBaseUrl,
   handleUploadInventory,
   handleGetCatalog,
+  resetMemoryInventory,
 } from '../server/services/inventory.mjs'
 import { handleRefreshToken } from '../server/services/auth.mjs'
 
@@ -318,6 +319,7 @@ test('Auth Service — handleRefreshToken validates refresh token', async () => 
 })
 
 test('Inventory Catalog — handleGetCatalog returns full inventory without truncation when unpaginated, and handles Matched Pairs', async () => {
+  resetMemoryInventory()
   // Query without page/perPage params (e.g. /api/inventory)
   const fullUrl = new URL('http://localhost:3000/api/inventory')
   let fullStatusCode = null

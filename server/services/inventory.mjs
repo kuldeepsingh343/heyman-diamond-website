@@ -92,7 +92,7 @@ export function isFlomizConfigured() {
 }
 
 // In-memory inventory store for instant uploads and fallback caching
-let memoryInventory = [
+const INITIAL_SEED_DIAMONDS = [
   {
     id: 'seed-hmd-lg-1001',
     sku: 'HMD-LG-1001',
@@ -427,6 +427,12 @@ let memoryInventory = [
     updatedAt: new Date().toISOString(),
   },
 ]
+
+let memoryInventory = JSON.parse(JSON.stringify(INITIAL_SEED_DIAMONDS))
+
+export function resetMemoryInventory() {
+  memoryInventory = JSON.parse(JSON.stringify(INITIAL_SEED_DIAMONDS))
+}
 
 /**
  * Robust CSV/TSV parser supporting quotes, commas within quotes, and newlines.
@@ -1406,7 +1412,9 @@ export async function handleUploadInventory(req, res, admin) {
       memoryInventory = result.items
       newItems = result.items
     } else {
-      // Overwrite mode: update matching SKUs or add new ones without overwriting manual discounts
+      // Overwrite mode:
+      // If defaultCat === 'all', all old active inventory across all categories is deleted and replaced solely by the uploaded excel.
+      // If defaultCat !== 'all', only old active inventory in that specific category is deleted and replaced.
       const existingSkuMap = new Map(memoryInventory.map(item => [item.sku, item]))
       for (const item of result.items) {
         const existing = existingSkuMap.get(item.sku)
@@ -1423,9 +1431,19 @@ export async function handleUploadInventory(req, res, admin) {
         } else {
           newCount++
         }
-        existingSkuMap.set(item.sku, item)
       }
-      memoryInventory = Array.from(existingSkuMap.values())
+
+      const softDeletedItems = memoryInventory.filter(item => Boolean(item.deletedAt || item.deleted_at))
+      if (defaultCat === 'all') {
+        // Delete all old active inventory across all categories; only show uploaded inventory
+        memoryInventory = [...softDeletedItems, ...result.items]
+      } else {
+        // Delete old inventory in the selected category only; keep other categories
+        const otherCategories = memoryInventory.filter(item =>
+          item.category !== defaultCat && !item.deletedAt && !item.deleted_at
+        )
+        memoryInventory = [...softDeletedItems, ...otherCategories, ...result.items]
+      }
       newItems = result.items
     }
 
@@ -1435,6 +1453,14 @@ export async function handleUploadInventory(req, res, admin) {
 
     if (supabaseReady() && itemsToPersist.length > 0) {
       try {
+        if (mode === 'overwrite') {
+          if (defaultCat === 'all') {
+            await db('diamonds_inventory?deleted_at=is.null', { method: 'DELETE' })
+          } else {
+            await db(`diamonds_inventory?category=eq.${encodeURIComponent(defaultCat)}&deleted_at=is.null`, { method: 'DELETE' })
+          }
+        }
+
         const dbRows = itemsToPersist.map(item => ({
           sku: item.sku,
           category: item.category || (defaultCat !== 'all' ? defaultCat : 'Loose Fancy Diamonds'),
@@ -1486,11 +1512,11 @@ export async function handleUploadInventory(req, res, admin) {
 
     let responseMsg = ''
     if (mode === 'skip_duplicate') {
-      responseMsg = `Successfully imported ${newItems.length} diamonds (${skippedDuplicates.length} duplicates skipped). Total active stock: ${memoryInventory.length}.`
-    } else if (mode === 'replace') {
-      responseMsg = `Successfully replaced catalog with ${result.items.length} diamonds. Total active stock: ${memoryInventory.length}.`
+      responseMsg = `Successfully imported ${newItems.length} diamonds (${skippedDuplicates.length} duplicates skipped). Total active stock: ${memoryInventory.filter(i => !i.deletedAt && !i.deleted_at).length}.`
+    } else if (mode === 'replace' || (mode === 'overwrite' && defaultCat === 'all')) {
+      responseMsg = `Successfully replaced catalog with ${result.items.length} diamonds. Previous inventory cleared. Total active stock: ${memoryInventory.filter(i => !i.deletedAt && !i.deleted_at).length}.`
     } else {
-      responseMsg = `Successfully processed ${result.items.length} diamonds (${newCount} new, ${overwrittenCount} overwritten). Total active stock: ${memoryInventory.length}.`
+      responseMsg = `Successfully processed ${result.items.length} diamonds (${newCount} new, ${overwrittenCount} overwritten). Total active stock: ${memoryInventory.filter(i => !i.deletedAt && !i.deleted_at).length}.`
     }
 
     return json(res, 200, {
