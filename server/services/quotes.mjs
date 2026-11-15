@@ -59,6 +59,8 @@ export async function handleCreateQuote(req, res) {
   const name = String(customer.user_metadata?.full_name || customer.user_metadata?.name || input.name || '').trim()
   const email = String(customer.email).trim().toLowerCase()
   const phone = String(input.phone || '').trim()
+  const shippingAddress = String(input.shippingAddress || '').trim()
+  const deliveryPreference = String(input.deliveryPreference || 'Armored Courier (Insured)').trim()
   const message = String(input.message || '').trim()
   const items = Array.isArray(input.items) ? input.items : []
 
@@ -68,7 +70,9 @@ export async function handleCreateQuote(req, res) {
 
   const customerMessage = [
     phone ? `Phone: ${phone}` : null,
-    message || null,
+    shippingAddress ? `Delivery Address: ${shippingAddress}` : null,
+    deliveryPreference ? `Fulfillment Method: ${deliveryPreference}` : null,
+    message ? `Customer Notes: ${message}` : null,
   ].filter(Boolean).join('\n\n') || null
 
   const quoteRows = await db('quote_requests', {
@@ -99,9 +103,13 @@ export async function handleCreateQuote(req, res) {
   }
 
   const itemPayloads = []
+  let totalEstimated = 0
   for (const item of items) {
     const sku = String(item.sku || '').slice(0, 80)
     const effectivePrice = await getEffectiveDiamondPrice(sku, isApprovedDealer)
+    const unitPrice = effectivePrice > 0 ? effectivePrice : (Number(item.price) || 0)
+    const qty = Math.max(1, Math.min(100, Number(item.quantity) || 1))
+    totalEstimated += unitPrice * qty
     itemPayloads.push({
       quote_request_id: quote.id,
       flomiz_sku: sku,
@@ -112,8 +120,8 @@ export async function handleCreateQuote(req, res) {
         audience: isApprovedDealer ? 'dealer' : 'customer',
         disclaimer: 'Authoritative stone specifications and server-verified pricing snapshot.',
       },
-      quantity: Math.max(1, Math.min(100, Number(item.quantity) || 1)),
-      current_unit_price: effectivePrice > 0 ? effectivePrice : (Number(item.price) || 0),
+      quantity: qty,
+      current_unit_price: unitPrice,
       requested_unit_price: item.requestedPrice && !isNaN(Number(item.requestedPrice)) && Number(item.requestedPrice) > 0
         ? Number(item.requestedPrice)
         : (effectivePrice > 0 ? effectivePrice : 1),
@@ -126,7 +134,13 @@ export async function handleCreateQuote(req, res) {
     body: JSON.stringify(itemPayloads),
   })
 
-  return json(res, 201, { quoteId: quote.id, quoteNumber: quote.quote_number, message: 'Quote request submitted. Our team will review stock and confirm pricing.' })
+  return json(res, 201, {
+    quoteId: quote.id,
+    quoteNumber: quote.quote_number,
+    estimatedTotal: totalEstimated,
+    itemsCount: itemPayloads.length,
+    message: 'Quote request submitted. Our sales team will review stock and confirm pricing.',
+  })
 }
 
 export async function handleGetAdminQuotes(req, res, admin) {
@@ -164,7 +178,7 @@ export async function handleGetUserOrders(req, res) {
 
   if (supabaseReady()) {
     try {
-      quotes = await db(`quote_requests?user_id=eq.${customer.id}&select=id,quote_number,customer_name,customer_email,customer_message,status,created_at,quote_request_items(id,flomiz_sku,product_name,quantity,current_unit_price)&order=created_at.desc`)
+      quotes = await db(`quote_requests?user_id=eq.${customer.id}&select=id,quote_number,customer_name,customer_email,customer_message,status,created_at,quote_request_items(id,flomiz_sku,product_name,quantity,current_unit_price,requested_unit_price,product_snapshot)&order=created_at.desc`)
     } catch (err) {
       console.warn('Fetch user quotes failed:', err.message)
     }

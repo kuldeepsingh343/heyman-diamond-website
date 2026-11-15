@@ -1,5 +1,5 @@
 import './AuthPages.css'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
 import { parseAuthStatusFromHash } from './routeUtils'
 import type { PromotionOffer } from './OffersHero'
@@ -118,15 +118,56 @@ interface UserOrder {
   quote_number?: string | number
   order_number?: string | number
   customer_name: string
+  customer_email?: string
   status: string
   created_at: string
   customer_message?: string
   quote_request_items?: Array<{
+    id?: string
     flomiz_sku: string
     product_name: string
     quantity: number
     current_unit_price?: number
+    requested_unit_price?: number
+    product_snapshot?: {
+      sku?: string
+      shape?: string
+      carat?: number
+      color?: string
+      clarity?: string
+      cut?: string
+      lab?: string
+      certificateNumber?: string
+      price?: number
+      audience?: string
+      disclaimer?: string
+    }
   }>
+}
+
+function formatOrderStatus(status: string): string {
+  switch (status) {
+    case 'new':
+    case 'pending':
+      return 'Under Sales Review'
+    case 'under_review':
+      return 'In Review'
+    case 'accepted':
+    case 'confirmed':
+      return 'Confirmed & Approved'
+    case 'counter_offered':
+      return 'Counter-Offer Ready'
+    case 'declined':
+    case 'rejected':
+      return 'Declined'
+    case 'converted_to_order':
+      return 'Order In Fulfillment'
+    case 'closed':
+    case 'completed':
+      return 'Completed'
+    default:
+      return status.replace(/_/g, ' ')
+  }
 }
 
 export interface AdminDiamond {
@@ -331,11 +372,10 @@ export default function AuthPages({
       const token = localStorage.getItem('hmd_access_token')
       const raw = localStorage.getItem('hmd_user')
       const isGuestActive = sessionStorage.getItem('hmd_guest_cart_active') === 'true'
-      if (!token && !raw && !isGuestActive) {
-        localStorage.removeItem('hmd_cart')
+      const saved = localStorage.getItem('hmd_cart')
+      if (!token && !raw && !isGuestActive && !saved) {
         return []
       }
-      const saved = localStorage.getItem('hmd_cart')
       return saved ? JSON.parse(saved) : []
     } catch {
       return []
@@ -343,6 +383,21 @@ export default function AuthPages({
   })
   const [submittingCart, setSubmittingCart] = useState(false)
   const [cartMsg, setCartMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+
+  // ── cart & checkout fulfillment state ────────────────────────────────────
+  const [checkoutAddress, setCheckoutAddress] = useState(user?.address || '')
+  const [checkoutPhone, setCheckoutPhone] = useState(user?.phone || '')
+  const [deliveryPreference, setDeliveryPreference] = useState<'Armored Courier (Insured)' | 'Diamond District Office Pick-Up'>('Armored Courier (Insured)')
+  const [orderNotes, setOrderNotes] = useState('')
+  const [submittedQuoteSummary, setSubmittedQuoteSummary] = useState<{
+    quoteNumber: string | number
+    quoteId?: string
+    estimatedTotal: number
+    itemsCount: number
+    deliveryPreference: string
+    shippingAddress: string
+  } | null>(null)
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
 
   // ── forgot & reset password state ────────────────────────────────────────
   const [newPassword, setNewPassword] = useState('')
@@ -1509,6 +1564,8 @@ export default function AuthPages({
       setEditPhone(profile.phone || '')
       setEditAddress(profile.address || '')
       setEditGender(profile.gender || 'prefer_not_to_say')
+      setCheckoutAddress(prev => prev || profile.address || '')
+      setCheckoutPhone(prev => prev || profile.phone || '')
     }
     if (onUserChange) onUserChange(profile)
   }, [onUserChange])
@@ -1518,6 +1575,16 @@ export default function AuthPages({
     setCart(newCart)
     localStorage.setItem('hmd_cart', JSON.stringify(newCart))
     window.dispatchEvent(new Event('storage'))
+  }
+
+  const updateItemQuantity = (sku: string, delta: number) => {
+    const newCart = cart.map(item => {
+      if (item.sku !== sku) return item
+      const currentQty = item.quantity || 1
+      const nextQty = Math.max(1, Math.min(100, currentQty + delta))
+      return { ...item, quantity: nextQty }
+    })
+    updateCart(newCart)
   }
 
   const addToCart = (diamond: DiamondItem) => {
@@ -1618,6 +1685,9 @@ export default function AuthPages({
     setActiveTab(targetTab)
     if (targetTab === 'catalog' && catalogItems.length === 0) {
       loadCatalog()
+    }
+    if (targetTab === 'cart' && cart.length > 0) {
+      setSubmittedQuoteSummary(null)
     }
     if (targetTab === 'orders') {
       loadOrders()
@@ -1974,8 +2044,11 @@ export default function AuthPages({
         flomiz_sku: item.sku,
         name: `${item.shape} ${item.carat}ct ${item.color} ${item.clarity} (${item.lab})`,
         requestedPrice: item.price,
-        quantity: item.quantity,
+        quantity: Math.max(1, Math.min(100, item.quantity || 1)),
       }))
+
+      const finalPhone = checkoutPhone.trim() || user?.phone || ''
+      const finalAddress = checkoutAddress.trim() || user?.address || ''
 
       const res = await fetch('/api/quotes', {
         method: 'POST',
@@ -1985,8 +2058,10 @@ export default function AuthPages({
         },
         body: JSON.stringify({
           name: user?.full_name || user?.email || 'Valued Customer',
-          phone: user?.phone || '',
-          message: `Cart checkout order containing ${cart.length} diamond items. Total value: $${cartTotal.toLocaleString()}.`,
+          phone: finalPhone,
+          shippingAddress: finalAddress,
+          deliveryPreference,
+          message: orderNotes.trim(),
           items: itemPayloads,
         }),
       })
@@ -1995,11 +2070,20 @@ export default function AuthPages({
       const data = isJson ? await res.json().catch(() => ({})) : {}
       if (!res.ok) throw new Error(data.error || 'Failed to submit quote request.')
 
+      const totalStones = cart.reduce((s, i) => s + (i.quantity || 1), 0)
+      const quoteTotal = Number(data.estimatedTotal) || cartTotal
+
       updateCart([])
-      setCartMsg({
-        text: `Success! Your order request (${data.quoteNumber || 'Received'}) has been submitted to Hey Man Diamond sales team. We will review and confirm availability immediately.`,
-        kind: 'success',
+      setSubmittedQuoteSummary({
+        quoteNumber: data.quoteNumber || 'Received',
+        quoteId: data.quoteId,
+        estimatedTotal: quoteTotal,
+        itemsCount: totalStones,
+        deliveryPreference,
+        shippingAddress: finalAddress,
       })
+      setCartMsg(null)
+      loadOrders()
     } catch (err) {
       setCartMsg({ text: err instanceof Error ? err.message : 'Could not submit cart order.', kind: 'error' })
     } finally {
@@ -2574,7 +2658,62 @@ export default function AuthPages({
                 </p>
               )}
 
-              {cart.length === 0 ? (
+              {submittedQuoteSummary ? (
+                <div className="quote-success-card">
+                  <div className="quote-success-badge" aria-hidden="true">✓</div>
+                  <h3>Quote Request Received &amp; Under Review</h3>
+                  <div className="quote-success-ref">
+                    Reference: <strong>Q-{submittedQuoteSummary.quoteNumber}</strong>
+                  </div>
+                  <p className="quote-success-desc">
+                    Thank you for submitting your diamond order request to Hey Man Diamond LLC. Our sales concierge team will verify live stone vault availability, finalize tailored dealer/retail pricing, and contact you directly with an official invoice and payment link.
+                  </p>
+
+                  <div className="quote-success-details-grid">
+                    <div className="quote-detail-item">
+                      <span className="quote-detail-label">Stones Requested</span>
+                      <span className="quote-detail-val">{submittedQuoteSummary.itemsCount} {submittedQuoteSummary.itemsCount === 1 ? 'stone' : 'stones'}</span>
+                    </div>
+                    <div className="quote-detail-item">
+                      <span className="quote-detail-label">Estimated Total</span>
+                      <span className="quote-detail-val">${submittedQuoteSummary.estimatedTotal.toLocaleString()}</span>
+                    </div>
+                    <div className="quote-detail-item">
+                      <span className="quote-detail-label">Fulfillment Method</span>
+                      <span className="quote-detail-val">{submittedQuoteSummary.deliveryPreference}</span>
+                    </div>
+                    {submittedQuoteSummary.shippingAddress && (
+                      <div className="quote-detail-item quote-detail-item--full">
+                        <span className="quote-detail-label">Delivery Address</span>
+                        <span className="quote-detail-val">{submittedQuoteSummary.shippingAddress}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="quote-success-actions">
+                    <button
+                      type="button"
+                      className="button-primary"
+                      onClick={() => {
+                        setSubmittedQuoteSummary(null)
+                        switchTab('orders')
+                      }}
+                    >
+                      View in My Orders History →
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => {
+                        setSubmittedQuoteSummary(null)
+                        switchTab('catalog')
+                      }}
+                    >
+                      Continue Browsing Diamonds
+                    </button>
+                  </div>
+                </div>
+              ) : cart.length === 0 ? (
                 <div className="empty-cart-view">
                   <p>Your cart is currently empty.</p>
                   <button type="button" className="button-primary" onClick={() => switchTab('catalog')}>
@@ -2609,7 +2748,31 @@ export default function AuthPages({
                             <div style={{ fontSize: '11px' }}>{item.certificateNumber}</div>
                           </td>
                           <td>${item.price.toLocaleString()}</td>
-                          <td>{item.quantity}</td>
+                          <td>
+                            <div className="cart-qty-control" aria-label={`Quantity for ${item.shape} ${item.carat}ct`}>
+                              <button
+                                type="button"
+                                className="cart-qty-btn cart-qty-btn--minus"
+                                onClick={() => updateItemQuantity(item.sku, -1)}
+                                disabled={item.quantity <= 1}
+                                aria-label="Decrease quantity"
+                              >
+                                −
+                              </button>
+                              <span className="cart-qty-val" aria-live="polite">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                className="cart-qty-btn cart-qty-btn--plus"
+                                onClick={() => updateItemQuantity(item.sku, 1)}
+                                disabled={item.quantity >= 100}
+                                aria-label="Increase quantity"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
                           <td><strong>${(item.price * item.quantity).toLocaleString()}</strong></td>
                           <td>
                             <button
@@ -2625,11 +2788,97 @@ export default function AuthPages({
                     </tbody>
                   </table>
 
+                  <div className="checkout-fulfillment-box">
+                    <div className="checkout-fulfillment-header">
+                      <h3>📦 Delivery &amp; Fulfillment Preferences</h3>
+                      <p>Specify where your diamonds should be delivered and any special concierge requests.</p>
+                    </div>
+
+                    <div className="checkout-fulfillment-grid">
+                      <div className="fulfillment-field-group">
+                        <label htmlFor="checkout-delivery-pref">Fulfillment Preference</label>
+                        <select
+                          id="checkout-delivery-pref"
+                          className="fulfillment-select"
+                          value={deliveryPreference}
+                          onChange={e => setDeliveryPreference(e.target.value as any)}
+                        >
+                          <option value="Armored Courier (Insured)">Direct Armored Courier (Malca-Amit / Brinks · Fully Insured)</option>
+                          <option value="Diamond District Office Pick-Up">Diamond District Office Pick-Up (NYC / Chicago / Los Angeles)</option>
+                        </select>
+                        <span className="field-hint">
+                          {deliveryPreference === 'Armored Courier (Insured)'
+                            ? 'Complimentary high-value armored security courier with signature required upon delivery.'
+                            : 'Pick up by appointment at our secure Diamond District viewing facilities with valid government photo ID.'}
+                        </span>
+                      </div>
+
+                      <div className="fulfillment-field-group">
+                        <label htmlFor="checkout-phone-input">Contact Phone Number</label>
+                        <input
+                          id="checkout-phone-input"
+                          type="tel"
+                          className="fulfillment-input"
+                          placeholder="e.g. +1 (312) 555-0199"
+                          value={checkoutPhone}
+                          onChange={e => setCheckoutPhone(e.target.value)}
+                          maxLength={40}
+                        />
+                        <span className="field-hint">Used strictly for delivery confirmation and courier notifications.</span>
+                      </div>
+
+                      <div className="fulfillment-field-group fulfillment-field-group--full">
+                        <label htmlFor="checkout-address-input">
+                          {deliveryPreference === 'Diamond District Office Pick-Up' ? 'Billing / Registered Address' : 'Destination Shipping Address'}
+                        </label>
+                        <textarea
+                          id="checkout-address-input"
+                          className="fulfillment-textarea"
+                          rows={2}
+                          placeholder="Street Address, Suite / Unit, City, State, ZIP Code"
+                          value={checkoutAddress}
+                          onChange={e => setCheckoutAddress(e.target.value)}
+                          maxLength={500}
+                        />
+                        <span className="field-hint">Pre-filled from your account profile. Editable per quote order.</span>
+                      </div>
+
+                      <div className="fulfillment-field-group fulfillment-field-group--full">
+                        <label htmlFor="checkout-order-notes">Special Instructions &amp; Custom Setting Notes (Optional)</label>
+                        <textarea
+                          id="checkout-order-notes"
+                          className="fulfillment-textarea"
+                          rows={2}
+                          placeholder="e.g. Custom ring setting request, laser inscription verification, matching pair pairing, or urgent delivery date requirement..."
+                          value={orderNotes}
+                          onChange={e => setOrderNotes(e.target.value)}
+                          maxLength={1000}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="cart-summary-box">
+                    <h4 className="cart-summary-title">Order Quote Summary</h4>
+                    <div className="cart-breakdown-row">
+                      <span>Subtotal ({cart.reduce((s, i) => s + i.quantity, 0)} {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? 'stone' : 'stones'}):</span>
+                      <strong>${cartTotal.toLocaleString()}</strong>
+                    </div>
+                    <div className="cart-breakdown-row">
+                      <span>Insured Armored Courier Shipping:</span>
+                      <span className="cart-free-tag">Complimentary ($0.00)</span>
+                    </div>
+                    <div className="cart-breakdown-row">
+                      <span>Estimated Sales Tax:</span>
+                      <span className="cart-tax-note">Calculated upon Sales Confirmation</span>
+                    </div>
                     <div className="cart-total-line">
-                      <span>Total Quote Estimate ({cart.reduce((s, i) => s + i.quantity, 0)} stones):</span>
+                      <span>Estimated Total Quote:</span>
                       <strong className="cart-grand-total">${cartTotal.toLocaleString()}</strong>
                     </div>
+                    <p className="cart-quote-disclaimer">
+                      ℹ️ <em>Prices reflect real-time live inventory rates. As per Hey Man Diamond LLC policy, all quote submissions are verified by our Sales Concierge team for live stone availability and final tailored pricing before payment authorization.</em>
+                    </p>
 
                     <button
                       type="button"
@@ -2716,7 +2965,7 @@ export default function AuthPages({
           {/* ── TAB 5: ORDERS & TRANSACTIONS ── */}
           {effectiveTab === 'orders' && (
             <div className="tab-content tab-content--orders">
-              <h2>Order & Transaction History</h2>
+              <h2>Order &amp; Transaction History</h2>
               <p>Review your historical quote requests, custom diamond inquiries, and order transactions.</p>
 
               {loadingOrders ? (
@@ -2736,24 +2985,114 @@ export default function AuthPages({
                         <th>Order / Quote #</th>
                         <th>Date</th>
                         <th>Status</th>
-                        <th>Items</th>
-                        <th>Message</th>
+                        <th>Stones</th>
+                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map(order => (
-                        <tr key={order.id}>
-                          <td><strong>{order.quote_number || order.order_number || order.id.slice(0, 8)}</strong></td>
-                          <td>{new Date(order.created_at).toLocaleDateString()}</td>
-                          <td>
-                            <span className={`status-pill status-pill--${order.status}`}>
-                              {order.status.replace(/_/g, ' ')}
-                            </span>
-                          </td>
-                          <td>{order.quote_request_items?.length || 1} stone(s)</td>
-                          <td><span className="order-message">{order.customer_message || 'Standard quote request'}</span></td>
-                        </tr>
-                      ))}
+                      {orders.map(order => {
+                        const isExpanded = expandedOrderId === order.id
+                        const quoteNumDisplay = order.quote_number ? `Q-${order.quote_number}` : (order.order_number ? `ORD-${order.order_number}` : order.id.slice(0, 8))
+                        return (
+                          <Fragment key={order.id}>
+                            <tr className={isExpanded ? 'order-row--expanded' : ''}>
+                              <td><strong>{quoteNumDisplay}</strong></td>
+                              <td>{new Date(order.created_at).toLocaleDateString()}</td>
+                              <td>
+                                <span className={`status-pill status-pill--${order.status}`}>
+                                  {formatOrderStatus(order.status)}
+                                </span>
+                              </td>
+                              <td>{order.quote_request_items?.length || 1} stone(s)</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="order-toggle-btn"
+                                  onClick={() => setExpandedOrderId(prev => prev === order.id ? null : order.id)}
+                                  aria-expanded={isExpanded}
+                                >
+                                  {isExpanded ? 'Hide Details ▴' : 'View Details ▾'}
+                                </button>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className="order-details-drawer-row">
+                                <td colSpan={5}>
+                                  <div className="order-details-drawer">
+                                    <div className="order-details-header">
+                                      <h4>Stones &amp; Quote Specification Breakdown</h4>
+                                    </div>
+
+                                    {order.customer_message && (
+                                      <div className="order-drawer-notes">
+                                        <strong>Fulfillment Details &amp; Notes:</strong>
+                                        <pre className="order-notes-text">{order.customer_message}</pre>
+                                      </div>
+                                    )}
+
+                                    {order.quote_request_items && order.quote_request_items.length > 0 ? (
+                                      <table className="order-items-table">
+                                        <thead>
+                                          <tr>
+                                            <th>SKU</th>
+                                            <th>Diamond / Spec</th>
+                                            <th>Unit Price</th>
+                                            <th>Qty</th>
+                                            <th>Line Total</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {order.quote_request_items.map((item, idx) => {
+                                            const unitPrice = item.current_unit_price || item.requested_unit_price || item.product_snapshot?.price || 0
+                                            const qty = item.quantity || 1
+                                            const snap = item.product_snapshot
+                                            return (
+                                              <tr key={item.id || `${item.flomiz_sku}-${idx}`}>
+                                                <td><code>{item.flomiz_sku}</code></td>
+                                                <td>
+                                                  <strong>
+                                                    {snap?.shape && snap?.carat
+                                                      ? `${snap.shape} ${snap.carat}ct Diamond`
+                                                      : item.product_name}
+                                                  </strong>
+                                                  {snap && (
+                                                    <div className="order-item-specs">
+                                                      Color: {snap.color || '—'} · Clarity: {snap.clarity || '—'} · Cut: {snap.cut || '—'}
+                                                      {snap.certificateNumber ? ` · Cert #${snap.certificateNumber}` : ''}
+                                                    </div>
+                                                  )}
+                                                </td>
+                                                <td>${unitPrice.toLocaleString()}</td>
+                                                <td>{qty}</td>
+                                                <td><strong>${(unitPrice * qty).toLocaleString()}</strong></td>
+                                              </tr>
+                                            )
+                                          })}
+                                        </tbody>
+                                        <tfoot>
+                                          <tr>
+                                            <td colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>Total Estimated Value:</td>
+                                            <td>
+                                              <strong>
+                                                ${order.quote_request_items.reduce((sum, it) => {
+                                                  const p = it.current_unit_price || it.requested_unit_price || it.product_snapshot?.price || 0
+                                                  return sum + (p * (it.quantity || 1))
+                                                }, 0).toLocaleString()}
+                                              </strong>
+                                            </td>
+                                          </tr>
+                                        </tfoot>
+                                      </table>
+                                    ) : (
+                                      <p className="no-items-text">Item breakdown details were not recorded for this transaction.</p>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -5201,6 +5540,16 @@ export default function AuthPages({
               : 'Create an account to make your diamond experience more personal.')
             : 'Sign in with the email and password you registered with.'}
         </p>
+
+        {cart.length > 0 && !isAdminLogin && (
+          <div className="unauth-cart-notice" role="status">
+            <span className="unauth-cart-icon" aria-hidden="true">💎</span>
+            <div className="unauth-cart-content">
+              <strong>You have {cart.reduce((s, i) => s + (i.quantity || 1), 0)} diamond{cart.reduce((s, i) => s + (i.quantity || 1), 0) === 1 ? '' : 's'} saved in your cart (${cartTotal.toLocaleString()}).</strong>
+              <p>Sign in or create an account to submit your quote request and secure your diamond selection.</p>
+            </div>
+          </div>
+        )}
 
         {/* ── Social Login Buttons ── */}
         <div className="social-auth-container">
