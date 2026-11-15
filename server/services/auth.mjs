@@ -937,11 +937,15 @@ export async function handleOAuth(req, res, url) {
   }
   const rawIntent = (url.searchParams.get('intent') || '').toLowerCase()
   const intent = rawIntent === 'signup' ? 'signup' : 'signin'
+  const rawAccountType = (url.searchParams.get('account_type') || '').toLowerCase()
+  const accountType = rawAccountType === 'dealer' ? 'dealer' : 'customer'
 
   const baseRedirect = getAuthRedirectUrl(req)
   const originPart = baseRedirect.split('#')[0].replace(/\/$/, '')
   const redirectTarget = intent === 'signup'
-    ? `${originPart}/#signup-customer?intent=signup`
+    ? (accountType === 'dealer'
+      ? `${originPart}/#signup-dealer?intent=signup&account_type=dealer`
+      : `${originPart}/#signup-customer?intent=signup&account_type=customer`)
     : `${originPart}/#signin?intent=signin`
 
   try {
@@ -984,6 +988,7 @@ export async function handleOAuthCallback(req, res) {
 
   const accessToken = typeof body.accessToken === 'string' ? body.accessToken.trim() : ''
   const intent = body.intent === 'signup' ? 'signup' : 'signin'
+  const accountType = body.accountType === 'dealer' ? 'dealer' : 'customer'
 
   if (!accessToken) {
     return json(res, 400, { error: 'Access token is required.' })
@@ -1120,6 +1125,10 @@ export async function handleOAuthCallback(req, res) {
   if (intent === 'signup' && !isExistingRegistered) {
     const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0]
     const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null
+    const isDealer = accountType === 'dealer'
+    const finalAccountType = isDealer ? 'dealer' : 'customer'
+    const finalDealerStatus = isDealer ? 'pending_review' : 'not_applied'
+
     if (supabaseReady()) {
       try {
         await db(`profiles?id=eq.${encodeURIComponent(user.id)}`, {
@@ -1127,11 +1136,31 @@ export async function handleOAuthCallback(req, res) {
           headers: { Prefer: 'return=minimal' },
           body: JSON.stringify({
             full_name: fullName,
-            account_type: 'customer',
-            dealer_status: 'not_applied',
+            account_type: finalAccountType,
+            dealer_status: finalDealerStatus,
             is_registered: true,
           }),
         })
+
+        if (isDealer) {
+          const existingApps = await db(`dealer_applications?user_id=eq.${encodeURIComponent(user.id)}`).catch(() => [])
+          if (!Array.isArray(existingApps) || existingApps.length === 0) {
+            await db('dealer_applications', {
+              method: 'POST',
+              headers: { Prefer: 'return=minimal' },
+              body: JSON.stringify({
+                user_id: user.id,
+                registered_business_name: fullName ? `${fullName}'s Business` : 'Wholesale Dealer Application',
+                primary_contact: fullName,
+                primary_email: user.email,
+                business_address: { address: '' },
+                business_phone: '',
+                status: 'pending_review',
+              }),
+            }).catch(appErr => console.warn('Dealer application creation error:', appErr.message))
+          }
+        }
+
         await fetch(`${getSupabaseUrl()}/auth/v1/admin/users/${user.id}`, {
           method: 'PUT',
           headers: {
@@ -1143,7 +1172,8 @@ export async function handleOAuthCallback(req, res) {
             user_metadata: {
               ...user.user_metadata,
               full_name: fullName,
-              account_type: 'customer',
+              account_type: finalAccountType,
+              dealer_status: finalDealerStatus,
               is_registered: true,
               avatar_url: avatarUrl,
             },
@@ -1158,13 +1188,16 @@ export async function handleOAuthCallback(req, res) {
       success: true,
       isNew: true,
       alreadyExisted: false,
-      message: 'Your account has been created successfully! Welcome to Hey Man Diamond.',
+      message: isDealer
+        ? 'Your wholesale dealer account has been created! Access will be activated after administrator review and approval.'
+        : 'Your account has been created successfully! Welcome to Hey Man Diamond.',
       user: {
         id: user.id,
         email: user.email,
         full_name: fullName,
         avatar_url: avatarUrl,
-        account_type: 'customer',
+        account_type: finalAccountType,
+        dealer_status: finalDealerStatus,
       },
     })
   }

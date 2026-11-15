@@ -437,4 +437,180 @@ test('OAuth Intent & Registration Flow', async t => {
     const route = resolveAuthRoute(errorHash)
     assert.equal(route, 'signin')
   })
+
+  await t.test('11. Dealer Google signup: handleOAuth preserves account_type=dealer in redirect URL', async () => {
+    const req = { headers: { host: 'localhost:3000', origin: 'http://localhost:5173' } }
+    const resDealer = mockResponse()
+    await handleOAuth(req, resDealer, new URL('http://localhost:3000/api/auth/oauth?provider=google&intent=signup&account_type=dealer'))
+    const bodyDealer = JSON.parse(resDealer.body)
+    assert.equal(resDealer.statusCode, 200)
+    assert.equal(bodyDealer.intent, 'signup')
+    const decodedUrl = decodeURIComponent(bodyDealer.url)
+    assert.ok(decodedUrl.includes('intent=signup'))
+    assert.ok(decodedUrl.includes('account_type=dealer'))
+    assert.ok(decodedUrl.includes('#signup-dealer'))
+  })
+
+  await t.test('12. Dealer Google signup: handleOAuthCallback creates dealer account with pending_review and dealer_applications entry', async () => {
+    const originalFetch = globalThis.fetch
+    let patchedProfile = null
+    let postedDealerApp = null
+
+    globalThis.fetch = async (url, options = {}) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/auth/v1/user') && !urlStr.includes('/admin/users')) {
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              id: 'mock-new-dealer-uuid',
+              email: 'newdealer@gmail.com',
+              created_at: new Date().toISOString(),
+              user_metadata: { full_name: 'Bhikham Singh Dealer' },
+            }
+          },
+        }
+      }
+      if (urlStr.includes('/rest/v1/profiles') && options.method === 'PATCH') {
+        patchedProfile = JSON.parse(options.body)
+        return {
+          ok: true,
+          status: 200,
+          async text() { return '' },
+        }
+      }
+      if (urlStr.includes('/rest/v1/dealer_applications') && options.method === 'POST') {
+        postedDealerApp = JSON.parse(options.body)
+        return {
+          ok: true,
+          status: 200,
+          async text() { return '' },
+        }
+      }
+      if (urlStr.includes('/rest/v1/')) {
+        return {
+          ok: true,
+          status: 200,
+          async text() { return '[]' },
+        }
+      }
+      if (urlStr.includes('/auth/v1/admin/users/')) {
+        return {
+          ok: true,
+          status: 200,
+          async json() { return {} },
+        }
+      }
+      return originalFetch(url, options)
+    }
+
+    try {
+      const res = mockResponse()
+      await handleOAuthCallback(mockRequest('POST', {
+        accessToken: 'valid-new-dealer-token',
+        intent: 'signup',
+        accountType: 'dealer',
+      }), res)
+
+      assert.equal(res.statusCode, 200)
+      const data = JSON.parse(res.body)
+      assert.equal(data.success, true)
+      assert.equal(data.isNew, true)
+      assert.equal(data.user.account_type, 'dealer')
+      assert.equal(data.user.dealer_status, 'pending_review')
+      assert.match(data.message, /wholesale dealer account.*review and approval/i)
+
+      // Verify database profile payload was patched with dealer and pending_review
+      assert.ok(patchedProfile)
+      assert.equal(patchedProfile.account_type, 'dealer')
+      assert.equal(patchedProfile.dealer_status, 'pending_review')
+      assert.equal(patchedProfile.is_registered, true)
+
+      // Verify dealer application was recorded
+      assert.ok(postedDealerApp)
+      assert.equal(postedDealerApp.user_id, 'mock-new-dealer-uuid')
+      assert.equal(postedDealerApp.status, 'pending_review')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  await t.test('13. Dealer Google signup: Client cannot escalate privileges by submitting accountType: admin', async () => {
+    const originalFetch = globalThis.fetch
+    let patchedProfile = null
+
+    globalThis.fetch = async (url, options = {}) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/auth/v1/user') && !urlStr.includes('/admin/users')) {
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              id: 'mock-attacker-uuid',
+              email: 'attacker@gmail.com',
+              created_at: new Date().toISOString(),
+              user_metadata: { full_name: 'Attacker' },
+            }
+          },
+        }
+      }
+      if (urlStr.includes('/rest/v1/profiles') && options.method === 'PATCH') {
+        patchedProfile = JSON.parse(options.body)
+        return {
+          ok: true,
+          status: 200,
+          async text() { return '' },
+        }
+      }
+      if (urlStr.includes('/rest/v1/')) {
+        return {
+          ok: true,
+          status: 200,
+          async text() { return '[]' },
+        }
+      }
+      if (urlStr.includes('/auth/v1/admin/users/')) {
+        return {
+          ok: true,
+          status: 200,
+          async json() { return {} },
+        }
+      }
+      return originalFetch(url, options)
+    }
+
+    try {
+      const res = mockResponse()
+      await handleOAuthCallback(mockRequest('POST', {
+        accessToken: 'valid-attacker-token',
+        intent: 'signup',
+        accountType: 'admin', // Attack attempt
+      }), res)
+
+      assert.equal(res.statusCode, 200)
+      const data = JSON.parse(res.body)
+      // Strictly downgraded to customer!
+      assert.equal(data.user.account_type, 'customer')
+      assert.notEqual(data.user.account_type, 'admin')
+      assert.equal(patchedProfile.account_type, 'customer')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  await t.test('14. routeUtils parses dealer accountType from hash fragments', () => {
+    const dealerHash = '#signup-dealer?intent=signup&account_type=dealer#access_token=dealer-token-123'
+    const status = parseAuthStatusFromHash(dealerHash)
+    assert.equal(status.accessToken, 'dealer-token-123')
+    assert.equal(status.intent, 'signup')
+    assert.equal(status.accountType, 'dealer')
+
+    const customerHash = '#signup-customer?intent=signup&account_type=customer#access_token=cust-token-456'
+    const custStatus = parseAuthStatusFromHash(customerHash)
+    assert.equal(custStatus.accessToken, 'cust-token-456')
+    assert.equal(custStatus.intent, 'signup')
+    assert.equal(custStatus.accountType, 'customer')
+  })
 })

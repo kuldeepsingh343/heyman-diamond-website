@@ -9,6 +9,7 @@ export interface AuthStatusResult {
   accessToken?: string
   refreshToken?: string
   intent?: 'signin' | 'signup'
+  accountType?: 'customer' | 'dealer'
 }
 
 export interface UserLike {
@@ -121,10 +122,16 @@ export function parseAuthStatusFromHash(hash?: string): AuthStatusResult {
     const isSignupConfirm = params.get('type') === 'signup'
     const isRecovery = params.get('type') === 'recovery'
     let intent: 'signin' | 'signup' | undefined
-    if (rawHash.includes('intent=signup') || rawHash.includes('signup-customer')) {
+    if (rawHash.includes('intent=signup') || rawHash.includes('signup-customer') || rawHash.includes('signup-dealer')) {
       intent = 'signup'
     } else if (rawHash.includes('intent=signin') || rawHash.includes('signin')) {
       intent = 'signin'
+    }
+    let accountType: 'customer' | 'dealer' | undefined
+    if (rawHash.includes('account_type=dealer') || rawHash.includes('signup-dealer')) {
+      accountType = 'dealer'
+    } else if (rawHash.includes('account_type=customer') || rawHash.includes('signup-customer')) {
+      accountType = 'customer'
     }
     return {
       text: isRecovery
@@ -136,6 +143,7 @@ export function parseAuthStatusFromHash(hash?: string): AuthStatusResult {
       accessToken,
       refreshToken: refreshToken ?? undefined,
       intent,
+      accountType,
     }
   }
 

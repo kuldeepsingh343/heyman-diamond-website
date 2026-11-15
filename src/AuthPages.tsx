@@ -290,6 +290,20 @@ function getInitialStatus(): { text: string; kind: 'info' | 'error' | 'success' 
   if (result.accessToken) {
     localStorage.setItem('hmd_access_token', result.accessToken)
     if (result.refreshToken) localStorage.setItem('hmd_refresh_token', result.refreshToken)
+    if (result.intent) {
+      try {
+        sessionStorage.setItem('hmd_social_intent', result.intent)
+      } catch {
+        // ignore storage error
+      }
+    }
+    if (result.accountType) {
+      try {
+        sessionStorage.setItem('hmd_social_account_type', result.accountType)
+      } catch {
+        // ignore storage error
+      }
+    }
     window.history.replaceState(null, '', window.location.pathname + '#signin')
   } else if (result.kind === 'error') {
     window.history.replaceState(null, '', window.location.pathname + '#signin')
@@ -1936,10 +1950,15 @@ export default function AuthPages({
     const token = localStorage.getItem('hmd_access_token')
     if (token && !user) {
       let intent: 'signin' | 'signup' = 'signin'
+      let accountType: 'customer' | 'dealer' = 'customer'
       try {
         const savedIntent = sessionStorage.getItem('hmd_social_intent')
         if (savedIntent === 'signup' || savedIntent === 'signin') {
           intent = savedIntent
+        }
+        const savedAccountType = sessionStorage.getItem('hmd_social_account_type')
+        if (savedAccountType === 'dealer' || savedAccountType === 'customer') {
+          accountType = savedAccountType
         }
       } catch {
         // ignore sessionStorage unavailable
@@ -1952,15 +1971,22 @@ export default function AuthPages({
         intent = 'signup'
       }
 
+      if (hashStatus.accountType) {
+        accountType = hashStatus.accountType
+      } else if (window.location.hash.includes('signup-dealer') || window.location.search.includes('account_type=dealer')) {
+        accountType = 'dealer'
+      }
+
       fetch('/api/auth/oauth-callback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: token, intent }),
+        body: JSON.stringify({ accessToken: token, intent, accountType }),
       })
         .then(res => res.json())
         .then(oauthData => {
           try {
             sessionStorage.removeItem('hmd_social_intent')
+            sessionStorage.removeItem('hmd_social_account_type')
           } catch {
             // ignore sessionStorage unavailable
           }
@@ -2461,6 +2487,7 @@ export default function AuthPages({
 
   async function handleSocialLogin(provider: 'Google' | 'Apple') {
     const intent = signup ? 'signup' : 'signin'
+    const accountType = dealer ? 'dealer' : 'customer'
 
     // 1. If user entered an email, pre-check registration status
     if (email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -2498,6 +2525,7 @@ export default function AuthPages({
 
     try {
       sessionStorage.setItem('hmd_social_intent', intent)
+      sessionStorage.setItem('hmd_social_account_type', accountType)
     } catch {
       // Ignore private mode sessionStorage restrictions
     }
@@ -2505,7 +2533,7 @@ export default function AuthPages({
     setBusy(true)
     setStatus({ text: `Connecting to ${provider}…`, kind: 'info' })
     try {
-      const res = await fetch(`/api/auth/oauth?provider=${provider.toLowerCase()}&intent=${intent}`)
+      const res = await fetch(`/api/auth/oauth?provider=${provider.toLowerCase()}&intent=${intent}&account_type=${accountType}`)
       const data = await res.json()
       if (data.enabled && data.url) {
         window.location.href = data.url
