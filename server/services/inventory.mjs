@@ -428,10 +428,40 @@ const INITIAL_SEED_DIAMONDS = [
   },
 ]
 
-let memoryInventory = JSON.parse(JSON.stringify(INITIAL_SEED_DIAMONDS))
+const LOCAL_INVENTORY_FILE = path.resolve(process.cwd(), '.inventory_local.json')
 
-export function resetMemoryInventory() {
-  memoryInventory = JSON.parse(JSON.stringify(INITIAL_SEED_DIAMONDS))
+function loadLocalInventory() {
+  try {
+    if (fs.existsSync(LOCAL_INVENTORY_FILE)) {
+      const content = fs.readFileSync(LOCAL_INVENTORY_FILE, 'utf8')
+      const parsed = JSON.parse(content)
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load local inventory persistence:', err.message)
+  }
+  return JSON.parse(JSON.stringify(INITIAL_SEED_DIAMONDS))
+}
+
+export function saveLocalInventory(items) {
+  try {
+    fs.writeFileSync(LOCAL_INVENTORY_FILE, JSON.stringify(items, null, 2), 'utf8')
+  } catch (err) {
+    console.warn('Failed to save local inventory persistence:', err.message)
+  }
+}
+
+let memoryInventory = loadLocalInventory()
+
+export function resetMemoryInventory(toSeeds = true) {
+  if (toSeeds) {
+    memoryInventory = JSON.parse(JSON.stringify(INITIAL_SEED_DIAMONDS))
+  } else {
+    memoryInventory = []
+  }
+  saveLocalInventory(memoryInventory)
 }
 
 /**
@@ -1408,6 +1438,7 @@ export async function handleUploadInventory(req, res, admin) {
       }
 
       memoryInventory = [...memoryInventory, ...newItems]
+      saveLocalInventory(memoryInventory)
     } else if (mode === 'replace') {
       memoryInventory = result.items
       newItems = result.items
@@ -1446,6 +1477,8 @@ export async function handleUploadInventory(req, res, admin) {
       }
       newItems = result.items
     }
+
+    saveLocalInventory(memoryInventory)
 
     // Attempt persistence to Supabase if database is available
     let dbPersisted = false
@@ -1804,6 +1837,7 @@ export async function handleUpdateAdminDiamond(req, res, admin, diamondId) {
     if (updates.dealer_discount_percent !== undefined) {
       memItem.dealerDiscountPercent = updates.dealer_discount_percent
     }
+    saveLocalInventory(memoryInventory)
   }
 
   // Audit log price & inventory update
@@ -1903,6 +1937,7 @@ export async function handleDeleteAdminDiamond(req, res, admin, diamondId) {
     memItem.deleted_at = now
     memItem.deletedBy = deletedBy
     memItem.status = 'hidden'
+    saveLocalInventory(memoryInventory)
   }
 
   // Write audit log
@@ -1983,6 +2018,7 @@ export async function handleRestoreAdminDiamond(req, res, admin, diamondId) {
     memItem.deleted_at = null
     memItem.deletedBy = null
     memItem.status = 'pending_review'
+    saveLocalInventory(memoryInventory)
   }
 
   // Write audit log
@@ -2039,6 +2075,7 @@ export async function handleBatchPublishAdminDiamonds(req, res, admin) {
       item.status = 'published'
     }
   })
+  saveLocalInventory(memoryInventory)
 
   return json(res, 200, { success: true, message: 'All pending diamonds have been published to the live website.' })
 }
