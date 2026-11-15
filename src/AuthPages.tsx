@@ -8,7 +8,7 @@ import { computeAudiencePricingDraft, validateRowDiscount } from './discountHelp
 import { sanitizeAdminDiamonds } from './inventoryUtils'
 
 type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account' | 'admin' | 'forgot-password' | 'reset-password'
-type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'tools' | 'dealers' | 'offers' | 'reviews' | 'team'
+type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'admin-orders' | 'tools' | 'dealers' | 'offers' | 'reviews' | 'team'
 
 export interface StaffPermissions {
   can_manage_inventory?: boolean
@@ -116,6 +116,49 @@ export interface DiamondMediaItem {
 
 export interface CartItem extends DiamondItem {
   quantity: number
+  customQuotePrice?: number | null
+  isCustomQuote?: boolean
+}
+
+export interface AdminQuoteItem {
+  id?: string
+  flomiz_sku: string
+  product_name: string
+  quantity: number
+  current_unit_price: number
+  requested_unit_price: number
+  product_snapshot?: {
+    submitted_snapshot?: any
+    server_effective_unit_price?: number
+    catalog_unit_price?: number
+    customer_requested_price?: number
+    is_custom_offer?: boolean
+    audience?: string
+    sku?: string
+    shape?: string
+    carat?: number
+    color?: string
+    clarity?: string
+    cut?: string
+    lab?: string
+    certificateNumber?: string
+    price?: number
+    disclaimer?: string
+  }
+}
+
+export interface AdminQuote {
+  id: string
+  quote_number?: string | number
+  order_number?: string | number
+  user_id?: string
+  customer_name: string
+  customer_email: string
+  customer_message?: string
+  status: 'new' | 'under_review' | 'counter_offered' | 'accepted' | 'declined' | 'converted_to_order' | 'closed' | string
+  created_at: string
+  updated_at?: string
+  quote_request_items?: AdminQuoteItem[]
 }
 
 interface UserOrder {
@@ -144,6 +187,9 @@ interface UserOrder {
       lab?: string
       certificateNumber?: string
       price?: number
+      catalog_unit_price?: number
+      customer_requested_price?: number
+      is_custom_offer?: boolean
       audience?: string
       disclaimer?: string
     }
@@ -401,8 +447,24 @@ export default function AuthPages({
     itemsCount: number
     deliveryPreference: string
     shippingAddress: string
+    hasCustomOffer?: boolean
   } | null>(null)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
+
+  // ── custom quote offer state in cart ─────────────────────────────────────
+  const [editingCustomQuoteSkus, setEditingCustomQuoteSkus] = useState<Record<string, boolean>>({})
+
+  // ── Admin Orders from Website State ──────────────────────────────────────
+  const [adminQuotes, setAdminQuotes] = useState<AdminQuote[]>([])
+  const [loadingAdminQuotes, setLoadingAdminQuotes] = useState(false)
+  const [adminQuotesUnread, setAdminQuotesUnread] = useState(0)
+  const [adminQuotesFilter, setAdminQuotesFilter] = useState<string>('all')
+  const [adminQuotesSearch, setAdminQuotesSearch] = useState<string>('')
+  const [adminQuoteActionBusy, setAdminQuoteActionBusy] = useState<string | null>(null)
+  const [adminQuoteMsg, setAdminQuoteMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
+  const [activeCounterQuoteId, setActiveCounterQuoteId] = useState<string | null>(null)
+  const [counterPriceInput, setCounterPriceInput] = useState<string>('')
+  const [counterNoteInput, setCounterNoteInput] = useState<string>('')
 
   // ── forgot & reset password state ────────────────────────────────────────
   const [newPassword, setNewPassword] = useState('')
@@ -1592,6 +1654,19 @@ export default function AuthPages({
     updateCart(newCart)
   }
 
+  const setItemCustomPrice = (sku: string, price: number | null) => {
+    const newCart = cart.map(item => {
+      if (item.sku !== sku) return item
+      const validPrice = price != null && !isNaN(price) && price > 0 ? Math.round(price) : null
+      return {
+        ...item,
+        customQuotePrice: validPrice,
+        isCustomQuote: validPrice != null,
+      }
+    })
+    updateCart(newCart)
+  }
+
   const addToCart = (diamond: DiamondItem) => {
     const listPrice = Number(diamond.listPrice || diamond.customerPrice || diamond.price || 0)
     const discountPrice = diamond.discountPrice != null && Number(diamond.discountPrice) > 0
@@ -1738,9 +1813,70 @@ export default function AuthPages({
       .finally(() => setLoadingOrders(false))
   }
 
+  const loadAdminQuotes = useCallback(() => {
+    setLoadingAdminQuotes(true)
+    const token = localStorage.getItem('hmd_access_token')
+    fetch('/api/admin/quotes', {
+      headers: { Authorization: `Bearer ${token || ''}` },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.items)) {
+          setAdminQuotes(data.items)
+          setAdminQuotesUnread(Number(data.unreadCount) || 0)
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to load admin quotes:', err)
+      })
+      .finally(() => setLoadingAdminQuotes(false))
+  }, [])
+
+  async function handleAdminUpdateQuoteStatus(quoteId: string, newStatus: string, adminNote?: string, counterPrice?: number) {
+    setAdminQuoteActionBusy(quoteId)
+    setAdminQuoteMsg(null)
+    try {
+      const token = localStorage.getItem('hmd_access_token')
+      const res = await fetch(`/api/admin/quotes/${encodeURIComponent(quoteId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          adminNote: adminNote || undefined,
+          counterPrice: counterPrice != null && !isNaN(Number(counterPrice)) ? Number(counterPrice) : undefined,
+        }),
+      })
+      const isJson = res.headers.get('content-type')?.includes('application/json')
+      const data = isJson ? await res.json().catch(() => ({})) : {}
+      if (!res.ok) throw new Error(data.error || 'Failed to update quote status.')
+
+      setAdminQuoteMsg({
+        text: data.message || `Quote status updated to ${formatOrderStatus(newStatus)}.`,
+        kind: 'success',
+      })
+      if (activeCounterQuoteId === quoteId) {
+        setActiveCounterQuoteId(null)
+        setCounterPriceInput('')
+        setCounterNoteInput('')
+      }
+      loadAdminQuotes()
+    } catch (err) {
+      setAdminQuoteMsg({
+        text: err instanceof Error ? err.message : 'Error updating quote status.',
+        kind: 'error',
+      })
+    } finally {
+      setAdminQuoteActionBusy(null)
+    }
+  }
+
   const isTabAllowed = useCallback((tab: AccountTab): boolean => {
     if (!isUserAdmin) return true
-    if (tab === 'orders') return hasOrdersPerm
+    if (tab === 'orders') return true
+    if (tab === 'admin-orders') return hasOrdersPerm
     if (tab === 'tools') return hasInventoryPerm
     if (tab === 'dealers') return hasKycPerm
     if (tab === 'offers') return hasPromotionsPerm
@@ -1762,6 +1898,9 @@ export default function AuthPages({
     }
     if (targetTab === 'orders') {
       loadOrders()
+    }
+    if (targetTab === 'admin-orders') {
+      loadAdminQuotes()
     }
     if (targetTab === 'offers') {
       fetchPromotions()
@@ -2111,12 +2250,20 @@ export default function AuthPages({
 
     try {
       const token = localStorage.getItem('hmd_access_token')
-      const itemPayloads = cart.map(item => ({
-        flomiz_sku: item.sku,
-        name: `${item.shape} ${item.carat}ct ${item.color} ${item.clarity} (${item.lab})`,
-        requestedPrice: item.price,
-        quantity: Math.max(1, Math.min(100, item.quantity || 1)),
-      }))
+      const hasAnyCustom = cart.some(item => Boolean(item.isCustomQuote && item.customQuotePrice && item.customQuotePrice > 0))
+      const itemPayloads = cart.map(item => {
+        const hasCustom = Boolean(item.isCustomQuote && item.customQuotePrice && item.customQuotePrice > 0)
+        const offerPrice = hasCustom ? Number(item.customQuotePrice) : Number(item.price)
+        return {
+          flomiz_sku: item.sku,
+          name: `${item.shape} ${item.carat}ct ${item.color} ${item.clarity} (${item.lab})`,
+          requestedPrice: offerPrice,
+          isCustomQuote: hasCustom,
+          customQuotePrice: hasCustom ? offerPrice : null,
+          price: item.price,
+          quantity: Math.max(1, Math.min(100, item.quantity || 1)),
+        }
+      })
 
       const finalPhone = checkoutPhone.trim() || user?.phone || ''
       const finalAddress = checkoutAddress.trim() || user?.address || ''
@@ -2142,7 +2289,7 @@ export default function AuthPages({
       if (!res.ok) throw new Error(data.error || 'Failed to submit quote request.')
 
       const totalStones = cart.reduce((s, i) => s + (i.quantity || 1), 0)
-      const quoteTotal = Number(data.estimatedTotal) || cartTotal
+      const quoteTotal = Number(data.estimatedTotal) || (hasAnyCustom ? cartCustomTotal : cartTotal)
 
       updateCart([])
       setSubmittedQuoteSummary({
@@ -2152,9 +2299,13 @@ export default function AuthPages({
         itemsCount: totalStones,
         deliveryPreference,
         shippingAddress: finalAddress,
+        hasCustomOffer: Boolean(data.hasCustomOffer || hasAnyCustom),
       })
       setCartMsg(null)
       loadOrders()
+      if (isUserAdmin && hasOrdersPerm) {
+        loadAdminQuotes()
+      }
     } catch (err) {
       setCartMsg({ text: err instanceof Error ? err.message : 'Could not submit cart order.', kind: 'error' })
     } finally {
@@ -2391,6 +2542,13 @@ export default function AuthPages({
   const cartTotalDiscountPercent = cartListTotal > 0 && cartTotalDiscount > 0
     ? Math.round((cartTotalDiscount / cartListTotal) * 100)
     : 0
+  const hasAnyCustomOffer = cart.some(item => Boolean(item.isCustomQuote && item.customQuotePrice && item.customQuotePrice > 0))
+  const cartCustomTotal = cart.reduce((sum, item) => {
+    const p = (item.isCustomQuote && item.customQuotePrice && item.customQuotePrice > 0)
+      ? Number(item.customQuotePrice)
+      : item.price
+    return sum + (p * (item.quantity || 1))
+  }, 0)
   const filteredCatalog = selectedShape === 'all'
     ? catalogItems
     : catalogItems.filter(item => item.shape.toLowerCase() === selectedShape.toLowerCase())
@@ -2462,13 +2620,31 @@ export default function AuthPages({
             >
               👤 Edit Profile & Address
             </button>
-            {hasOrdersPerm && (
+            {!isUserAdmin && (
               <button
                 type="button"
                 className={`account-tab-btn ${effectiveTab === 'orders' ? 'account-tab-btn--active' : ''}`}
                 onClick={() => switchTab('orders')}
               >
                 📋 Orders & Transactions
+              </button>
+            )}
+            {isUserAdmin && hasOrdersPerm && (
+              <button
+                type="button"
+                className={`account-tab-btn ${effectiveTab === 'admin-orders' ? 'account-tab-btn--active' : ''}`}
+                onClick={() => switchTab('admin-orders')}
+              >
+                📦 Orders from Website {adminQuotesUnread > 0 ? `(${adminQuotesUnread})` : ''}
+              </button>
+            )}
+            {isUserAdmin && (
+              <button
+                type="button"
+                className={`account-tab-btn ${effectiveTab === 'orders' ? 'account-tab-btn--active' : ''}`}
+                onClick={() => switchTab('orders')}
+              >
+                📋 My Personal Orders
               </button>
             )}
             {hasInventoryPerm && (
@@ -2528,6 +2704,18 @@ export default function AuthPages({
               )}
 
               <div className="account-cards-grid">
+                {isUserAdmin && hasOrdersPerm && (
+                  <div className="account-card-item account-card-item--admin-highlight">
+                    <div>
+                      <h3>📦 Orders &amp; Price Quotes from Website</h3>
+                      <p>Review customer orders submitted from the website, inspect custom price negotiation requests, approve quote rates, and manage fulfillment.</p>
+                    </div>
+                    <button type="button" className="button-primary" onClick={() => switchTab('admin-orders')}>
+                      Review Website Orders {adminQuotesUnread > 0 ? `(${adminQuotesUnread} Pending)` : '→'}
+                    </button>
+                  </div>
+                )}
+
                 {hasInventoryPerm && (
                   <div className="account-card-item account-card-item--admin-highlight">
                     <div>
@@ -2756,12 +2944,18 @@ export default function AuthPages({
               {submittedQuoteSummary ? (
                 <div className="quote-success-card">
                   <div className="quote-success-badge" aria-hidden="true">✓</div>
-                  <h3>Quote Request Received &amp; Under Review</h3>
+                  <h3>
+                    {submittedQuoteSummary.hasCustomOffer
+                      ? 'Quote Request & Custom Price Offer Submitted'
+                      : 'Quote Request Received & Under Review'}
+                  </h3>
                   <div className="quote-success-ref">
                     Reference: <strong>Q-{submittedQuoteSummary.quoteNumber}</strong>
                   </div>
                   <p className="quote-success-desc">
-                    Thank you for submitting your diamond order request to Hey Man Diamond LLC. Our sales concierge team will verify live stone vault availability, finalize tailored dealer/retail pricing, and contact you directly with an official invoice and payment link.
+                    {submittedQuoteSummary.hasCustomOffer
+                      ? 'Thank you for submitting your custom price quote request to Hey Man Diamond LLC. Your proposed pricing has been flagged for priority review by our Sales Concierge team. We will review live vault availability and your target rate, and update your order status in your dashboard.'
+                      : 'Thank you for submitting your diamond order request to Hey Man Diamond LLC. Our sales concierge team will verify live stone vault availability, finalize tailored dealer/retail pricing, and contact you directly with an official invoice and payment link.'}
                   </p>
 
                   <div className="quote-success-details-grid">
@@ -2770,7 +2964,7 @@ export default function AuthPages({
                       <span className="quote-detail-val">{submittedQuoteSummary.itemsCount} {submittedQuoteSummary.itemsCount === 1 ? 'stone' : 'stones'}</span>
                     </div>
                     <div className="quote-detail-item">
-                      <span className="quote-detail-label">Estimated Total</span>
+                      <span className="quote-detail-label">{submittedQuoteSummary.hasCustomOffer ? 'Proposed Offer Total' : 'Estimated Total'}</span>
                       <span className="quote-detail-val">${submittedQuoteSummary.estimatedTotal.toLocaleString()}</span>
                     </div>
                     <div className="quote-detail-item">
@@ -2830,11 +3024,14 @@ export default function AuthPages({
                     </thead>
                     <tbody>
                       {cart.map(item => {
+                        const isCustom = Boolean(item.isCustomQuote && item.customQuotePrice && item.customQuotePrice > 0)
                         const isDiscounted = Boolean(item.listPrice && item.listPrice > item.price)
                         const discountPct = item.discountPercent ?? (isDiscounted && item.listPrice ? Math.round(((item.listPrice - item.price) / item.listPrice) * 100) : null)
+                        const catalogUnitPrice = item.price
+                        const effectiveUnitPrice = isCustom ? item.customQuotePrice! : item.price
                         const lineListTotal = (item.listPrice && item.listPrice > item.price ? item.listPrice : item.price) * (item.quantity || 1)
-                        const linePayableTotal = item.price * (item.quantity || 1)
-                        const lineSavings = lineListTotal - linePayableTotal
+                        const linePayableTotal = effectiveUnitPrice * (item.quantity || 1)
+                        const lineSavings = lineListTotal - (catalogUnitPrice * (item.quantity || 1))
 
                         return (
                           <tr key={item.sku}>
@@ -2850,7 +3047,13 @@ export default function AuthPages({
                               <div style={{ fontSize: '11px' }}>{item.certificateNumber}</div>
                             </td>
                             <td>
-                              {isDiscounted ? (
+                              {isCustom ? (
+                                <div className="cart-price-cell">
+                                  <span className="cart-custom-quote-badge">⚡ Custom Offer</span>
+                                  <strong className="cart-price-custom">${effectiveUnitPrice.toLocaleString()}</strong>
+                                  <span className="cart-price-catalog-sub">Catalog: ${catalogUnitPrice.toLocaleString()}</span>
+                                </div>
+                              ) : isDiscounted ? (
                                 <div className="cart-price-cell">
                                   <span className="cart-price-struck">${item.listPrice!.toLocaleString()}</span>
                                   <span className="cart-price-discounted">${item.price.toLocaleString()}</span>
@@ -2861,6 +3064,57 @@ export default function AuthPages({
                               ) : (
                                 <span>${item.price.toLocaleString()}</span>
                               )}
+
+                              <div className="cart-custom-quote-row">
+                                {editingCustomQuoteSkus[item.sku] || isCustom ? (
+                                  <div className="cart-custom-quote-box">
+                                    <label htmlFor={`quote-input-${item.sku}`} className="cart-custom-quote-label">
+                                      Quote Own Price ($):
+                                    </label>
+                                    <div className="cart-custom-quote-input-group">
+                                      <span className="cart-input-prefix">$</span>
+                                      <input
+                                        id={`quote-input-${item.sku}`}
+                                        type="number"
+                                        min="1"
+                                        max="1000000"
+                                        step="1"
+                                        placeholder={String(catalogUnitPrice)}
+                                        value={item.customQuotePrice ?? ''}
+                                        onChange={e => {
+                                          const val = e.target.value === '' ? null : Number(e.target.value)
+                                          setItemCustomPrice(item.sku, val)
+                                        }}
+                                        className="cart-custom-price-input"
+                                      />
+                                      {isCustom && (
+                                        <button
+                                          type="button"
+                                          className="cart-custom-price-reset"
+                                          onClick={() => {
+                                            setItemCustomPrice(item.sku, null)
+                                            setEditingCustomQuoteSkus(prev => ({ ...prev, [item.sku]: false }))
+                                          }}
+                                          title="Reset to Catalog Price"
+                                        >
+                                          Reset
+                                        </button>
+                                      )}
+                                    </div>
+                                    <span className="cart-custom-quote-hint">
+                                      Submitted for Sales Manager review
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="cart-custom-quote-toggle-btn"
+                                    onClick={() => setEditingCustomQuoteSkus(prev => ({ ...prev, [item.sku]: true }))}
+                                  >
+                                    💬 Quote Own Price
+                                  </button>
+                                )}
+                              </div>
                             </td>
                             <td>
                               <div className="cart-qty-control" aria-label={`Quantity for ${item.shape} ${item.carat}ct`}>
@@ -2888,7 +3142,12 @@ export default function AuthPages({
                               </div>
                             </td>
                             <td>
-                              {isDiscounted ? (
+                              {isCustom ? (
+                                <div className="cart-line-total-cell">
+                                  <strong className="cart-line-total-custom">${linePayableTotal.toLocaleString()}</strong>
+                                  <div className="cart-line-custom-sub">Target Offer Total</div>
+                                </div>
+                              ) : isDiscounted ? (
                                 <div className="cart-line-total-cell">
                                   <span className="cart-price-struck">${lineListTotal.toLocaleString()}</span>
                                   <strong className="cart-line-total-discounted">${linePayableTotal.toLocaleString()}</strong>
@@ -2985,6 +3244,17 @@ export default function AuthPages({
 
                   <div className="cart-summary-box">
                     <h4 className="cart-summary-title">Order Quote Summary</h4>
+
+                    {hasAnyCustomOffer && (
+                      <div className="cart-custom-offer-alert">
+                        <div className="cart-custom-offer-icon">⚡</div>
+                        <div>
+                          <strong>Custom Price Offer Active</strong>
+                          <p>You have quoted your own target price for one or more diamonds. This order will be submitted directly to our Sales Concierge team for price review and approval.</p>
+                        </div>
+                      </div>
+                    )}
+
                     {cartTotalDiscount > 0 ? (
                       <>
                         <div className="cart-breakdown-row">
@@ -3002,10 +3272,18 @@ export default function AuthPages({
                       </>
                     ) : (
                       <div className="cart-breakdown-row">
-                        <span>Subtotal ({cart.reduce((s, i) => s + (i.quantity || 1), 0)} {cart.reduce((s, i) => s + (i.quantity || 1), 0) === 1 ? 'stone' : 'stones'}):</span>
+                        <span>Catalog Subtotal ({cart.reduce((s, i) => s + (i.quantity || 1), 0)} {cart.reduce((s, i) => s + (i.quantity || 1), 0) === 1 ? 'stone' : 'stones'}):</span>
                         <strong>${cartTotal.toLocaleString()}</strong>
                       </div>
                     )}
+
+                    {hasAnyCustomOffer && (
+                      <div className="cart-breakdown-row cart-breakdown-row--custom-offer">
+                        <span className="cart-custom-offer-label">⚡ Your Proposed Offer Total:</span>
+                        <strong className="cart-custom-offer-total">${cartCustomTotal.toLocaleString()}</strong>
+                      </div>
+                    )}
+
                     <div className="cart-breakdown-row">
                       <span>Insured Armored Courier Shipping:</span>
                       <span className="cart-free-tag">Complimentary ($0.00)</span>
@@ -3016,12 +3294,16 @@ export default function AuthPages({
                     </div>
                     <div className="cart-total-line">
                       <div className="cart-total-label-wrap">
-                        <span>Estimated Total to Pay:</span>
-                        {cartTotalDiscount > 0 && (
+                        <span>{hasAnyCustomOffer ? 'Customer Proposed Total:' : 'Estimated Total to Pay:'}</span>
+                        {hasAnyCustomOffer ? (
+                          <small className="cart-total-subtext">Subject to Sales Manager Review &amp; Approval</small>
+                        ) : cartTotalDiscount > 0 ? (
                           <small className="cart-total-subtext">You save ${cartTotalDiscount.toLocaleString()} today</small>
-                        )}
+                        ) : null}
                       </div>
-                      <strong className="cart-grand-total">${cartTotal.toLocaleString()}</strong>
+                      <strong className="cart-grand-total">
+                        ${(hasAnyCustomOffer ? cartCustomTotal : cartTotal).toLocaleString()}
+                      </strong>
                     </div>
                     <p className="cart-quote-disclaimer">
                       ℹ️ <em>Prices reflect real-time live inventory rates. As per Hey Man Diamond LLC policy, all quote submissions are verified by our Sales Concierge team for live stone availability and final tailored pricing before payment authorization.</em>
@@ -3033,7 +3315,11 @@ export default function AuthPages({
                       onClick={handleCheckoutCart}
                       disabled={submittingCart}
                     >
-                      {submittingCart ? 'Submitting Order Request…' : 'Submit Cart for Order & Quote'}
+                      {submittingCart
+                        ? 'Submitting Order Request…'
+                        : hasAnyCustomOffer
+                        ? 'Submit Custom Price Offer for Review'
+                        : 'Submit Cart for Order & Quote'}
                     </button>
                   </div>
                 </div>
@@ -3190,9 +3476,12 @@ export default function AuthPages({
                                         </thead>
                                         <tbody>
                                           {order.quote_request_items.map((item, idx) => {
-                                            const unitPrice = item.current_unit_price || item.requested_unit_price || item.product_snapshot?.price || 0
-                                            const qty = item.quantity || 1
                                             const snap = item.product_snapshot
+                                            const catalogPrice = snap?.catalog_unit_price || item.current_unit_price || snap?.price || 0
+                                            const requestedPrice = item.requested_unit_price || snap?.customer_requested_price || catalogPrice
+                                            const hasCustom = Boolean(snap?.is_custom_offer || (requestedPrice && catalogPrice && Math.abs(requestedPrice - catalogPrice) > 0.01))
+                                            const unitPrice = hasCustom ? requestedPrice : (catalogPrice || requestedPrice)
+                                            const qty = item.quantity || 1
                                             return (
                                               <tr key={item.id || `${item.flomiz_sku}-${idx}`}>
                                                 <td><code>{item.flomiz_sku}</code></td>
@@ -3209,7 +3498,17 @@ export default function AuthPages({
                                                     </div>
                                                   )}
                                                 </td>
-                                                <td>${unitPrice.toLocaleString()}</td>
+                                                <td>
+                                                  {hasCustom ? (
+                                                    <div>
+                                                      <span className="order-price-struck">${catalogPrice.toLocaleString()}</span>
+                                                      <strong className="order-price-offered">${requestedPrice.toLocaleString()}</strong>
+                                                      <div className="order-custom-tag">Your Quoted Offer</div>
+                                                    </div>
+                                                  ) : (
+                                                    <span>${unitPrice.toLocaleString()}</span>
+                                                  )}
+                                                </td>
                                                 <td>{qty}</td>
                                                 <td><strong>${(unitPrice * qty).toLocaleString()}</strong></td>
                                               </tr>
@@ -3218,11 +3517,12 @@ export default function AuthPages({
                                         </tbody>
                                         <tfoot>
                                           <tr>
-                                            <td colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>Total Estimated Value:</td>
+                                            <td colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>Total Value:</td>
                                             <td>
                                               <strong>
                                                 ${order.quote_request_items.reduce((sum, it) => {
-                                                  const p = it.current_unit_price || it.requested_unit_price || it.product_snapshot?.price || 0
+                                                  const snap = it.product_snapshot
+                                                  const p = it.requested_unit_price || snap?.customer_requested_price || it.current_unit_price || snap?.price || 0
                                                   return sum + (p * (it.quantity || 1))
                                                 }, 0).toLocaleString()}
                                               </strong>
@@ -3243,6 +3543,425 @@ export default function AuthPages({
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB: ORDERS FROM WEBSITE (STAFF / ADMIN ONLY) ── */}
+          {effectiveTab === 'admin-orders' && hasOrdersPerm && (
+            <div className="tab-content tab-content--admin-orders">
+              <div className="admin-orders-header">
+                <div>
+                  <h2>📦 Orders &amp; Price Quotes from Website</h2>
+                  <p>Manage customer orders, negotiate and review custom target price offers, approve quote rates, or issue counter-offers.</p>
+                </div>
+                <button
+                  type="button"
+                  className="button-secondary admin-refresh-btn"
+                  onClick={loadAdminQuotes}
+                  disabled={loadingAdminQuotes}
+                >
+                  {loadingAdminQuotes ? 'Refreshing…' : '↻ Refresh Orders'}
+                </button>
+              </div>
+
+              {adminQuoteMsg && (
+                <p className={`auth-status auth-status--${adminQuoteMsg.kind}`} style={{ margin: '14px 0' }}>
+                  {adminQuoteMsg.text}
+                </p>
+              )}
+
+              {/* Controls bar: Search & Status Filters */}
+              <div className="admin-orders-controls">
+                <div className="admin-orders-search-wrap">
+                  <span className="admin-search-icon" aria-hidden="true">🔍</span>
+                  <input
+                    type="text"
+                    className="admin-orders-search-input"
+                    placeholder="Search by quote #, customer name, email, phone, or SKU…"
+                    value={adminQuotesSearch}
+                    onChange={e => setAdminQuotesSearch(e.target.value)}
+                  />
+                  {adminQuotesSearch && (
+                    <button
+                      type="button"
+                      className="admin-search-clear-btn"
+                      onClick={() => setAdminQuotesSearch('')}
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="admin-orders-filter-pills" role="tablist" aria-label="Filter orders">
+                  {[
+                    { key: 'all', label: 'All Orders', count: adminQuotes.length },
+                    { key: 'under_review', label: '⚡ Pending Review', count: adminQuotes.filter(q => q.status === 'under_review' || q.status === 'new').length },
+                    { key: 'accepted', label: '✓ Price Approved', count: adminQuotes.filter(q => q.status === 'accepted').length },
+                    { key: 'counter_offered', label: '💬 Counter-Offered', count: adminQuotes.filter(q => q.status === 'counter_offered').length },
+                    { key: 'converted_to_order', label: '📦 In Fulfillment', count: adminQuotes.filter(q => q.status === 'converted_to_order').length },
+                    { key: 'declined', label: '✕ Declined', count: adminQuotes.filter(q => q.status === 'declined').length },
+                  ].map(f => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      className={`admin-filter-pill ${adminQuotesFilter === f.key ? 'admin-filter-pill--active' : ''}`}
+                      onClick={() => setAdminQuotesFilter(f.key)}
+                    >
+                      {f.label} <span className="admin-filter-count">({f.count})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {loadingAdminQuotes ? (
+                <p style={{ padding: '40px', textAlign: 'center', color: '#77746b' }}>Loading orders from website…</p>
+              ) : adminQuotes.length === 0 ? (
+                <div className="empty-orders-view">
+                  <p>No orders or price quote requests have been submitted from the website yet.</p>
+                </div>
+              ) : (
+                (() => {
+                  const filtered = adminQuotes.filter(q => {
+                    if (adminQuotesFilter === 'under_review' && q.status !== 'under_review' && q.status !== 'new') return false
+                    if (adminQuotesFilter !== 'all' && adminQuotesFilter !== 'under_review' && q.status !== adminQuotesFilter) return false
+
+                    if (adminQuotesSearch.trim()) {
+                      const term = adminQuotesSearch.trim().toLowerCase()
+                      const qNum = String(q.quote_number || q.order_number || q.id || '').toLowerCase()
+                      const name = String(q.customer_name || '').toLowerCase()
+                      const email = String(q.customer_email || '').toLowerCase()
+                      const msg = String(q.customer_message || '').toLowerCase()
+                      const itemMatch = q.quote_request_items?.some(it =>
+                        String(it.flomiz_sku || '').toLowerCase().includes(term) ||
+                        String(it.product_name || '').toLowerCase().includes(term)
+                      )
+                      if (!qNum.includes(term) && !name.includes(term) && !email.includes(term) && !msg.includes(term) && !itemMatch) {
+                        return false
+                      }
+                    }
+                    return true
+                  })
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="empty-orders-view">
+                        <p>No orders match the selected filter or search keyword.</p>
+                        <button type="button" className="button-secondary" onClick={() => { setAdminQuotesFilter('all'); setAdminQuotesSearch('') }}>
+                          Reset Filters
+                        </button>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="admin-orders-list">
+                      {filtered.map(order => {
+                        const items = order.quote_request_items || []
+                        const hasCustomOffer = items.some(it => {
+                          const snap = it.product_snapshot
+                          const req = it.requested_unit_price || snap?.customer_requested_price
+                          const cat = snap?.catalog_unit_price || it.current_unit_price
+                          return Boolean(snap?.is_custom_offer || (req && cat && Math.abs(req - cat) > 0.01))
+                        }) || order.status === 'under_review'
+
+                        const catalogTotal = items.reduce((sum, it) => {
+                          const p = it.product_snapshot?.catalog_unit_price || it.current_unit_price || it.product_snapshot?.price || 0
+                          return sum + (p * (it.quantity || 1))
+                        }, 0)
+
+                        const requestedTotal = items.reduce((sum, it) => {
+                          const p = it.requested_unit_price || it.product_snapshot?.customer_requested_price || it.current_unit_price || it.product_snapshot?.price || 0
+                          return sum + (p * (it.quantity || 1))
+                        }, 0)
+
+                        const isBusy = adminQuoteActionBusy === order.id
+                        const isCounterOpen = activeCounterQuoteId === order.id
+                        const quoteRef = order.quote_number ? `Q-${order.quote_number}` : (order.order_number ? `ORD-${order.order_number}` : order.id.slice(0, 8))
+
+                        return (
+                          <article key={order.id} className={`admin-order-card ${hasCustomOffer ? 'admin-order-card--custom-offer' : ''}`}>
+                            <header className="admin-order-card-header">
+                              <div className="admin-order-ref-group">
+                                <span className="admin-order-tag">Website Order</span>
+                                <h3 className="admin-order-num">{quoteRef}</h3>
+                                <time className="admin-order-date">
+                                  {new Date(order.created_at).toLocaleDateString(undefined, {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </time>
+                              </div>
+
+                              <div className="admin-order-header-right">
+                                <span className={`status-pill status-pill--${order.status}`}>
+                                  {formatOrderStatus(order.status)}
+                                </span>
+                              </div>
+                            </header>
+
+                            {/* Custom Price Offer Highlight Alert */}
+                            {hasCustomOffer && (
+                              <div className="admin-order-custom-alert">
+                                <span className="admin-order-custom-icon" aria-hidden="true">⚡</span>
+                                <div>
+                                  <strong>Customer Quoted Own Target Price: ${requestedTotal.toLocaleString()}</strong>
+                                  <p>Catalog price is ${catalogTotal.toLocaleString()}. Action required: Sales Manager can approve this quoted price, submit a counter-offer, or decline.</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Customer & Fulfillment Info Box */}
+                            <div className="admin-order-info-box">
+                              <div className="admin-order-info-col">
+                                <span className="admin-order-info-label">Customer Contact</span>
+                                <strong className="admin-order-info-val">{order.customer_name}</strong>
+                                <span className="admin-order-info-sub">{order.customer_email}</span>
+                              </div>
+
+                              {order.customer_message && (
+                                <div className="admin-order-info-col admin-order-info-col--wide">
+                                  <span className="admin-order-info-label">Fulfillment &amp; Instructions</span>
+                                  <pre className="admin-order-notes-pre">{order.customer_message}</pre>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Diamond Stones Table */}
+                            {items.length > 0 ? (
+                              <div className="admin-order-items-wrap">
+                                <table className="admin-order-items-table">
+                                  <thead>
+                                    <tr>
+                                      <th>SKU</th>
+                                      <th>Diamond Specification</th>
+                                      <th>Catalog Price</th>
+                                      <th>Customer Target Price</th>
+                                      <th>Qty</th>
+                                      <th>Line Total</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {items.map((it, idx) => {
+                                      const snap = it.product_snapshot
+                                      const catPrice = snap?.catalog_unit_price || it.current_unit_price || snap?.price || 0
+                                      const reqPrice = it.requested_unit_price || snap?.customer_requested_price || catPrice
+                                      const isCustomItem = Boolean(snap?.is_custom_offer || (reqPrice && catPrice && Math.abs(reqPrice - catPrice) > 0.01))
+                                      const qty = it.quantity || 1
+
+                                      return (
+                                        <tr key={it.id || `${it.flomiz_sku}-${idx}`}>
+                                          <td><code>{it.flomiz_sku}</code></td>
+                                          <td>
+                                            <strong>
+                                              {snap?.shape && snap?.carat
+                                                ? `${snap.shape} ${snap.carat}ct Diamond`
+                                                : it.product_name}
+                                            </strong>
+                                            {snap && (
+                                              <div className="admin-item-specs-sub">
+                                                Color: {snap.color || '—'} · Clarity: {snap.clarity || '—'} · Cut: {snap.cut || '—'}
+                                                {snap.certificateNumber ? ` · Cert #${snap.certificateNumber}` : ''}
+                                                {snap.lab ? ` (${snap.lab})` : ''}
+                                              </div>
+                                            )}
+                                          </td>
+                                          <td>${catPrice.toLocaleString()}</td>
+                                          <td>
+                                            {isCustomItem ? (
+                                              <div className="admin-item-offer-price">
+                                                <span className="admin-price-struck">${catPrice.toLocaleString()}</span>
+                                                <strong className="admin-price-offered">${reqPrice.toLocaleString()}</strong>
+                                                <span className="admin-custom-badge">⚡ Custom Offer</span>
+                                              </div>
+                                            ) : (
+                                              <span>${reqPrice.toLocaleString()}</span>
+                                            )}
+                                          </td>
+                                          <td>{qty}</td>
+                                          <td><strong>${(reqPrice * qty).toLocaleString()}</strong></td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : null}
+
+                            {/* Totals & Financial Summary */}
+                            <div className="admin-order-totals-bar">
+                              <div className="admin-totals-col">
+                                <span className="admin-totals-label">Catalog Total:</span>
+                                <span className="admin-totals-val">${catalogTotal.toLocaleString()}</span>
+                              </div>
+                              <div className="admin-totals-col admin-totals-col--highlight">
+                                <span className="admin-totals-label">{hasCustomOffer ? 'Customer Quoted Total:' : 'Order Total:'}</span>
+                                <strong className="admin-totals-val">${requestedTotal.toLocaleString()}</strong>
+                              </div>
+                              {hasCustomOffer && (
+                                <div className="admin-totals-col">
+                                  <span className="admin-totals-label">Variance:</span>
+                                  <span className={`admin-totals-diff ${requestedTotal < catalogTotal ? 'admin-totals-diff--neg' : ''}`}>
+                                    {requestedTotal < catalogTotal ? `-$${(catalogTotal - requestedTotal).toLocaleString()}` : `+$${(requestedTotal - catalogTotal).toLocaleString()}`}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Counter-Offer Inline Form */}
+                            {isCounterOpen && (
+                              <div className="admin-counter-offer-box">
+                                <h4>💬 Submit Counter-Offer to Customer</h4>
+                                <p>Provide a revised price for the order and an optional message to the customer.</p>
+                                <div className="admin-counter-inputs-grid">
+                                  <div className="admin-counter-field">
+                                    <label htmlFor={`counter-price-${order.id}`}>Counter-Offer Total Price ($)</label>
+                                    <div className="admin-counter-input-wrap">
+                                      <span>$</span>
+                                      <input
+                                        id={`counter-price-${order.id}`}
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        placeholder={String(Math.round((catalogTotal + requestedTotal) / 2))}
+                                        value={counterPriceInput}
+                                        onChange={e => setCounterPriceInput(e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="admin-counter-field admin-counter-field--wide">
+                                    <label htmlFor={`counter-note-${order.id}`}>Sales Manager Note for Customer</label>
+                                    <input
+                                      id={`counter-note-${order.id}`}
+                                      type="text"
+                                      placeholder="e.g. We can offer this stone at $610 for wire transfer payment."
+                                      value={counterNoteInput}
+                                      onChange={e => setCounterNoteInput(e.target.value)}
+                                      maxLength={300}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="admin-counter-actions">
+                                  <button
+                                    type="button"
+                                    className="button-primary"
+                                    disabled={isBusy}
+                                    onClick={() => handleAdminUpdateQuoteStatus(
+                                      order.id,
+                                      'counter_offered',
+                                      counterNoteInput.trim() || `Counter-offer proposed at $${Number(counterPriceInput || requestedTotal).toLocaleString()}`,
+                                      Number(counterPriceInput) || requestedTotal
+                                    )}
+                                  >
+                                    {isBusy ? 'Submitting…' : 'Send Counter-Offer'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="button-secondary"
+                                    disabled={isBusy}
+                                    onClick={() => {
+                                      setActiveCounterQuoteId(null)
+                                      setCounterPriceInput('')
+                                      setCounterNoteInput('')
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Sales Manager Action Toolbar */}
+                            <footer className="admin-order-actions-bar">
+                              {order.status !== 'accepted' && (
+                                <button
+                                  type="button"
+                                  className="admin-action-btn admin-action-btn--approve"
+                                  disabled={isBusy}
+                                  onClick={() => handleAdminUpdateQuoteStatus(
+                                    order.id,
+                                    'accepted',
+                                    hasCustomOffer
+                                      ? `Custom quoted price of $${requestedTotal.toLocaleString()} approved by Sales Manager.`
+                                      : 'Order quote verified and approved by Sales Manager.'
+                                  )}
+                                >
+                                  ✓ Approve Quote Price
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                className="admin-action-btn admin-action-btn--counter"
+                                disabled={isBusy}
+                                onClick={() => {
+                                  if (isCounterOpen) {
+                                    setActiveCounterQuoteId(null)
+                                  } else {
+                                    setActiveCounterQuoteId(order.id)
+                                    setCounterPriceInput(String(Math.round((catalogTotal + requestedTotal) / 2)))
+                                    setCounterNoteInput('')
+                                  }
+                                }}
+                              >
+                                {isCounterOpen ? 'Close Counter Form' : '💬 Counter-Offer'}
+                              </button>
+
+                              {order.status !== 'converted_to_order' && order.status !== 'closed' && (
+                                <button
+                                  type="button"
+                                  className="admin-action-btn admin-action-btn--fulfill"
+                                  disabled={isBusy}
+                                  onClick={() => handleAdminUpdateQuoteStatus(
+                                    order.id,
+                                    'converted_to_order',
+                                    'Quote confirmed and moved into fulfillment with armored courier dispatch.'
+                                  )}
+                                >
+                                  📦 Mark In Fulfillment
+                                </button>
+                              )}
+
+                              {order.status !== 'declined' && order.status !== 'closed' && (
+                                <button
+                                  type="button"
+                                  className="admin-action-btn admin-action-btn--decline"
+                                  disabled={isBusy}
+                                  onClick={() => handleAdminUpdateQuoteStatus(
+                                    order.id,
+                                    'declined',
+                                    'Quote request declined by Sales Manager.'
+                                  )}
+                                >
+                                  ✕ Decline Quote
+                                </button>
+                              )}
+
+                              {order.status === 'converted_to_order' && (
+                                <button
+                                  type="button"
+                                  className="admin-action-btn admin-action-btn--approve"
+                                  disabled={isBusy}
+                                  onClick={() => handleAdminUpdateQuoteStatus(
+                                    order.id,
+                                    'closed',
+                                    'Order successfully completed and delivered.'
+                                  )}
+                                >
+                                  ✓ Mark Order Completed
+                                </button>
+                              )}
+                            </footer>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  )
+                })()
               )}
             </div>
           )}
@@ -4963,8 +5682,8 @@ export default function AuthPages({
                             )}
                           </span>
                           <div className="staff-perm-card-content">
-                            <strong><span className="staff-perm-card-icon">📦</span>Orders &amp; Quote Transactions</strong>
-                            <p>View dealer inquiries, quote requests, counter-offers, and update fulfillment states.</p>
+                            <strong><span className="staff-perm-card-icon">📦</span>Orders from Website &amp; Quote Approvals</strong>
+                            <p>View orders submitted from website, review customer custom price offers, approve or decline quotes, and issue counter-offers.</p>
                           </div>
                         </label>
 
@@ -5248,7 +5967,7 @@ export default function AuthPages({
                                         </svg>
                                       )}
                                     </span>
-                                    <span>📦 Orders &amp; Quotes</span>
+                                    <span>📦 Orders from Website &amp; Quote Approvals</span>
                                   </label>
                                   <label className={`staff-inline-checkbox ${editPerms.can_review_kyc ? 'staff-inline-checkbox--active' : ''}`}>
                                     <input
@@ -5358,7 +6077,7 @@ export default function AuthPages({
                                       <span className="staff-perm-pill">💎 Diamond Inventory</span>
                                     )}
                                     {staff.permissions?.can_manage_orders && (
-                                      <span className="staff-perm-pill">📦 Orders &amp; Quotes</span>
+                                      <span className="staff-perm-pill">📦 Orders from Website &amp; Quotes</span>
                                     )}
                                     {staff.permissions?.can_review_kyc && (
                                       <span className="staff-perm-pill">🏢 Dealer KYC</span>

@@ -300,7 +300,7 @@ const server = createServer(async (req, res) => {
         if (req.method === 'GET' && url.pathname === '/api/admin/quotes') {
           return await handleGetAdminQuotes(req, res, admin)
         }
-        if (req.method === 'PATCH' && /^\/api\/admin\/quotes\/[0-9a-f-]+$/i.test(url.pathname)) {
+        if (req.method === 'PATCH' && /^\/api\/admin\/quotes\/[a-zA-Z0-9_-]+$/i.test(url.pathname)) {
           const id = url.pathname.split('/').pop()
           return await handleUpdateQuoteStatus(req, res, admin, id)
         }

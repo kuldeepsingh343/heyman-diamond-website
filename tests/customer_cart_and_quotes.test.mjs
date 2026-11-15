@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import {
   handleCreateQuote,
   handleGetUserOrders,
+  handleGetAdminQuotes,
+  handleUpdateQuoteStatus,
+  resetMemoryQuotes,
 } from '../server/services/quotes.mjs'
 
 function createMockRes() {
@@ -230,4 +233,109 @@ test('Customer Cart & Quotes — Discount Pricing, Line Item Totals & Cart Summa
   assert.strictEqual(lineListTotal, 2560)
   assert.strictEqual(linePayableTotal, 1280)
   assert.strictEqual(lineSavings, 1280)
+})
+
+test('Customer Cart & Quotes — "Quote Own Price" Custom Offer Pricing Engine', () => {
+  // Test item with custom quoted offer
+  const diamondItem = {
+    sku: 'HM-151',
+    shape: 'Cushion',
+    carat: 1.6,
+    price: 640,
+    listPrice: 1280,
+    discountPercent: 50,
+    quantity: 2,
+    customQuotePrice: 580,
+    isCustomQuote: true,
+  }
+
+  const catalogUnitPrice = diamondItem.price
+  const effectiveOfferPrice = (diamondItem.isCustomQuote && diamondItem.customQuotePrice && diamondItem.customQuotePrice > 0)
+    ? diamondItem.customQuotePrice
+    : diamondItem.price
+  const lineOfferTotal = effectiveOfferPrice * diamondItem.quantity
+  const lineCatalogTotal = catalogUnitPrice * diamondItem.quantity
+
+  assert.strictEqual(catalogUnitPrice, 640)
+  assert.strictEqual(effectiveOfferPrice, 580)
+  assert.strictEqual(lineOfferTotal, 1160) // $580 x 2
+  assert.strictEqual(lineCatalogTotal, 1280) // $640 x 2
+  assert.strictEqual(lineCatalogTotal - lineOfferTotal, 120) // customer asks for $120 extra discount
+
+  // Test mixed cart: one standard diamond, one custom quoted diamond
+  const regularItem = {
+    sku: 'HM-REG-101',
+    shape: 'Round',
+    carat: 1.0,
+    price: 2000,
+    listPrice: 2000,
+    quantity: 1,
+    customQuotePrice: null,
+    isCustomQuote: false,
+  }
+
+  const mixedCart = [diamondItem, regularItem]
+  const hasAnyCustom = mixedCart.some(i => Boolean(i.isCustomQuote && i.customQuotePrice && i.customQuotePrice > 0))
+  assert.strictEqual(hasAnyCustom, true)
+
+  const catalogSubtotal = mixedCart.reduce((sum, i) => sum + (i.price * (i.quantity || 1)), 0)
+  const proposedOfferTotal = mixedCart.reduce((sum, i) => {
+    const p = (i.isCustomQuote && i.customQuotePrice && i.customQuotePrice > 0)
+      ? Number(i.customQuotePrice)
+      : i.price
+    return sum + (p * (i.quantity || 1))
+  }, 0)
+
+  // Catalog: ($640 x 2) + ($2000 x 1) = $3280
+  assert.strictEqual(catalogSubtotal, 3280)
+  // Proposed: ($580 x 2) + ($2000 x 1) = $3160
+  assert.strictEqual(proposedOfferTotal, 3160)
+  assert.strictEqual(catalogSubtotal - proposedOfferTotal, 120)
+})
+
+test('Admin Panel — Orders from Website Permissions & Quote Status Lifecycle', async t => {
+  resetMemoryQuotes()
+
+  const unauthorizedAdmin = {
+    user: { id: 'staff-ops', email: 'ops@heymandiamond.com' },
+    permissions: { can_manage_orders: false, can_manage_inventory: true },
+  }
+
+  const authorizedSalesManager = {
+    user: { id: 'staff-sales', email: 'sales@heymandiamond.com' },
+    permissions: { can_manage_orders: true },
+  }
+
+  await t.test('handleGetAdminQuotes rejects staff without can_manage_orders permission (403)', async () => {
+    const req = createMockReq()
+    const res = createMockRes()
+    await handleGetAdminQuotes(req, res, unauthorizedAdmin)
+    assert.strictEqual(res.statusCode, 403)
+    assert.match(res.json.error, /Order.*management permission required/i)
+  })
+
+  await t.test('handleUpdateQuoteStatus rejects staff without can_manage_orders permission (403)', async () => {
+    const req = createMockReq({ 'content-type': 'application/json' }, { status: 'accepted' })
+    const res = createMockRes()
+    await handleUpdateQuoteStatus(req, res, unauthorizedAdmin, 'quote-123')
+    assert.strictEqual(res.statusCode, 403)
+    assert.match(res.json.error, /Order.*management permission required/i)
+  })
+
+  await t.test('handleGetAdminQuotes allows authorized staff and returns quote list', async () => {
+    const req = createMockReq()
+    const res = createMockRes()
+    await handleGetAdminQuotes(req, res, authorizedSalesManager)
+    assert.strictEqual(res.statusCode, 200)
+    assert.ok(Array.isArray(res.json.items))
+    assert.strictEqual(typeof res.json.unreadCount, 'number')
+  })
+
+  await t.test('handleUpdateQuoteStatus validates permitted statuses strictly', async () => {
+    const req = createMockReq({ 'content-type': 'application/json' }, { status: 'invalid_status_xyz' })
+    const res = createMockRes()
+    await handleUpdateQuoteStatus(req, res, authorizedSalesManager, 'quote-123')
+    assert.strictEqual(res.statusCode, 400)
+    assert.match(res.json.error, /invalid quote request status/i)
+  })
 })

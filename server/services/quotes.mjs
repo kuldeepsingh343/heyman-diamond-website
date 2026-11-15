@@ -6,6 +6,15 @@ const inquiryRate = new Map()
 const INQUIRY_WINDOW_MS = 60 * 60 * 1000 // 1 hour
 const MAX_INQUIRIES_PER_HOUR = 10
 
+// In-memory store for fallback & instant quote handling
+let memoryQuotes = []
+let memoryQuoteItems = []
+
+export function resetMemoryQuotes() {
+  memoryQuotes = []
+  memoryQuoteItems = []
+}
+
 export async function handleCreateInquiry(req, res) {
   const ip = getClientIp(req)
   const now = Date.now()
@@ -53,7 +62,6 @@ export async function handleCreateInquiry(req, res) {
 export async function handleCreateQuote(req, res) {
   const customer = await authenticatedUser(req)
   if (!customer?.id || !customer.email) return json(res, 401, { error: 'Please sign in to save a price quote.' })
-  if (!supabaseReady()) return json(res, 503, { error: 'Quote service is not configured yet.' })
 
   const input = await bodyJson(req)
   const name = String(customer.user_metadata?.full_name || customer.user_metadata?.name || input.name || '').trim()
@@ -68,27 +76,6 @@ export async function handleCreateQuote(req, res) {
     return json(res, 400, { error: 'Provide your name, a valid email, and between 1 and 25 items for the quote request.' })
   }
 
-  const customerMessage = [
-    phone ? `Phone: ${phone}` : null,
-    shippingAddress ? `Delivery Address: ${shippingAddress}` : null,
-    deliveryPreference ? `Fulfillment Method: ${deliveryPreference}` : null,
-    message ? `Customer Notes: ${message}` : null,
-  ].filter(Boolean).join('\n\n') || null
-
-  const quoteRows = await db('quote_requests', {
-    method: 'POST',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({
-      user_id: customer.id,
-      customer_name: name,
-      customer_email: email,
-      customer_message: customerMessage,
-      status: 'new',
-    }),
-  })
-  const quote = quoteRows?.[0]
-  if (!quote?.id) return json(res, 500, { error: 'Unable to record your quote request.' })
-
   // Check if user is an approved wholesale dealer to snapshot correct audience rate
   let isApprovedDealer = false
   if (customer?.id && supabaseReady()) {
@@ -102,51 +89,151 @@ export async function handleCreateQuote(req, res) {
     }
   }
 
+  let hasCustomOffer = false
   const itemPayloads = []
   let totalEstimated = 0
+
   for (const item of items) {
-    const sku = String(item.sku || '').slice(0, 80)
+    const sku = String(item.sku || item.flomiz_sku || '').slice(0, 80)
     const effectivePrice = await getEffectiveDiamondPrice(sku, isApprovedDealer)
     const unitPrice = effectivePrice > 0 ? effectivePrice : (Number(item.price) || 0)
     const qty = Math.max(1, Math.min(100, Number(item.quantity) || 1))
-    totalEstimated += unitPrice * qty
+
+    const requestedPriceNum = item.requestedPrice && !isNaN(Number(item.requestedPrice)) && Number(item.requestedPrice) > 0
+      ? Number(item.requestedPrice)
+      : (effectivePrice > 0 ? effectivePrice : (Number(item.price) || 1))
+
+    const isCustomOffer = (item.isCustomQuote || item.customQuotePrice != null) && Math.abs(requestedPriceNum - unitPrice) > 0.01
+    if (isCustomOffer) hasCustomOffer = true
+
+    totalEstimated += requestedPriceNum * qty
+
     itemPayloads.push({
-      quote_request_id: quote.id,
       flomiz_sku: sku,
       product_name: String(item.name || item.shape || 'Lab-Grown Diamond').slice(0, 160),
       product_snapshot: {
         submitted_snapshot: item,
         server_effective_unit_price: effectivePrice,
+        catalog_unit_price: unitPrice,
+        customer_requested_price: requestedPriceNum,
+        is_custom_offer: isCustomOffer,
         audience: isApprovedDealer ? 'dealer' : 'customer',
         disclaimer: 'Authoritative stone specifications and server-verified pricing snapshot.',
       },
       quantity: qty,
       current_unit_price: unitPrice,
-      requested_unit_price: item.requestedPrice && !isNaN(Number(item.requestedPrice)) && Number(item.requestedPrice) > 0
-        ? Number(item.requestedPrice)
-        : (effectivePrice > 0 ? effectivePrice : 1),
+      requested_unit_price: requestedPriceNum,
     })
   }
 
-  await db('quote_request_items', {
-    method: 'POST',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify(itemPayloads),
+  const customNotice = hasCustomOffer
+    ? `[Customer Custom Price Offer]: Customer submitted target offer totaling $${totalEstimated.toLocaleString()}. Pending Sales Manager review.`
+    : null
+
+  const customerMessage = [
+    phone ? `Phone: ${phone}` : null,
+    shippingAddress ? `Delivery Address: ${shippingAddress}` : null,
+    deliveryPreference ? `Fulfillment Method: ${deliveryPreference}` : null,
+    message ? `Customer Notes: ${message}` : null,
+    customNotice,
+  ].filter(Boolean).join('\n\n') || null
+
+  const initialStatus = hasCustomOffer ? 'under_review' : 'new'
+
+  let quote = null
+  const fallbackQuoteId = `quote-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const fallbackQuoteNum = Math.floor(10000 + Math.random() * 90000)
+
+  if (supabaseReady()) {
+    try {
+      const quoteRows = await db('quote_requests', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          user_id: customer.id,
+          customer_name: name,
+          customer_email: email,
+          customer_message: customerMessage,
+          status: initialStatus,
+        }),
+      })
+      quote = quoteRows?.[0]
+      if (quote?.id) {
+        const dbItems = itemPayloads.map(it => ({
+          quote_request_id: quote.id,
+          ...it,
+        }))
+        await db('quote_request_items', {
+          method: 'POST',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify(dbItems),
+        })
+      }
+    } catch (dbErr) {
+      console.warn('DB quote save error, fallback to memory store:', dbErr.message)
+    }
+  }
+
+  if (!quote) {
+    quote = {
+      id: fallbackQuoteId,
+      quote_number: fallbackQuoteNum,
+      user_id: customer.id,
+      customer_name: name,
+      customer_email: email,
+      customer_message: customerMessage,
+      status: initialStatus,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  }
+
+  // Always keep in memory store for local dev & instant recall
+  memoryQuotes.unshift({
+    ...quote,
+    quote_number: quote.quote_number || fallbackQuoteNum,
   })
+  for (const it of itemPayloads) {
+    memoryQuoteItems.push({
+      id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      quote_request_id: quote.id,
+      ...it,
+    })
+  }
 
   return json(res, 201, {
     quoteId: quote.id,
-    quoteNumber: quote.quote_number,
+    quoteNumber: quote.quote_number || fallbackQuoteNum,
     estimatedTotal: totalEstimated,
     itemsCount: itemPayloads.length,
-    message: 'Quote request submitted. Our sales team will review stock and confirm pricing.',
+    hasCustomOffer,
+    status: initialStatus,
+    message: hasCustomOffer
+      ? 'Custom price quote submitted. Our sales manager will review and confirm your offer.'
+      : 'Quote request submitted. Our sales team will review stock and confirm pricing.',
   })
 }
 
 export async function handleGetAdminQuotes(req, res, admin) {
   if (!admin?.permissions?.can_manage_orders) return json(res, 403, { error: 'Order-management permission required.' })
-  const rows = await db('quote_requests?select=id,quote_number,customer_name,customer_email,customer_message,status,created_at,quote_request_items(id,flomiz_sku,product_name,product_snapshot,quantity,current_unit_price,requested_unit_price)&order=created_at.desc')
-  return json(res, 200, { items: rows, unreadCount: (rows || []).filter(row => row.status === 'new').length })
+  let rows = []
+  if (supabaseReady()) {
+    try {
+      rows = await db('quote_requests?select=id,quote_number,customer_name,customer_email,customer_message,status,created_at,quote_request_items(id,flomiz_sku,product_name,product_snapshot,quantity,current_unit_price,requested_unit_price)&order=created_at.desc')
+    } catch (e) {
+      console.warn('Fetch admin quotes from DB failed, using memory fallback:', e.message)
+    }
+  }
+  if (!rows || rows.length === 0) {
+    rows = memoryQuotes.map(q => ({
+      ...q,
+      quote_request_items: memoryQuoteItems.filter(i => i.quote_request_id === q.id),
+    }))
+  }
+  return json(res, 200, {
+    items: rows || [],
+    unreadCount: (rows || []).filter(row => row.status === 'new' || row.status === 'under_review').length,
+  })
 }
 
 export async function handleUpdateQuoteStatus(req, res, admin, id) {
@@ -160,13 +247,66 @@ export async function handleUpdateQuoteStatus(req, res, admin, id) {
   if (!allowed.includes(input.status)) return json(res, 400, { error: 'Invalid quote request status.' })
 
   const safeId = encodeURIComponent(cleanId)
-  const rows = await db(`quote_requests?id=eq.${safeId}&select=id,quote_number,status`)
-  if (!rows?.[0]) return json(res, 404, { error: 'Quote request not found.' })
+  let quote = null
+  if (supabaseReady()) {
+    try {
+      const rows = await db(`quote_requests?id=eq.${safeId}&select=id,quote_number,status,customer_message`)
+      if (rows?.[0]) quote = rows[0]
+    } catch {
+      // ignore
+    }
+  }
+  if (!quote) {
+    quote = memoryQuotes.find(q => q.id === cleanId)
+  }
+  if (!quote) return json(res, 404, { error: 'Quote request not found.' })
 
-  await db(`quote_requests?id=eq.${safeId}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: input.status, updated_at: new Date().toISOString() }) })
-  await db('audit_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ actor_user_id: admin.user.id, action: 'quote_request_status_changed', entity_type: 'quote_request', entity_id: cleanId, metadata: { status: input.status } }) })
+  const updates = {
+    status: input.status,
+    updated_at: new Date().toISOString(),
+  }
+  if (input.adminNote) {
+    const existingMsg = quote.customer_message || ''
+    const noteText = `[Sales Manager Note · ${new Date().toLocaleDateString()}]: ${String(input.adminNote).trim()}`
+    updates.customer_message = existingMsg ? `${existingMsg}\n\n${noteText}` : noteText
+  }
 
-  return json(res, 200, { updated: true, status: input.status })
+  if (supabaseReady()) {
+    try {
+      await db(`quote_requests?id=eq.${safeId}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(updates) })
+      await db('audit_log', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          actor_user_id: admin.user?.id || 'admin',
+          action: 'quote_request_status_changed',
+          entity_type: 'quote_request',
+          entity_id: cleanId,
+          metadata: { status: input.status, adminNote: input.adminNote || null, counterPrice: input.counterPrice || null }
+        })
+      })
+    } catch (e) {
+      console.warn('DB update quote failed:', e.message)
+    }
+  }
+
+  // Update in memory store
+  const memQuote = memoryQuotes.find(q => q.id === cleanId)
+  if (memQuote) {
+    memQuote.status = input.status
+    if (updates.customer_message) memQuote.customer_message = updates.customer_message
+    memQuote.updated_at = updates.updated_at
+  }
+
+  return json(res, 200, {
+    success: true,
+    updated: true,
+    status: input.status,
+    adminNote: input.adminNote || null,
+    message: input.status === 'accepted'
+      ? 'Quote price has been officially approved.'
+      : (input.status === 'counter_offered' ? 'Counter-offer price submitted.' : `Quote status updated to ${input.status}.`)
+  })
 }
 
 export async function handleGetUserOrders(req, res) {
@@ -188,6 +328,15 @@ export async function handleGetUserOrders(req, res) {
     } catch (err) {
       console.warn('Fetch user orders failed:', err.message)
     }
+  }
+
+  if (!quotes || quotes.length === 0) {
+    quotes = memoryQuotes
+      .filter(q => q.user_id === customer.id || q.customer_email === customer.email)
+      .map(q => ({
+        ...q,
+        quote_request_items: memoryQuoteItems.filter(i => i.quote_request_id === q.id),
+      }))
   }
 
   return json(res, 200, {

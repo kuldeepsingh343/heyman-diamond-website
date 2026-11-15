@@ -140,6 +140,14 @@ describe('Discount Row Independence & Actions Single Line Verification', () => {
     // Other diamond must NOT have inherited the 15% or 10% discount!
     assert.notStrictEqual(otherDiamond.customerDiscountPercent, 15);
     assert.notStrictEqual(otherDiamond.dealerDiscountPercent, 10);
+
+    // Restore target diamond discounts so subsequent tests run with clean state
+    await handleUpdateAdminDiamond(
+      createMockReq({}, { customerDiscountPrice: null, customerDiscountPercent: null, dealerDiscountPrice: null, dealerDiscountPercent: null }),
+      createMockRes(),
+      admin,
+      targetId
+    );
   });
 
   it('validates customer and dealer discount isolation within the same row', () => {
