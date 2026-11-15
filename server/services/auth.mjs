@@ -284,7 +284,7 @@ export async function handleSignup(req, res) {
     const profileRows = await db(`profiles?id=eq.${existingUser.id}&select=is_registered`).catch(() => [])
     const isTrulyRegistered = profileRows?.[0]?.is_registered === true
     if (isTrulyRegistered) {
-      return json(res, 409, { code: 'already_registered', error: 'Your email is already registered with us. Please sign in instead.' })
+      return json(res, 409, { code: 'already_registered', error: 'This account is already registered. Please sign in instead.' })
     }
 
     // Account was created via OAuth (Google / Apple) without completing registration. Complete it now:
@@ -723,7 +723,7 @@ export async function handleGetProfile(req, res) {
   // Never trust user_metadata for role or account_type elevation
   const accountType = isAdmin ? 'admin' : (profileData?.account_type === 'dealer' ? 'dealer' : 'customer')
   const meta = user.user_metadata || {}
-  const isRegisteredCustomer = Boolean(isAdmin || (profileData && profileData.account_type))
+  const isRegisteredCustomer = Boolean(isAdmin || (profileData && profileData.is_registered === true))
 
   return json(res, 200, {
     id: user.id,
@@ -734,6 +734,7 @@ export async function handleGetProfile(req, res) {
     gender: profileData?.gender || meta.gender || 'prefer_not_to_say',
     account_type: accountType,
     dealer_status: profileData?.dealer_status || 'not_applied',
+    avatar_url: meta.avatar_url || meta.picture || null,
     is_registered: isRegisteredCustomer,
     is_admin: isAdmin,
     is_super_admin: resolved?.role === 'super_admin',
@@ -1007,12 +1008,13 @@ export async function handleOAuthCallback(req, res) {
     return json(res, 200, {
       success: false,
       notRegistered: true,
-      message: 'No account found for this Google account. Please sign up first.',
+      message: 'This account is not registered on our website. Please sign up first.',
     })
   }
 
   // Scenario 1: User clicked "Sign in with Google", and account exists!
   if (intent === 'signin' && isExistingRegistered) {
+    const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null
     return json(res, 200, {
       success: true,
       isNew: false,
@@ -1022,6 +1024,9 @@ export async function handleOAuthCallback(req, res) {
         id: user.id,
         email: user.email,
         full_name: profileRow?.full_name || user.user_metadata?.full_name || user.email.split('@')[0],
+        avatar_url: avatarUrl,
+        account_type: profileRow?.account_type || 'customer',
+        dealer_status: profileRow?.dealer_status || 'not_applied',
       },
     })
   }
@@ -1031,13 +1036,14 @@ export async function handleOAuthCallback(req, res) {
     return json(res, 200, {
       success: false,
       alreadyRegistered: true,
-      message: 'Your email is already registered with us. Please sign in instead.',
+      message: 'This account is already registered. Please sign in instead.',
     })
   }
 
   // Scenario 3: User clicked "Sign up with Google", and account is new!
   if (intent === 'signup' && !isExistingRegistered) {
     const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0]
+    const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null
     if (supabaseReady()) {
       try {
         await db(`profiles?id=eq.${encodeURIComponent(user.id)}`, {
@@ -1063,6 +1069,7 @@ export async function handleOAuthCallback(req, res) {
               full_name: fullName,
               account_type: 'customer',
               is_registered: true,
+              avatar_url: avatarUrl,
             },
           }),
         }).catch(() => {})
@@ -1080,6 +1087,8 @@ export async function handleOAuthCallback(req, res) {
         id: user.id,
         email: user.email,
         full_name: fullName,
+        avatar_url: avatarUrl,
+        account_type: 'customer',
       },
     })
   }

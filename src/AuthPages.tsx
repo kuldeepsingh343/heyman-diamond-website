@@ -70,6 +70,7 @@ export interface UserProfile {
   gender?: string
   account_type?: 'customer' | 'dealer' | 'admin'
   dealer_status?: string
+  avatar_url?: string | null
   role?: 'super_admin' | 'admin' | 'sales_manager' | 'operations_manager'
   role_title?: string
   is_super_admin?: boolean
@@ -1958,7 +1959,7 @@ export default function AuthPages({
             sessionStorage.removeItem('hmd_guest_cart_active')
             updateUserSession(null)
             setStatus({
-              text: 'No account found for this Google account. Please sign up first.',
+              text: 'This account is not registered on our website. Please sign up first.',
               kind: 'error',
             })
             setNeedsSignupPrompt(true)
@@ -1975,7 +1976,7 @@ export default function AuthPages({
             sessionStorage.removeItem('hmd_guest_cart_active')
             updateUserSession(null)
             setStatus({
-              text: 'Your email is already registered with us. Please sign in instead.',
+              text: 'This account is already registered. Please sign in instead.',
               kind: 'error',
             })
             setNeedsSigninPrompt(true)
@@ -1987,6 +1988,11 @@ export default function AuthPages({
           if (oauthData?.isNew) {
             setStatus({
               text: oauthData.message || 'Your account has been created successfully! Welcome to Hey Man Diamond.',
+              kind: 'success',
+            })
+          } else {
+            setStatus({
+              text: 'Signed in successfully.',
               kind: 'success',
             })
           }
@@ -2005,11 +2011,13 @@ export default function AuthPages({
                   gender: data.gender || 'prefer_not_to_say',
                   account_type: data.account_type || 'customer',
                   dealer_status: data.dealer_status || 'not_applied',
+                  avatar_url: data.avatar_url || null,
                   permissions: data.permissions,
                   role_title: data.role_title,
                 }
                 localStorage.setItem('hmd_user', JSON.stringify(profile))
                 updateUserSession(profile)
+                window.location.hash = (profile.account_type === 'admin') ? '#admin' : '#account'
               }
             })
         })
@@ -2191,7 +2199,7 @@ export default function AuthPages({
         if (data.code === 'already_registered' || response.status === 409) {
           setNeedsSigninPrompt(true)
           setNeedsSignupPrompt(false)
-          throw new Error('Your email is already registered with us. Please sign in instead.')
+          throw new Error('This account is already registered. Please sign in instead.')
         }
         throw new Error(data.error || 'Something went wrong. Please try again.')
       }
@@ -2370,7 +2378,7 @@ export default function AuthPages({
           if (!signup && !checkData.registered) {
             setBusy(false)
             setStatus({
-              text: 'No account found for this Google account. Please sign up first.',
+              text: 'This account is not registered on our website. Please sign up first.',
               kind: 'error',
             })
             setNeedsSignupPrompt(true)
@@ -2380,7 +2388,7 @@ export default function AuthPages({
           if (signup && checkData.registered) {
             setBusy(false)
             setStatus({
-              text: 'Your email is already registered with us. Please sign in instead.',
+              text: 'This account is already registered. Please sign in instead.',
               kind: 'error',
             })
             setNeedsSigninPrompt(true)
@@ -6460,7 +6468,7 @@ export default function AuthPages({
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
             </svg>
-            <span>Continue with Google</span>
+            <span>{signup ? 'Sign up with Google' : 'Sign in with Google'}</span>
           </button>
 
           <button
@@ -6471,7 +6479,7 @@ export default function AuthPages({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-1.98.6-2.62 1.35-.57.65-1.07 1.72-.94 2.74 1 .08 2.02-.49 2.64-1.24z" />
             </svg>
-            <span>Continue with Apple</span>
+            <span>{signup ? 'Sign up with Apple' : 'Sign in with Apple'}</span>
           </button>
         </div>
 

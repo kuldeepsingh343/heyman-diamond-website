@@ -133,7 +133,7 @@ test('OAuth Intent & Registration Flow', async t => {
       const data = JSON.parse(res.body)
       assert.equal(data.success, false)
       assert.equal(data.notRegistered, true)
-      assert.equal(data.message, 'No account found for this Google account. Please sign up first.')
+      assert.equal(data.message, 'This account is not registered on our website. Please sign up first.')
     } finally {
       globalThis.fetch = originalFetch
     }
@@ -184,7 +184,7 @@ test('OAuth Intent & Registration Flow', async t => {
       const data = JSON.parse(res.body)
       assert.equal(data.success, false)
       assert.equal(data.alreadyRegistered, true)
-      assert.equal(data.message, 'Your email is already registered with us. Please sign in instead.')
+      assert.equal(data.message, 'This account is already registered. Please sign in instead.')
     } finally {
       globalThis.fetch = originalFetch
     }

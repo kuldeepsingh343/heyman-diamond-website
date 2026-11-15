@@ -126,7 +126,7 @@ test('OAuth Callback & Session Clearance Protocol', async t => {
     const oauthData = {
       success: false,
       notRegistered: true,
-      message: 'No account found for this Google account. Please sign up first.',
+      message: 'This account is not registered on our website. Please sign up first.',
     }
 
     if (oauthData.notRegistered) {
@@ -164,7 +164,7 @@ test('OAuth Callback & Session Clearance Protocol', async t => {
     const oauthData = {
       success: false,
       alreadyRegistered: true,
-      message: 'Your email is already registered with us. Please sign in instead.',
+      message: 'This account is already registered. Please sign in instead.',
     }
 
     if (oauthData.alreadyRegistered) {
