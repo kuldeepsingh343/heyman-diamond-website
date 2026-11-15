@@ -298,6 +298,7 @@ export async function handleSignup(req, res) {
         gender,
         account_type: accountType,
         dealer_status: accountType === 'dealer' ? 'pending_review' : 'not_applied',
+        is_registered: true,
       }),
     })
 
@@ -384,6 +385,7 @@ export async function handleSignup(req, res) {
         gender,
         account_type: accountType,
         dealer_status: accountType === 'dealer' ? 'pending_review' : 'not_applied',
+        is_registered: true,
       }),
     })
     if (accountType === 'dealer') {
