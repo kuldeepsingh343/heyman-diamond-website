@@ -96,12 +96,13 @@ export async function handleCreateQuote(req, res) {
   for (const item of items) {
     const sku = String(item.sku || item.flomiz_sku || '').slice(0, 80)
     const effectivePrice = await getEffectiveDiamondPrice(sku, isApprovedDealer)
-    const unitPrice = effectivePrice > 0 ? effectivePrice : (Number(item.price) || 0)
+    const fallbackCatalogPrice = Number(item.catalogPrice || item.price || item.listPrice || item.requestedPrice || 0)
+    const unitPrice = effectivePrice > 0 ? effectivePrice : fallbackCatalogPrice
     const qty = Math.max(1, Math.min(100, Number(item.quantity) || 1))
 
     const requestedPriceNum = item.requestedPrice && !isNaN(Number(item.requestedPrice)) && Number(item.requestedPrice) > 0
       ? Number(item.requestedPrice)
-      : (effectivePrice > 0 ? effectivePrice : (Number(item.price) || 1))
+      : (unitPrice > 0 ? unitPrice : 1)
 
     const isCustomOffer = (item.isCustomQuote || item.customQuotePrice != null) && Math.abs(requestedPriceNum - unitPrice) > 0.01
     if (isCustomOffer) hasCustomOffer = true
@@ -113,6 +114,14 @@ export async function handleCreateQuote(req, res) {
       product_name: String(item.name || item.shape || 'Lab-Grown Diamond').slice(0, 160),
       product_snapshot: {
         submitted_snapshot: item,
+        sku: sku,
+        shape: item.shape,
+        carat: item.carat,
+        color: item.color,
+        clarity: item.clarity,
+        cut: item.cut,
+        lab: item.lab,
+        certificateNumber: item.certificateNumber,
         server_effective_unit_price: effectivePrice,
         catalog_unit_price: unitPrice,
         customer_requested_price: requestedPriceNum,

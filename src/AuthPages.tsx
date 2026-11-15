@@ -129,13 +129,14 @@ export interface AdminQuoteItem {
   current_unit_price: number
   requested_unit_price: number
   product_snapshot?: {
-    submitted_snapshot?: any
+    submitted_snapshot?: unknown
     server_effective_unit_price?: number
     catalog_unit_price?: number
     customer_requested_price?: number
     is_custom_offer?: boolean
     audience?: string
     sku?: string
+    flomiz_sku?: string
     shape?: string
     carat?: number
     color?: string
@@ -180,6 +181,7 @@ interface UserOrder {
     requested_unit_price?: number
     product_snapshot?: {
       sku?: string
+    flomiz_sku?: string
       shape?: string
       carat?: number
       color?: string
@@ -295,7 +297,7 @@ function getInitialStatus(): { text: string; kind: 'info' | 'error' | 'success' 
   return { text: result.text, kind: result.kind }
 }
 
-export async function authFetch(
+async function authFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
   onSessionExpired?: () => void
@@ -468,6 +470,7 @@ export default function AuthPages({
   const [adminQuotesUnread, setAdminQuotesUnread] = useState(0)
   const [adminQuotesFilter, setAdminQuotesFilter] = useState<string>('all')
   const [adminQuotesSearch, setAdminQuotesSearch] = useState<string>('')
+  const [expandedAdminOrderId, setExpandedAdminOrderId] = useState<string | null>(null)
   const [adminQuoteActionBusy, setAdminQuoteActionBusy] = useState<string | null>(null)
   const [adminQuoteMsg, setAdminQuoteMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
   const [activeCounterQuoteId, setActiveCounterQuoteId] = useState<string | null>(null)
@@ -1802,6 +1805,7 @@ export default function AuthPages({
     if (changed) {
       updateCart(syncedCart)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogItems])
 
   const loadOrders = () => {
@@ -1937,7 +1941,9 @@ export default function AuthPages({
         if (savedIntent === 'signup' || savedIntent === 'signin') {
           intent = savedIntent
         }
-      } catch {}
+      } catch {
+        // ignore sessionStorage unavailable
+      }
 
       const hashStatus = parseAuthStatusFromHash(window.location.hash)
       if (hashStatus.intent) {
@@ -1955,7 +1961,9 @@ export default function AuthPages({
         .then(oauthData => {
           try {
             sessionStorage.removeItem('hmd_social_intent')
-          } catch {}
+          } catch {
+            // ignore sessionStorage unavailable
+          }
 
           if (oauthData?.notRegistered) {
             localStorage.removeItem('hmd_access_token')
@@ -2205,7 +2213,9 @@ export default function AuthPages({
     if (recaptchaWidgetIdRef.current !== null && grecaptcha && typeof grecaptcha.reset === 'function') {
       try {
         grecaptcha.reset(recaptchaWidgetIdRef.current)
-      } catch {}
+      } catch {
+        // ignore widget unmounted
+      }
     }
   }, [signup, mode])
 
@@ -2291,7 +2301,9 @@ export default function AuthPages({
         if (grecaptcha && typeof grecaptcha.reset === 'function') {
           try {
             grecaptcha.reset(recaptchaWidgetIdRef.current)
-          } catch {}
+          } catch {
+            // ignore widget unmounted
+          }
         }
       }
       setCaptchaToken('')
@@ -2354,13 +2366,23 @@ export default function AuthPages({
       const itemPayloads = cart.map(item => {
         const hasCustom = Boolean(item.isCustomQuote && item.customQuotePrice && item.customQuotePrice > 0)
         const offerPrice = hasCustom ? Number(item.customQuotePrice) : Number(item.price)
+        const catalogPrice = Number(item.listPrice || item.customerPrice || item.price || offerPrice)
         return {
+          sku: item.sku,
           flomiz_sku: item.sku,
           name: `${item.shape} ${item.carat}ct ${item.color} ${item.clarity} (${item.lab})`,
+          shape: item.shape,
+          carat: item.carat,
+          color: item.color,
+          clarity: item.clarity,
+          cut: item.cut,
+          lab: item.lab,
+          certificateNumber: item.certificateNumber,
+          catalogPrice,
+          price: catalogPrice,
           requestedPrice: offerPrice,
           isCustomQuote: hasCustom,
           customQuotePrice: hasCustom ? offerPrice : null,
-          price: item.price,
           quantity: Math.max(1, Math.min(100, item.quantity || 1)),
         }
       })
@@ -3296,7 +3318,7 @@ export default function AuthPages({
                           id="checkout-delivery-pref"
                           className="fulfillment-select"
                           value={deliveryPreference}
-                          onChange={e => setDeliveryPreference(e.target.value as any)}
+                          onChange={e => setDeliveryPreference(e.target.value as 'Armored Courier (Insured)' | 'Diamond District Office Pick-Up')}
                         >
                           <option value="Armored Courier (Insured)">Direct Armored Courier (Malca-Amit / Brinks · Fully Insured)</option>
                           <option value="Diamond District Office Pick-Up">Diamond District Office Pick-Up (NYC / Chicago / Los Angeles)</option>
@@ -3712,6 +3734,7 @@ export default function AuthPages({
                     { key: 'accepted', label: '✓ Price Approved', count: adminQuotes.filter(q => q.status === 'accepted').length },
                     { key: 'counter_offered', label: '💬 Counter-Offered', count: adminQuotes.filter(q => q.status === 'counter_offered').length },
                     { key: 'converted_to_order', label: '📦 In Fulfillment', count: adminQuotes.filter(q => q.status === 'converted_to_order').length },
+                    { key: 'closed', label: '🎉 Completed Orders', count: adminQuotes.filter(q => q.status === 'closed' || q.status === 'completed').length },
                     { key: 'declined', label: '✕ Declined', count: adminQuotes.filter(q => q.status === 'declined').length },
                   ].map(f => (
                     <button
@@ -3736,7 +3759,8 @@ export default function AuthPages({
                 (() => {
                   const filtered = adminQuotes.filter(q => {
                     if (adminQuotesFilter === 'under_review' && q.status !== 'under_review' && q.status !== 'new') return false
-                    if (adminQuotesFilter !== 'all' && adminQuotesFilter !== 'under_review' && q.status !== adminQuotesFilter) return false
+                    if (adminQuotesFilter === 'closed' && q.status !== 'closed' && q.status !== 'completed') return false
+                    if (adminQuotesFilter !== 'all' && adminQuotesFilter !== 'under_review' && adminQuotesFilter !== 'closed' && q.status !== adminQuotesFilter) return false
 
                     if (adminQuotesSearch.trim()) {
                       const term = adminQuotesSearch.trim().toLowerCase()
@@ -3744,10 +3768,20 @@ export default function AuthPages({
                       const name = String(q.customer_name || '').toLowerCase()
                       const email = String(q.customer_email || '').toLowerCase()
                       const msg = String(q.customer_message || '').toLowerCase()
-                      const itemMatch = q.quote_request_items?.some(it =>
-                        String(it.flomiz_sku || '').toLowerCase().includes(term) ||
-                        String(it.product_name || '').toLowerCase().includes(term)
-                      )
+                      const itemMatch = q.quote_request_items?.some(it => {
+                        const snap = it.product_snapshot
+                        const submittedSnap = (snap?.submitted_snapshot || {}) as Record<string, unknown>
+                        const sku = String(
+                          it.flomiz_sku ||
+                          snap?.sku ||
+                          snap?.flomiz_sku ||
+                          submittedSnap.flomiz_sku ||
+                          submittedSnap.sku ||
+                          ''
+                        ).toLowerCase()
+                        const pName = String(it.product_name || '').toLowerCase()
+                        return sku.includes(term) || pName.includes(term)
+                      })
                       if (!qNum.includes(term) && !name.includes(term) && !email.includes(term) && !msg.includes(term) && !itemMatch) {
                         return false
                       }
@@ -3767,309 +3801,439 @@ export default function AuthPages({
                   }
 
                   return (
-                    <div className="admin-orders-list">
-                      {filtered.map(order => {
-                        const items = order.quote_request_items || []
-                        const hasCustomOffer = items.some(it => {
-                          const snap = it.product_snapshot
-                          const req = it.requested_unit_price || snap?.customer_requested_price
-                          const cat = snap?.catalog_unit_price || it.current_unit_price
-                          return Boolean(snap?.is_custom_offer || (req && cat && Math.abs(req - cat) > 0.01))
-                        }) || order.status === 'under_review'
+                    <div className="admin-orders-table-wrap">
+                      <table className="admin-orders-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: '90px' }}>Order #</th>
+                            <th style={{ width: '130px' }}>Date</th>
+                            <th>Customer</th>
+                            <th>Diamond Items &amp; SKU</th>
+                            <th style={{ textAlign: 'right', width: '110px' }}>Catalog Total</th>
+                            <th style={{ textAlign: 'right', width: '125px' }}>Target Total</th>
+                            <th style={{ textAlign: 'center', width: '130px' }}>Status</th>
+                            <th style={{ textAlign: 'center', width: '95px' }}>Details</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map(order => {
+                            const items = order.quote_request_items || []
+                            let catalogTotal = 0
+                            let requestedTotal = 0
+                            let hasCustomOffer = order.status === 'under_review'
 
-                        const catalogTotal = items.reduce((sum, it) => {
-                          const p = it.product_snapshot?.catalog_unit_price || it.current_unit_price || it.product_snapshot?.price || 0
-                          return sum + (p * (it.quantity || 1))
-                        }, 0)
+                            const resolvedItems = items.map(it => {
+                              const snap = it.product_snapshot
+                              const submittedSnap = (snap?.submitted_snapshot || {}) as Record<string, unknown>
+                              const sku = String(
+                                it.flomiz_sku ||
+                                snap?.sku ||
+                                snap?.flomiz_sku ||
+                                submittedSnap.flomiz_sku ||
+                                submittedSnap.sku ||
+                                '—'
+                              )
 
-                        const requestedTotal = items.reduce((sum, it) => {
-                          const p = it.requested_unit_price || it.product_snapshot?.customer_requested_price || it.current_unit_price || it.product_snapshot?.price || 0
-                          return sum + (p * (it.quantity || 1))
-                        }, 0)
+                              const catPriceNum = Number(
+                                snap?.catalog_unit_price ??
+                                snap?.price ??
+                                it.current_unit_price ??
+                                submittedSnap.catalogPrice ??
+                                submittedSnap.price ??
+                                submittedSnap.listPrice ??
+                                0
+                              )
 
-                        const isBusy = adminQuoteActionBusy === order.id
-                        const isCounterOpen = activeCounterQuoteId === order.id
-                        const quoteRef = order.quote_number ? `Q-${order.quote_number}` : (order.order_number ? `ORD-${order.order_number}` : order.id.slice(0, 8))
+                              const reqPriceNum = Number(
+                                it.requested_unit_price ??
+                                snap?.customer_requested_price ??
+                                submittedSnap.requestedPrice ??
+                                catPriceNum
+                              )
 
-                        return (
-                          <article key={order.id} className={`admin-order-card ${hasCustomOffer ? 'admin-order-card--custom-offer' : ''}`}>
-                            <header className="admin-order-card-header">
-                              <div className="admin-order-ref-group">
-                                <span className="admin-order-tag">Website Order</span>
-                                <h3 className="admin-order-num">{quoteRef}</h3>
-                                <time className="admin-order-date">
-                                  {new Date(order.created_at).toLocaleDateString(undefined, {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </time>
-                              </div>
+                              const catPrice = catPriceNum > 0 ? catPriceNum : reqPriceNum
+                              const reqPrice = reqPriceNum > 0 ? reqPriceNum : catPrice
+                              const qty = Math.max(1, it.quantity || 1)
 
-                              <div className="admin-order-header-right">
-                                <span className={`status-pill status-pill--${order.status}`}>
-                                  {formatOrderStatus(order.status)}
-                                </span>
-                              </div>
-                            </header>
+                              if (snap?.is_custom_offer || (reqPrice > 0 && catPrice > 0 && Math.abs(reqPrice - catPrice) > 0.01)) {
+                                hasCustomOffer = true
+                              }
 
-                            {/* Custom Price Offer Highlight Alert */}
-                            {hasCustomOffer && (
-                              <div className="admin-order-custom-alert">
-                                <span className="admin-order-custom-icon" aria-hidden="true">⚡</span>
-                                <div>
-                                  <strong>Customer Quoted Own Target Price: ${requestedTotal.toLocaleString()}</strong>
-                                  <p>Catalog price is ${catalogTotal.toLocaleString()}. Action required: Sales Manager can approve this quoted price, submit a counter-offer, or decline.</p>
-                                </div>
-                              </div>
-                            )}
+                              catalogTotal += catPrice * qty
+                              requestedTotal += reqPrice * qty
 
-                            {/* Customer & Fulfillment Info Box */}
-                            <div className="admin-order-info-box">
-                              <div className="admin-order-info-col">
-                                <span className="admin-order-info-label">Customer Contact</span>
-                                <strong className="admin-order-info-val">{order.customer_name}</strong>
-                                <span className="admin-order-info-sub">{order.customer_email}</span>
-                              </div>
+                              return {
+                                ...it,
+                                resolvedSku: sku,
+                                resolvedCatPrice: catPrice,
+                                resolvedReqPrice: reqPrice,
+                                resolvedQty: qty,
+                                isCustomItem: Boolean(snap?.is_custom_offer || (reqPrice && catPrice && Math.abs(reqPrice - catPrice) > 0.01)),
+                                snap,
+                              }
+                            })
 
-                              {order.customer_message && (
-                                <div className="admin-order-info-col admin-order-info-col--wide">
-                                  <span className="admin-order-info-label">Fulfillment &amp; Instructions</span>
-                                  <pre className="admin-order-notes-pre">{order.customer_message}</pre>
-                                </div>
-                              )}
-                            </div>
+                            const isExpanded = expandedAdminOrderId === order.id
+                            const isBusy = adminQuoteActionBusy === order.id
+                            const isCounterOpen = activeCounterQuoteId === order.id
+                            const quoteRef = order.quote_number ? `Q-${order.quote_number}` : (order.order_number ? `ORD-${order.order_number}` : order.id.slice(0, 8))
 
-                            {/* Diamond Stones Table */}
-                            {items.length > 0 ? (
-                              <div className="admin-order-items-wrap">
-                                <table className="admin-order-items-table">
-                                  <thead>
-                                    <tr>
-                                      <th>SKU</th>
-                                      <th>Diamond Specification</th>
-                                      <th>Catalog Price</th>
-                                      <th>Customer Target Price</th>
-                                      <th>Qty</th>
-                                      <th>Line Total</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {items.map((it, idx) => {
-                                      const snap = it.product_snapshot
-                                      const catPrice = snap?.catalog_unit_price || it.current_unit_price || snap?.price || 0
-                                      const reqPrice = it.requested_unit_price || snap?.customer_requested_price || catPrice
-                                      const isCustomItem = Boolean(snap?.is_custom_offer || (reqPrice && catPrice && Math.abs(reqPrice - catPrice) > 0.01))
-                                      const qty = it.quantity || 1
-
-                                      return (
-                                        <tr key={it.id || `${it.flomiz_sku}-${idx}`}>
-                                          <td><code>{it.flomiz_sku}</code></td>
-                                          <td>
-                                            <strong>
-                                              {snap?.shape && snap?.carat
-                                                ? `${snap.shape} ${snap.carat}ct Diamond`
-                                                : it.product_name}
-                                            </strong>
-                                            {snap && (
-                                              <div className="admin-item-specs-sub">
-                                                Color: {snap.color || '—'} · Clarity: {snap.clarity || '—'} · Cut: {snap.cut || '—'}
-                                                {snap.certificateNumber ? ` · Cert #${snap.certificateNumber}` : ''}
-                                                {snap.lab ? ` (${snap.lab})` : ''}
-                                              </div>
-                                            )}
-                                          </td>
-                                          <td>${catPrice.toLocaleString()}</td>
-                                          <td>
-                                            {isCustomItem ? (
-                                              <div className="admin-item-offer-price">
-                                                <span className="admin-price-struck">${catPrice.toLocaleString()}</span>
-                                                <strong className="admin-price-offered">${reqPrice.toLocaleString()}</strong>
-                                                <span className="admin-custom-badge">⚡ Custom Offer</span>
-                                              </div>
-                                            ) : (
-                                              <span>${reqPrice.toLocaleString()}</span>
-                                            )}
-                                          </td>
-                                          <td>{qty}</td>
-                                          <td><strong>${(reqPrice * qty).toLocaleString()}</strong></td>
-                                        </tr>
-                                      )
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : null}
-
-                            {/* Totals & Financial Summary */}
-                            <div className="admin-order-totals-bar">
-                              <div className="admin-totals-col">
-                                <span className="admin-totals-label">Catalog Total:</span>
-                                <span className="admin-totals-val">${catalogTotal.toLocaleString()}</span>
-                              </div>
-                              <div className="admin-totals-col admin-totals-col--highlight">
-                                <span className="admin-totals-label">{hasCustomOffer ? 'Customer Quoted Total:' : 'Order Total:'}</span>
-                                <strong className="admin-totals-val">${requestedTotal.toLocaleString()}</strong>
-                              </div>
-                              {hasCustomOffer && (
-                                <div className="admin-totals-col">
-                                  <span className="admin-totals-label">Variance:</span>
-                                  <span className={`admin-totals-diff ${requestedTotal < catalogTotal ? 'admin-totals-diff--neg' : ''}`}>
-                                    {requestedTotal < catalogTotal ? `-$${(catalogTotal - requestedTotal).toLocaleString()}` : `+$${(requestedTotal - catalogTotal).toLocaleString()}`}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Counter-Offer Inline Form */}
-                            {isCounterOpen && (
-                              <div className="admin-counter-offer-box">
-                                <h4>💬 Submit Counter-Offer to Customer</h4>
-                                <p>Provide a revised price for the order and an optional message to the customer.</p>
-                                <div className="admin-counter-inputs-grid">
-                                  <div className="admin-counter-field">
-                                    <label htmlFor={`counter-price-${order.id}`}>Counter-Offer Total Price ($)</label>
-                                    <div className="admin-counter-input-wrap">
-                                      <span>$</span>
-                                      <input
-                                        id={`counter-price-${order.id}`}
-                                        type="number"
-                                        min="1"
-                                        step="1"
-                                        placeholder={String(Math.round((catalogTotal + requestedTotal) / 2))}
-                                        value={counterPriceInput}
-                                        onChange={e => setCounterPriceInput(e.target.value)}
-                                      />
+                            return (
+                              <Fragment key={order.id}>
+                                <tr
+                                  className={`admin-order-row ${isExpanded ? 'admin-order-row--expanded' : ''} ${hasCustomOffer ? 'admin-order-row--custom-offer' : ''}`}
+                                  onClick={() => setExpandedAdminOrderId(isExpanded ? null : order.id)}
+                                  tabIndex={0}
+                                  role="button"
+                                  aria-expanded={isExpanded}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      setExpandedAdminOrderId(isExpanded ? null : order.id)
+                                    }
+                                  }}
+                                >
+                                  <td className="admin-order-cell-ref">
+                                    <span className="admin-order-table-num">{quoteRef}</span>
+                                  </td>
+                                  <td className="admin-order-cell-date">
+                                    <time title={new Date(order.created_at).toLocaleString()}>
+                                      {new Date(order.created_at).toLocaleDateString(undefined, {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric',
+                                      })}
+                                    </time>
+                                    <div className="admin-order-cell-time">
+                                      {new Date(order.created_at).toLocaleTimeString(undefined, {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}
                                     </div>
-                                  </div>
-                                  <div className="admin-counter-field admin-counter-field--wide">
-                                    <label htmlFor={`counter-note-${order.id}`}>Sales Manager Note for Customer</label>
-                                    <input
-                                      id={`counter-note-${order.id}`}
-                                      type="text"
-                                      placeholder="e.g. We can offer this stone at $610 for wire transfer payment."
-                                      value={counterNoteInput}
-                                      onChange={e => setCounterNoteInput(e.target.value)}
-                                      maxLength={300}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="admin-counter-actions">
-                                  <button
-                                    type="button"
-                                    className="button-primary"
-                                    disabled={isBusy}
-                                    onClick={() => handleAdminUpdateQuoteStatus(
-                                      order.id,
-                                      'counter_offered',
-                                      counterNoteInput.trim() || `Counter-offer proposed at $${Number(counterPriceInput || requestedTotal).toLocaleString()}`,
-                                      Number(counterPriceInput) || requestedTotal
+                                  </td>
+                                  <td className="admin-order-cell-customer">
+                                    <strong className="admin-order-cell-name">{order.customer_name || 'Website Customer'}</strong>
+                                    <span className="admin-order-cell-email">{order.customer_email}</span>
+                                  </td>
+                                  <td className="admin-order-cell-items">
+                                    {resolvedItems.length === 0 ? (
+                                      <span className="admin-order-no-items">No items recorded</span>
+                                    ) : (
+                                      <div className="admin-order-items-snippet">
+                                        {resolvedItems.map((it, idx) => (
+                                          <div key={idx} className="admin-order-snippet-line">
+                                            <code className="admin-order-snippet-sku">{it.resolvedSku}</code>
+                                            <span className="admin-order-snippet-desc">
+                                              {it.snap?.shape && it.snap?.carat
+                                                ? `${it.snap.shape} ${it.snap.carat}ct ${it.snap.color || ''} ${it.snap.clarity || ''}`.trim()
+                                                : it.product_name}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
                                     )}
-                                  >
-                                    {isBusy ? 'Submitting…' : 'Send Counter-Offer'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="button-secondary"
-                                    disabled={isBusy}
-                                    onClick={() => {
-                                      setActiveCounterQuoteId(null)
-                                      setCounterPriceInput('')
-                                      setCounterNoteInput('')
-                                    }}
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                                  </td>
+                                  <td className="admin-order-cell-catalog" style={{ textAlign: 'right' }}>
+                                    ${catalogTotal.toLocaleString()}
+                                  </td>
+                                  <td className="admin-order-cell-target" style={{ textAlign: 'right' }}>
+                                    <strong className={hasCustomOffer ? 'admin-target-custom' : ''}>
+                                      ${requestedTotal.toLocaleString()}
+                                    </strong>
+                                    {hasCustomOffer && (
+                                      <div>
+                                        <span className="admin-custom-chip">⚡ Custom Offer</span>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="admin-order-cell-status" style={{ textAlign: 'center' }}>
+                                    <span className={`status-pill status-pill--${order.status}`}>
+                                      {formatOrderStatus(order.status)}
+                                    </span>
+                                  </td>
+                                  <td className="admin-order-cell-toggle" style={{ textAlign: 'center' }}>
+                                    <button
+                                      type="button"
+                                      className={`admin-order-toggle-btn ${isExpanded ? 'admin-order-toggle-btn--active' : ''}`}
+                                      onClick={e => {
+                                        e.stopPropagation()
+                                        setExpandedAdminOrderId(isExpanded ? null : order.id)
+                                      }}
+                                      aria-label={isExpanded ? 'Collapse order details' : 'Expand order details'}
+                                    >
+                                      {isExpanded ? '▲ Hide' : '▼ Details'}
+                                    </button>
+                                  </td>
+                                </tr>
 
-                            {/* Sales Manager Action Toolbar */}
-                            <footer className="admin-order-actions-bar">
-                              {order.status !== 'accepted' && (
-                                <button
-                                  type="button"
-                                  className="admin-action-btn admin-action-btn--approve"
-                                  disabled={isBusy}
-                                  onClick={() => handleAdminUpdateQuoteStatus(
-                                    order.id,
-                                    'accepted',
-                                    hasCustomOffer
-                                      ? `Custom quoted price of $${requestedTotal.toLocaleString()} approved by Sales Manager.`
-                                      : 'Order quote verified and approved by Sales Manager.'
-                                  )}
-                                >
-                                  ✓ Approve Quote Price
-                                </button>
-                              )}
+                                {/* EXPANDED DETAILS ACCORDION ROW */}
+                                {isExpanded && (
+                                  <tr className="admin-order-expanded-tr">
+                                    <td colSpan={8} className="admin-order-expanded-td">
+                                      <div className="admin-order-expanded-card" onClick={e => e.stopPropagation()}>
+                                        {/* Highlight alert if custom offer */}
+                                        {hasCustomOffer && (
+                                          <div className="admin-order-custom-alert">
+                                            <span className="admin-order-custom-icon" aria-hidden="true">⚡</span>
+                                            <div>
+                                              <strong>Customer Quoted Own Target Price: ${requestedTotal.toLocaleString()}</strong>
+                                              <p>Catalog price is ${catalogTotal.toLocaleString()}. Action required: Sales Manager can approve this quoted price, submit a counter-offer, or decline.</p>
+                                            </div>
+                                          </div>
+                                        )}
 
-                              <button
-                                type="button"
-                                className="admin-action-btn admin-action-btn--counter"
-                                disabled={isBusy}
-                                onClick={() => {
-                                  if (isCounterOpen) {
-                                    setActiveCounterQuoteId(null)
-                                  } else {
-                                    setActiveCounterQuoteId(order.id)
-                                    setCounterPriceInput(String(Math.round((catalogTotal + requestedTotal) / 2)))
-                                    setCounterNoteInput('')
-                                  }
-                                }}
-                              >
-                                {isCounterOpen ? 'Close Counter Form' : '💬 Counter-Offer'}
-                              </button>
+                                        {/* Customer & Fulfillment Info Box */}
+                                        <div className="admin-order-info-box">
+                                          <div className="admin-order-info-col">
+                                            <span className="admin-order-info-label">Customer Contact</span>
+                                            <strong className="admin-order-info-val">{order.customer_name || 'Website Customer'}</strong>
+                                            <span className="admin-order-info-sub">{order.customer_email}</span>
+                                          </div>
 
-                              {order.status !== 'converted_to_order' && order.status !== 'closed' && (
-                                <button
-                                  type="button"
-                                  className="admin-action-btn admin-action-btn--fulfill"
-                                  disabled={isBusy}
-                                  onClick={() => handleAdminUpdateQuoteStatus(
-                                    order.id,
-                                    'converted_to_order',
-                                    'Quote confirmed and moved into fulfillment with armored courier dispatch.'
-                                  )}
-                                >
-                                  📦 Mark In Fulfillment
-                                </button>
-                              )}
+                                          <div className="admin-order-info-col admin-order-info-col--wide">
+                                            <span className="admin-order-info-label">Fulfillment &amp; Instructions</span>
+                                            {order.customer_message ? (
+                                              <pre className="admin-order-notes-pre">{order.customer_message}</pre>
+                                            ) : (
+                                              <p style={{ margin: 0, fontSize: '12px', color: '#888', fontStyle: 'italic' }}>
+                                                No special courier instructions provided for this order.
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
 
-                              {order.status !== 'declined' && order.status !== 'closed' && (
-                                <button
-                                  type="button"
-                                  className="admin-action-btn admin-action-btn--decline"
-                                  disabled={isBusy}
-                                  onClick={() => handleAdminUpdateQuoteStatus(
-                                    order.id,
-                                    'declined',
-                                    'Quote request declined by Sales Manager.'
-                                  )}
-                                >
-                                  ✕ Decline Quote
-                                </button>
-                              )}
+                                        {/* Diamond Stones Table */}
+                                        {resolvedItems.length > 0 ? (
+                                          <div className="admin-order-items-wrap">
+                                            <table className="admin-order-items-table">
+                                              <thead>
+                                                <tr>
+                                                  <th>SKU</th>
+                                                  <th>Diamond Specification</th>
+                                                  <th>Catalog Price</th>
+                                                  <th>Customer Target Price</th>
+                                                  <th>Qty</th>
+                                                  <th>Line Total</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                {resolvedItems.map((it, idx) => {
+                                                  const snap = it.snap
+                                                  const catPrice = it.resolvedCatPrice
+                                                  const reqPrice = it.resolvedReqPrice
+                                                  const isCustomItem = it.isCustomItem
+                                                  const qty = it.resolvedQty
 
-                              {order.status === 'converted_to_order' && (
-                                <button
-                                  type="button"
-                                  className="admin-action-btn admin-action-btn--approve"
-                                  disabled={isBusy}
-                                  onClick={() => handleAdminUpdateQuoteStatus(
-                                    order.id,
-                                    'closed',
-                                    'Order successfully completed and delivered.'
-                                  )}
-                                >
-                                  ✓ Mark Order Completed
-                                </button>
-                              )}
-                            </footer>
-                          </article>
-                        )
-                      })}
+                                                  return (
+                                                    <tr key={it.id || `${it.resolvedSku}-${idx}`}>
+                                                      <td><code>{it.resolvedSku}</code></td>
+                                                      <td>
+                                                        <strong>
+                                                          {snap?.shape && snap?.carat
+                                                            ? `${snap.shape} ${snap.carat}ct Diamond`
+                                                            : it.product_name}
+                                                        </strong>
+                                                        <div className="admin-item-specs-sub">
+                                                          Color: {snap?.color || '—'} · Clarity: {snap?.clarity || '—'} · Cut: {snap?.cut || '—'}
+                                                          {snap?.certificateNumber ? ` · Cert #${snap.certificateNumber}` : ''}
+                                                          {snap?.lab ? ` (${snap.lab})` : ''}
+                                                        </div>
+                                                      </td>
+                                                      <td>${catPrice.toLocaleString()}</td>
+                                                      <td>
+                                                        {isCustomItem ? (
+                                                          <div className="admin-item-offer-price">
+                                                            <span className="admin-price-struck">${catPrice.toLocaleString()}</span>
+                                                            <strong className="admin-price-offered">${reqPrice.toLocaleString()}</strong>
+                                                            <span className="admin-custom-badge">⚡ Custom Offer</span>
+                                                          </div>
+                                                        ) : (
+                                                          <span>${reqPrice.toLocaleString()}</span>
+                                                        )}
+                                                      </td>
+                                                      <td>{qty}</td>
+                                                      <td><strong>${(reqPrice * qty).toLocaleString()}</strong></td>
+                                                    </tr>
+                                                  )
+                                                })}
+                                              </tbody>
+                                            </table>
+                                          </div>
+                                        ) : null}
+
+                                        {/* Totals & Financial Summary */}
+                                        <div className="admin-order-totals-bar">
+                                          <div className="admin-totals-col">
+                                            <span className="admin-totals-label">Catalog Total:</span>
+                                            <span className="admin-totals-val">${catalogTotal.toLocaleString()}</span>
+                                          </div>
+                                          <div className="admin-totals-col admin-totals-col--highlight">
+                                            <span className="admin-totals-label">{hasCustomOffer ? 'Customer Quoted Total:' : 'Order Total:'}</span>
+                                            <strong className="admin-totals-val">${requestedTotal.toLocaleString()}</strong>
+                                          </div>
+                                          {hasCustomOffer && (
+                                            <div className="admin-totals-col">
+                                              <span className="admin-totals-label">Variance:</span>
+                                              <span className={`admin-totals-diff ${requestedTotal < catalogTotal ? 'admin-totals-diff--neg' : ''}`}>
+                                                {requestedTotal < catalogTotal ? `-$${(catalogTotal - requestedTotal).toLocaleString()}` : `+$${(requestedTotal - catalogTotal).toLocaleString()}`}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Counter-Offer Inline Form */}
+                                        {isCounterOpen && (
+                                          <div className="admin-counter-offer-box">
+                                            <h4>💬 Submit Counter-Offer to Customer</h4>
+                                            <p>Provide a revised price for the order and an optional message to the customer.</p>
+                                            <div className="admin-counter-inputs-grid">
+                                              <div className="admin-counter-field">
+                                                <label htmlFor={`counter-price-${order.id}`}>Counter-Offer Total Price ($)</label>
+                                                <div className="admin-counter-input-wrap">
+                                                  <span>$</span>
+                                                  <input
+                                                    id={`counter-price-${order.id}`}
+                                                    type="number"
+                                                    min="1"
+                                                    step="1"
+                                                    placeholder={String(Math.round((catalogTotal + requestedTotal) / 2))}
+                                                    value={counterPriceInput}
+                                                    onChange={e => setCounterPriceInput(e.target.value)}
+                                                  />
+                                                </div>
+                                              </div>
+                                              <div className="admin-counter-field admin-counter-field--wide">
+                                                <label htmlFor={`counter-note-${order.id}`}>Sales Manager Note for Customer</label>
+                                                <input
+                                                  id={`counter-note-${order.id}`}
+                                                  type="text"
+                                                  placeholder="e.g. We can offer this stone at $610 for wire transfer payment."
+                                                  value={counterNoteInput}
+                                                  onChange={e => setCounterNoteInput(e.target.value)}
+                                                  maxLength={300}
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="admin-counter-actions">
+                                              <button
+                                                type="button"
+                                                className="button-primary"
+                                                disabled={isBusy}
+                                                onClick={() => handleAdminUpdateQuoteStatus(
+                                                  order.id,
+                                                  'counter_offered',
+                                                  counterNoteInput.trim() || `Counter-offer proposed at $${Number(counterPriceInput || requestedTotal).toLocaleString()}`,
+                                                  Number(counterPriceInput) || requestedTotal
+                                                )}
+                                              >
+                                                {isBusy ? 'Submitting…' : 'Send Counter-Offer'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="button-secondary"
+                                                disabled={isBusy}
+                                                onClick={() => {
+                                                  setActiveCounterQuoteId(null)
+                                                  setCounterPriceInput('')
+                                                  setCounterNoteInput('')
+                                                }}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Sales Manager Action Toolbar */}
+                                        <footer className="admin-order-actions-bar">
+                                          {order.status !== 'accepted' && (
+                                            <button
+                                              type="button"
+                                              className="admin-action-btn admin-action-btn--approve"
+                                              disabled={isBusy}
+                                              onClick={() => handleAdminUpdateQuoteStatus(
+                                                order.id,
+                                                'accepted',
+                                                hasCustomOffer
+                                                  ? `Custom quoted price of $${requestedTotal.toLocaleString()} approved by Sales Manager.`
+                                                  : 'Order quote verified and approved by Sales Manager.'
+                                              )}
+                                            >
+                                              ✓ Approve Quote Price
+                                            </button>
+                                          )}
+
+                                          <button
+                                            type="button"
+                                            className="admin-action-btn admin-action-btn--counter"
+                                            disabled={isBusy}
+                                            onClick={() => {
+                                              if (isCounterOpen) {
+                                                setActiveCounterQuoteId(null)
+                                              } else {
+                                                setActiveCounterQuoteId(order.id)
+                                                setCounterPriceInput(String(Math.round((catalogTotal + requestedTotal) / 2)))
+                                                setCounterNoteInput('')
+                                              }
+                                            }}
+                                          >
+                                            {isCounterOpen ? 'Close Counter Form' : '💬 Counter-Offer'}
+                                          </button>
+
+                                          {order.status !== 'converted_to_order' && order.status !== 'closed' && (
+                                            <button
+                                              type="button"
+                                              className="admin-action-btn admin-action-btn--fulfill"
+                                              disabled={isBusy}
+                                              onClick={() => handleAdminUpdateQuoteStatus(
+                                                order.id,
+                                                'converted_to_order',
+                                                'Quote confirmed and moved into fulfillment with armored courier dispatch.'
+                                              )}
+                                            >
+                                              📦 Mark In Fulfillment
+                                            </button>
+                                          )}
+
+                                          {order.status !== 'declined' && order.status !== 'closed' && (
+                                            <button
+                                              type="button"
+                                              className="admin-action-btn admin-action-btn--decline"
+                                              disabled={isBusy}
+                                              onClick={() => handleAdminUpdateQuoteStatus(
+                                                order.id,
+                                                'declined',
+                                                'Quote request declined by Sales Manager.'
+                                              )}
+                                            >
+                                              ✕ Decline Quote
+                                            </button>
+                                          )}
+
+                                          {order.status === 'converted_to_order' && (
+                                            <button
+                                              type="button"
+                                              className="admin-action-btn admin-action-btn--approve"
+                                              disabled={isBusy}
+                                              onClick={() => handleAdminUpdateQuoteStatus(
+                                                order.id,
+                                                'closed',
+                                                'Order successfully completed and delivered.'
+                                              )}
+                                            >
+                                              ✓ Mark Order Completed
+                                            </button>
+                                          )}
+                                        </footer>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            )
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   )
                 })()

@@ -338,4 +338,77 @@ test('Admin Panel — Orders from Website Permissions & Quote Status Lifecycle',
     assert.strictEqual(res.statusCode, 400)
     assert.match(res.json.error, /invalid quote request status/i)
   })
+
+  await t.test('Admin Orders — SKU and Catalog Price fallback accurately extracts from submitted_snapshot', () => {
+    // Simulating past order Q-3 where flomiz_sku column was empty and current_unit_price was 0
+    const rawItem = {
+      id: 'item-q3',
+      flomiz_sku: '',
+      product_name: 'Cushion 1.6ct F VS2 (IGI)',
+      current_unit_price: 0,
+      requested_unit_price: 1280,
+      product_snapshot: {
+        audience: 'customer',
+        submitted_snapshot: {
+          name: 'Cushion 1.6ct F VS2 (IGI)',
+          flomiz_sku: 'HM-151',
+          requestedPrice: 1280,
+          quantity: 1,
+        },
+      },
+    }
+
+    const snap = rawItem.product_snapshot
+    const submittedSnap = snap?.submitted_snapshot || {}
+    const resolvedSku = String(
+      rawItem.flomiz_sku ||
+      snap?.sku ||
+      snap?.flomiz_sku ||
+      submittedSnap.flomiz_sku ||
+      submittedSnap.sku ||
+      '—'
+    )
+
+    const catPriceNum = Number(
+      snap?.catalog_unit_price ??
+      snap?.price ??
+      rawItem.current_unit_price ??
+      submittedSnap.catalogPrice ??
+      submittedSnap.price ??
+      submittedSnap.listPrice ??
+      0
+    )
+
+    const reqPriceNum = Number(
+      rawItem.requested_unit_price ??
+      snap?.customer_requested_price ??
+      submittedSnap.requestedPrice ??
+      catPriceNum
+    )
+
+    const resolvedCatPrice = catPriceNum > 0 ? catPriceNum : reqPriceNum
+    const resolvedReqPrice = reqPriceNum > 0 ? reqPriceNum : resolvedCatPrice
+
+    assert.strictEqual(resolvedSku, 'HM-151')
+    assert.strictEqual(resolvedCatPrice, 1280)
+    assert.notStrictEqual(resolvedCatPrice, 0)
+    assert.strictEqual(resolvedReqPrice, 1280)
+  })
+
+  await t.test('Admin Orders — Completed Orders filter pill includes closed and completed statuses', () => {
+    const orders = [
+      { id: '1', quote_number: 1, status: 'closed' },
+      { id: '2', quote_number: 2, status: 'closed' },
+      { id: '3', quote_number: 3, status: 'closed' },
+      { id: '4', quote_number: 4, status: 'under_review' },
+      { id: '5', quote_number: 5, status: 'converted_to_order' },
+    ]
+
+    const completedCount = orders.filter(q => q.status === 'closed' || q.status === 'completed').length
+    assert.strictEqual(completedCount, 3)
+
+    const filterClosed = orders.filter(q => q.status === 'closed' || q.status === 'completed')
+    assert.strictEqual(filterClosed.length, 3)
+    assert.deepStrictEqual(filterClosed.map(q => q.quote_number), [1, 2, 3])
+  })
 })

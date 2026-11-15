@@ -71,8 +71,32 @@ const fallbackReviews: ReviewItem[] = [
 export default function ReviewsSection({ currentUser }: ReviewsSectionProps = {}) {
   const [reviews, setReviews] = useState<ReviewItem[]>(fallbackReviews)
   const [showAllReviews, setShowAllReviews] = useState(false)
-  const [rating, setRating] = useState(0)
-  const [remarks, setRemarks] = useState('')
+  const [rating, setRating] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0
+    try {
+      const draft = sessionStorage.getItem('hmd_review_draft')
+      if (draft) {
+        const parsed = JSON.parse(draft)
+        return Number(parsed.rating) || 0
+      }
+    } catch {
+      // ignore draft parse error
+    }
+    return 0
+  })
+  const [remarks, setRemarks] = useState<string>(() => {
+    if (typeof window === 'undefined') return ''
+    try {
+      const draft = sessionStorage.getItem('hmd_review_draft')
+      if (draft) {
+        const parsed = JSON.parse(draft)
+        return typeof parsed.remarks === 'string' ? parsed.remarks : ''
+      }
+    } catch {
+      // ignore draft parse error
+    }
+    return ''
+  })
   const [status, setStatus] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -88,12 +112,6 @@ export default function ReviewsSection({ currentUser }: ReviewsSectionProps = {}
       return null
     }
   })
-
-  useEffect(() => {
-    if (currentUser !== undefined) {
-      setLocalUser(currentUser)
-    }
-  }, [currentUser])
 
   useEffect(() => {
     const syncUser = () => {
@@ -113,17 +131,13 @@ export default function ReviewsSection({ currentUser }: ReviewsSectionProps = {}
     }
   }, [])
 
-  // Restore saved draft if user navigated to sign in and returned
+  // Clean up saved draft if user navigated to sign in and returned
   useEffect(() => {
     try {
-      const draft = sessionStorage.getItem('hmd_review_draft')
-      if (draft) {
-        const parsed = JSON.parse(draft)
-        if (parsed.remarks) setRemarks(parsed.remarks)
-        if (parsed.rating) setRating(parsed.rating)
-        sessionStorage.removeItem('hmd_review_draft')
-      }
-    } catch {}
+      sessionStorage.removeItem('hmd_review_draft')
+    } catch {
+      // ignore storage error
+    }
   }, [])
 
   const effectiveUser = currentUser || localUser
@@ -322,7 +336,9 @@ export default function ReviewsSection({ currentUser }: ReviewsSectionProps = {}
                       if (remarks || rating) {
                         sessionStorage.setItem('hmd_review_draft', JSON.stringify({ remarks, rating }))
                       }
-                    } catch {}
+                    } catch {
+                      // ignore storage error
+                    }
                   }}
                 >
                   Sign In to Leave a Review
