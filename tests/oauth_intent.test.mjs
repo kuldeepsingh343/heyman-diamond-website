@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { handleOAuth, handleOAuthCallback } from '../server/services/auth.mjs'
-import { parseAuthStatusFromHash, normalizeHashFragment } from '../src/routeUtils.ts'
+import { parseAuthStatusFromHash, normalizeHashFragment, resolveAuthRoute } from '../src/routeUtils.ts'
 
 // Ensure Supabase mocks are enabled for offline tests
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321'
@@ -247,5 +247,194 @@ test('OAuth Intent & Registration Flow', async t => {
     } finally {
       globalThis.fetch = originalFetch
     }
+  })
+
+  await t.test('7. Scenario 1: Existing registered Google user on signin succeeds with profile & avatar', async () => {
+    const originalFetch = globalThis.fetch
+
+    globalThis.fetch = async (url, options = {}) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/auth/v1/user') && !urlStr.includes('/admin/users')) {
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              id: 'mock-existing-customer-uuid',
+              email: 'customer@gmail.com',
+              created_at: new Date(Date.now() - 86400000).toISOString(),
+              user_metadata: {
+                full_name: 'Existing Customer',
+                avatar_url: 'https://lh3.googleusercontent.com/avatar-test.jpg',
+              },
+            }
+          },
+        }
+      }
+      if (urlStr.includes('/rest/v1/profiles')) {
+        return {
+          ok: true,
+          status: 200,
+          async text() {
+            return JSON.stringify([{
+              id: 'mock-existing-customer-uuid',
+              is_registered: true,
+              full_name: 'Existing Customer',
+              account_type: 'customer',
+              dealer_status: 'not_applied',
+            }])
+          },
+        }
+      }
+      if (urlStr.includes('/rest/v1/')) {
+        return {
+          ok: true,
+          status: 200,
+          async text() { return '[]' },
+        }
+      }
+      return originalFetch(url, options)
+    }
+
+    try {
+      const res = mockResponse()
+      await handleOAuthCallback(mockRequest('POST', { accessToken: 'valid-customer-token', intent: 'signin' }), res)
+      assert.equal(res.statusCode, 200)
+      const data = JSON.parse(res.body)
+      assert.equal(data.success, true)
+      assert.equal(data.isNew, false)
+      assert.equal(data.message, 'Signed in successfully.')
+      assert.equal(data.user.email, 'customer@gmail.com')
+      assert.equal(data.user.avatar_url, 'https://lh3.googleusercontent.com/avatar-test.jpg')
+      assert.equal(data.user.account_type, 'customer')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  await t.test('8. Existing dealer account on signin returns dealer account_type', async () => {
+    const originalFetch = globalThis.fetch
+
+    globalThis.fetch = async (url, options = {}) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/auth/v1/user') && !urlStr.includes('/admin/users')) {
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              id: 'mock-dealer-uuid',
+              email: 'dealer@jeweler.com',
+              created_at: new Date(Date.now() - 86400000).toISOString(),
+              user_metadata: { full_name: 'Dealer Partner' },
+            }
+          },
+        }
+      }
+      if (urlStr.includes('/rest/v1/profiles')) {
+        return {
+          ok: true,
+          status: 200,
+          async text() {
+            return JSON.stringify([{
+              id: 'mock-dealer-uuid',
+              is_registered: true,
+              full_name: 'Dealer Partner',
+              account_type: 'dealer',
+              dealer_status: 'approved',
+            }])
+          },
+        }
+      }
+      if (urlStr.includes('/rest/v1/')) {
+        return {
+          ok: true,
+          status: 200,
+          async text() { return '[]' },
+        }
+      }
+      return originalFetch(url, options)
+    }
+
+    try {
+      const res = mockResponse()
+      await handleOAuthCallback(mockRequest('POST', { accessToken: 'valid-dealer-token', intent: 'signin' }), res)
+      assert.equal(res.statusCode, 200)
+      const data = JSON.parse(res.body)
+      assert.equal(data.success, true)
+      assert.equal(data.user.account_type, 'dealer')
+      assert.equal(data.user.dealer_status, 'approved')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  await t.test('9. Existing admin account on signin is recognized via admin_users', async () => {
+    const originalFetch = globalThis.fetch
+
+    globalThis.fetch = async (url, options = {}) => {
+      const urlStr = String(url)
+      if (urlStr.includes('/auth/v1/user') && !urlStr.includes('/admin/users')) {
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              id: 'mock-admin-uuid',
+              email: 'admin@heymandiamond.com',
+              created_at: new Date(Date.now() - 86400000).toISOString(),
+              user_metadata: { full_name: 'Site Admin' },
+            }
+          },
+        }
+      }
+      if (urlStr.includes('/rest/v1/admin_users')) {
+        return {
+          ok: true,
+          status: 200,
+          async text() {
+            return JSON.stringify([{ user_id: 'mock-admin-uuid', role: 'admin', is_active: true }])
+          },
+        }
+      }
+      if (urlStr.includes('/rest/v1/profiles')) {
+        return {
+          ok: true,
+          status: 200,
+          async text() {
+            return JSON.stringify([{ id: 'mock-admin-uuid', is_registered: true, full_name: 'Site Admin' }])
+          },
+        }
+      }
+      if (urlStr.includes('/rest/v1/')) {
+        return {
+          ok: true,
+          status: 200,
+          async text() { return '[]' },
+        }
+      }
+      return originalFetch(url, options)
+    }
+
+    try {
+      const res = mockResponse()
+      await handleOAuthCallback(mockRequest('POST', { accessToken: 'valid-admin-token', intent: 'signin' }), res)
+      assert.equal(res.statusCode, 200)
+      const data = JSON.parse(res.body)
+      assert.equal(data.success, true)
+      assert.equal(data.message, 'Signed in successfully.')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  await t.test('10. Google OAuth cancellation or error fragment is normalized safely', () => {
+    const errorHash = '#signin#error=access_denied&error_description=User+cancelled+Google+sign+in'
+    const status = parseAuthStatusFromHash(errorHash)
+    assert.equal(status.kind, 'error')
+    assert.equal(status.text, 'User cancelled Google sign in')
+
+    const route = resolveAuthRoute(errorHash)
+    assert.equal(route, 'signin')
   })
 })
