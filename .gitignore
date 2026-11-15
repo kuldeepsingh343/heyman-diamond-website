@@ -34,3 +34,12 @@ dist-ssr
 
 # Agent scratch and run state
 .agents/
+.agent/
+.gemini/
+.gsd/
+adapters/
+scripts/
+GSD-STYLE.md
+PROJECT_RULES.md
+model_capabilities.yaml
+VERSION
