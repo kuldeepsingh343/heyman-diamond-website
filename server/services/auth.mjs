@@ -45,9 +45,11 @@ const loginAttempts = new Map()
 const signupAttempts = new Map()
 const passwordResetAttempts = new Map()
 const resendAttempts = new Map()
+const checkRegisteredAttempts = new Map()
 
 const MAX_LOGIN_ATTEMPTS = 5
 const MAX_SIGNUP_ATTEMPTS = 10
+const MAX_CHECK_REGISTERED_ATTEMPTS = 30
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 minutes lockout
 const WINDOW_DURATION_MS = 15 * 60 * 1000
 
@@ -279,10 +281,10 @@ export async function handleSignup(req, res) {
 
   const existingUser = await findAuthUserByEmail(email)
   if (existingUser?.email_confirmed_at) {
-    const profileRows = await db(`profiles?id=eq.${existingUser.id}&select=account_type`).catch(() => [])
-    const isTrulyRegistered = Boolean(profileRows?.[0]?.account_type)
+    const profileRows = await db(`profiles?id=eq.${existingUser.id}&select=is_registered`).catch(() => [])
+    const isTrulyRegistered = profileRows?.[0]?.is_registered === true
     if (isTrulyRegistered) {
-      return json(res, 409, { code: 'already_registered', error: 'You are already a registered customer. Please sign in to your account.' })
+      return json(res, 409, { code: 'already_registered', error: 'Your email is already registered with us. Please sign in instead.' })
     }
 
     // Account was created via OAuth (Google / Apple) without completing registration. Complete it now:
@@ -943,7 +945,7 @@ export async function handleOAuthCallback(req, res) {
       const profileRows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}`).catch(() => [])
       if (Array.isArray(profileRows) && profileRows.length > 0) {
         profileRow = profileRows[0]
-        if (profileRow.is_registered === true || profileRow.phone || profileRow.address || profileRow.gender) {
+        if (profileRow.is_registered === true) {
           isExistingRegistered = true
         }
       }
@@ -952,27 +954,53 @@ export async function handleOAuthCallback(req, res) {
     }
   }
 
-  if (user.user_metadata?.is_registered === true) {
-    isExistingRegistered = true
-  }
-
   // 3. Handle scenarios based on intent & registration status:
 
   // Scenario 2: User clicked "Sign in with Google", but has NO registered account!
   if (intent === 'signin' && !isExistingRegistered) {
     // Delete newly auto-created user from auth.users using Service Role Key
-    // This permanently prevents ghost accounts from polluting auth.users!
+    // with strict multi-table foreign-key safeguards and prior audit logging
     if (supabaseReady()) {
       try {
-        await fetch(`${getSupabaseUrl()}/auth/v1/admin/users/${user.id}`, {
-          method: 'DELETE',
-          headers: {
-            apikey: getSupabaseServiceRoleKey(),
-            Authorization: `Bearer ${getSupabaseServiceRoleKey()}`,
-          },
-        })
+        const userCreatedAt = new Date(user.created_at).getTime()
+        const isRecentlyCreated = !isNaN(userCreatedAt) && (Date.now() - userCreatedAt) < 5 * 60 * 1000
+
+        if (isRecentlyCreated) {
+          const [hasQuotes, hasOrders, hasDealerApps, hasAdmins, hasReviews] = await Promise.all([
+            db(`quote_requests?user_id=eq.${encodeURIComponent(user.id)}&select=id&limit=1`).then(r => Array.isArray(r) && r.length > 0).catch(() => true),
+            db(`orders?user_id=eq.${encodeURIComponent(user.id)}&select=id&limit=1`).then(r => Array.isArray(r) && r.length > 0).catch(() => true),
+            db(`dealer_applications?user_id=eq.${encodeURIComponent(user.id)}&select=id&limit=1`).then(r => Array.isArray(r) && r.length > 0).catch(() => true),
+            db(`admin_users?user_id=eq.${encodeURIComponent(user.id)}&select=id&limit=1`).then(r => Array.isArray(r) && r.length > 0).catch(() => true),
+            db(`reviews?user_id=eq.${encodeURIComponent(user.id)}&select=id&limit=1`).then(r => Array.isArray(r) && r.length > 0).catch(() => true),
+          ])
+
+          if (!hasQuotes && !hasOrders && !hasDealerApps && !hasAdmins && !hasReviews) {
+            // Write audit row before any delete
+            await db('audit_log', {
+              method: 'POST',
+              headers: { Prefer: 'return=minimal' },
+              body: JSON.stringify({
+                action: 'oauth_ghost_account_cleanup',
+                details: {
+                  email: user.email,
+                  user_id: user.id,
+                  reason: 'unregistered_google_signin_cleanup',
+                  timestamp: new Date().toISOString(),
+                },
+              }),
+            }).catch(auditErr => console.warn('Audit log write before cleanup warning:', auditErr.message))
+
+            await fetch(`${getSupabaseUrl()}/auth/v1/admin/users/${user.id}`, {
+              method: 'DELETE',
+              headers: {
+                apikey: getSupabaseServiceRoleKey(),
+                Authorization: `Bearer ${getSupabaseServiceRoleKey()}`,
+              },
+            })
+          }
+        }
       } catch (delErr) {
-        console.warn('Failed to delete unregistered auto-created OAuth user:', delErr.message)
+        console.warn('Safeguarded deletion error for unregistered OAuth user:', delErr.message)
       }
     }
 
@@ -998,18 +1026,12 @@ export async function handleOAuthCallback(req, res) {
     })
   }
 
-  // Scenario 4: User clicked "Sign up with Google", but account already exists!
+  // Scenario 4: User clicked "Sign up with Google", but account already exists and is registered!
   if (intent === 'signup' && isExistingRegistered) {
     return json(res, 200, {
-      success: true,
-      isNew: false,
-      alreadyExisted: true,
-      message: 'You already have an account, so we signed you in.',
-      user: {
-        id: user.id,
-        email: user.email,
-        full_name: profileRow?.full_name || user.user_metadata?.full_name || user.email.split('@')[0],
-      },
+      success: false,
+      alreadyRegistered: true,
+      message: 'Your email is already registered with us. Please sign in instead.',
     })
   }
 
@@ -1066,7 +1088,15 @@ export async function handleOAuthCallback(req, res) {
 }
 
 export async function handleCheckRegistered(req, res, url) {
-  const email = String(url.searchParams.get('email') || '').trim().toLowerCase()
+  const ip = getClientIp(req)
+  const rateStatus = checkRateLimit(checkRegisteredAttempts, ip, MAX_CHECK_REGISTERED_ATTEMPTS, LOCKOUT_DURATION_MS)
+  if (!rateStatus.allowed) {
+    return json(res, 429, { error: rateStatus.error }, { 'Retry-After': String(rateStatus.retryAfter) })
+  }
+  recordAttempt(checkRegisteredAttempts, ip, LOCKOUT_DURATION_MS, MAX_CHECK_REGISTERED_ATTEMPTS)
+
+  const resolvedUrl = url || (req.url ? new URL(req.url, 'http://localhost') : null)
+  const email = String(resolvedUrl?.searchParams?.get('email') || '').trim().toLowerCase()
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json(res, 400, { error: 'A valid email address is required.' })
   }
@@ -1092,8 +1122,8 @@ export async function handleCheckRegistered(req, res, url) {
       }
     }
 
-    const profileRows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}&select=account_type,is_registered,phone,address,gender`).catch(() => [])
-    if (profileRows?.[0]?.is_registered === true || profileRows?.[0]?.phone || profileRows?.[0]?.address || profileRows?.[0]?.gender) {
+    const profileRows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}&select=is_registered`).catch(() => [])
+    if (profileRows?.[0]?.is_registered === true) {
       return json(res, 200, { registered: true })
     }
 

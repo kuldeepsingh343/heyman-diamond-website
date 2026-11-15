@@ -402,6 +402,7 @@ export default function AuthPages({
   const [resendBusy, setResendBusy] = useState(false)
   const [canResend, setCanResend] = useState(false)
   const [needsSignupPrompt, setNeedsSignupPrompt] = useState(false)
+  const [needsSigninPrompt, setNeedsSigninPrompt] = useState(false)
 
   // ── profile editing state ───────────────────────────────────────────────
   const [editName, setEditName] = useState(user?.full_name || '')
@@ -1961,16 +1962,29 @@ export default function AuthPages({
               kind: 'error',
             })
             setNeedsSignupPrompt(true)
+            setNeedsSigninPrompt(false)
             window.location.hash = '#signin'
             return
           }
 
-          if (oauthData?.alreadyExisted) {
+          if (oauthData?.alreadyRegistered) {
+            localStorage.removeItem('hmd_access_token')
+            localStorage.removeItem('hmd_refresh_token')
+            localStorage.removeItem('hmd_user')
+            localStorage.removeItem('hmd_cart')
+            sessionStorage.removeItem('hmd_guest_cart_active')
+            updateUserSession(null)
             setStatus({
-              text: 'You already have an account, so we signed you in.',
-              kind: 'info',
+              text: 'Your email is already registered with us. Please sign in instead.',
+              kind: 'error',
             })
-          } else if (oauthData?.isNew) {
+            setNeedsSigninPrompt(true)
+            setNeedsSignupPrompt(false)
+            window.location.hash = '#signup-customer'
+            return
+          }
+
+          if (oauthData?.isNew) {
             setStatus({
               text: oauthData.message || 'Your account has been created successfully! Welcome to Hey Man Diamond.',
               kind: 'success',
@@ -2174,6 +2188,11 @@ export default function AuthPages({
         if (!isJson) {
           throw new Error('The server is currently deploying or restarting. Please try again in a few moments.')
         }
+        if (data.code === 'already_registered' || response.status === 409) {
+          setNeedsSigninPrompt(true)
+          setNeedsSignupPrompt(false)
+          throw new Error('Your email is already registered with us. Please sign in instead.')
+        }
         throw new Error(data.error || 'Something went wrong. Please try again.')
       }
 
@@ -2340,21 +2359,32 @@ export default function AuthPages({
   async function handleSocialLogin(provider: 'Google' | 'Apple') {
     const intent = signup ? 'signup' : 'signin'
 
-    // 1. If currently on sign-in page and user entered an email, pre-check if registered
-    if (!signup && email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    // 1. If user entered an email, pre-check registration status
+    if (email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setBusy(true)
       setStatus({ text: `Checking account registration for ${email.trim()}…`, kind: 'info' })
       try {
         const checkRes = await fetch(`/api/auth/check-registered?email=${encodeURIComponent(email.trim().toLowerCase())}`)
         if (checkRes.ok) {
           const checkData = await checkRes.json()
-          if (!checkData.registered) {
+          if (!signup && !checkData.registered) {
             setBusy(false)
             setStatus({
               text: 'No account found for this Google account. Please sign up first.',
               kind: 'error',
             })
             setNeedsSignupPrompt(true)
+            setNeedsSigninPrompt(false)
+            return
+          }
+          if (signup && checkData.registered) {
+            setBusy(false)
+            setStatus({
+              text: 'Your email is already registered with us. Please sign in instead.',
+              kind: 'error',
+            })
+            setNeedsSigninPrompt(true)
+            setNeedsSignupPrompt(false)
             return
           }
         }
@@ -6597,11 +6627,40 @@ export default function AuthPages({
               }}
               onClick={() => {
                 setNeedsSignupPrompt(false)
+                setNeedsSigninPrompt(false)
                 setStatus({ text: '', kind: 'info' })
                 window.location.hash = '#signup-customer'
               }}
             >
               Sign Up for an Account →
+            </button>
+          </div>
+        )}
+
+        {needsSigninPrompt && (
+          <div style={{ marginTop: '12px', textAlign: 'center' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              style={{
+                width: '100%',
+                padding: '12px 20px',
+                backgroundColor: 'var(--color-navy, #0f1f1a)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: '0.95rem',
+              }}
+              onClick={() => {
+                setNeedsSigninPrompt(false)
+                setNeedsSignupPrompt(false)
+                setStatus({ text: '', kind: 'info' })
+                window.location.hash = '#signin'
+              }}
+            >
+              Sign In to Your Account →
             </button>
           </div>
         )}

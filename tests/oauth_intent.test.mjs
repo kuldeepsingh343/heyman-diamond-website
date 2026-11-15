@@ -3,6 +3,11 @@ import assert from 'node:assert/strict'
 import { handleOAuth, handleOAuthCallback } from '../server/services/auth.mjs'
 import { parseAuthStatusFromHash, normalizeHashFragment } from '../src/routeUtils.ts'
 
+// Ensure Supabase mocks are enabled for offline tests
+process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321'
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'mock-service-role-key-for-tests'
+process.env.SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'mock-anon-key-for-tests'
+
 function mockResponse() {
   const res = {
     statusCode: 200,
@@ -134,7 +139,7 @@ test('OAuth Intent & Registration Flow', async t => {
     }
   })
 
-  await t.test('5. Scenario 4: Existing user clicking sign up with Google returns alreadyExisted with exact message', async () => {
+  await t.test('5. Scenario 4: Existing registered user clicking sign up with Google is rejected with exact message', async () => {
     const originalFetch = globalThis.fetch
 
     globalThis.fetch = async (url, options = {}) => {
@@ -177,9 +182,9 @@ test('OAuth Intent & Registration Flow', async t => {
       await handleOAuthCallback(mockRequest('POST', { accessToken: 'valid-existing-token', intent: 'signup' }), res)
       assert.equal(res.statusCode, 200)
       const data = JSON.parse(res.body)
-      assert.equal(data.success, true)
-      assert.equal(data.alreadyExisted, true)
-      assert.equal(data.message, 'You already have an account, so we signed you in.')
+      assert.equal(data.success, false)
+      assert.equal(data.alreadyRegistered, true)
+      assert.equal(data.message, 'Your email is already registered with us. Please sign in instead.')
     } finally {
       globalThis.fetch = originalFetch
     }
