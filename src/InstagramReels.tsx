@@ -4,6 +4,7 @@ interface InstagramReel {
   id: string
   permalink: string
   thumbnailUrl: string
+  caption?: string
 }
 
 const curatedReels: InstagramReel[] = [
@@ -11,41 +12,49 @@ const curatedReels: InstagramReel[] = [
     id: 'curated-1',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
     thumbnailUrl: '/loose-fancy-diamonds.jpg',
+    caption: 'Loose Fancy Color Solitaires Showcase',
   },
   {
     id: 'curated-2',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
     thumbnailUrl: '/round-melee-diamonds.jpg',
+    caption: 'Round Melee Diamond Assortments',
   },
   {
     id: 'curated-3',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
     thumbnailUrl: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=800&q=85',
+    caption: 'Oval Cut Diamond Ring Solitaire',
   },
   {
     id: 'curated-4',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
     thumbnailUrl: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=85',
+    caption: 'Brilliant Round Cut Diamond Inspection',
   },
   {
     id: 'curated-5',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
     thumbnailUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=800&q=85',
+    caption: 'Luxury Diamond Jewelry Craftsmanship',
   },
   {
     id: 'curated-6',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
     thumbnailUrl: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?auto=format&fit=crop&w=800&q=85',
+    caption: 'Emerald & Radiant Cut Solitaires',
   },
   {
     id: 'curated-7',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
     thumbnailUrl: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=85',
+    caption: 'Diamond Earrings & Matched Pairs',
   },
   {
     id: 'curated-8',
     permalink: 'https://www.instagram.com/heymandiamond_llc',
     thumbnailUrl: 'https://images.unsplash.com/photo-1573408301185-9146fe634ad0?auto=format&fit=crop&w=800&q=85',
+    caption: 'Certified Diamond Jewelry Vault Selection',
   },
 ]
 
@@ -135,6 +144,8 @@ export default function InstagramReels() {
       className="instagram-strip-container"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
+      onFocusCapture={() => setIsPaused(true)}
+      onBlurCapture={() => setIsPaused(false)}
     >
       <div className="instagram-strip-header">
         <a
@@ -165,34 +176,39 @@ export default function InstagramReels() {
           aria-label="Instagram reels showcase"
           tabIndex={0}
         >
-          {reels.map((reel) => (
-            <a
-              key={reel.id}
-              className="instagram-slide-card"
-              href={reel.permalink}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Watch reel on Instagram"
-            >
-              <img
-                src={reel.thumbnailUrl}
-                alt="Hey Man Diamond Reel"
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  e.currentTarget.onerror = null
-                  e.currentTarget.src = '/certified-diamonds.jpg'
-                }}
-              />
-              <div className="instagram-play-overlay">
-                <span className="instagram-play-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </span>
-              </div>
-            </a>
-          ))}
+          {reels.map((reel, idx) => {
+            const reelLabel = reel.caption
+              ? `Watch Instagram reel: ${reel.caption.slice(0, 50)}…`
+              : `Watch Instagram reel ${idx + 1}: Featured lab-grown diamond collection`
+            return (
+              <a
+                key={reel.id}
+                className="instagram-slide-card"
+                href={reel.permalink}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={reelLabel}
+              >
+                <img
+                  src={reel.thumbnailUrl}
+                  alt={reel.caption ? `Hey Man Diamond Reel: ${reel.caption.slice(0, 40)}` : `Hey Man Diamond Reel ${idx + 1}`}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = '/certified-diamonds.jpg'
+                  }}
+                />
+                <div className="instagram-play-overlay">
+                  <span className="instagram-play-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </span>
+                </div>
+              </a>
+            )
+          })}
         </div>
 
         <button

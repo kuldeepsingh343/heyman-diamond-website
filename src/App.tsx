@@ -199,12 +199,16 @@ function App() {
   if (authRoute) return <AuthPages key={authRoute} mode={authRoute} onUserChange={setCurrentUser} />
 
   return (
-    <main className="website">
-      <div className="announcement">
+    <div className="website">
+      <a href="#main-content" className="skip-to-content-link">
+        Skip to main content
+      </a>
+
+      <div className="announcement" role="region" aria-label="Announcement">
         LAB-GROWN DIAMONDS <span>·</span> HARVESTING DREAMS, TOGETHER
       </div>
 
-      <header className="navbar">
+      <header className="navbar" role="banner">
         <a className="brand" href="#home" aria-label="Hey Man Diamond home">
           <img
             className="brand-logo"
@@ -408,7 +412,9 @@ function App() {
         </aside>
       )}
 
-      <OffersHero />
+      {/* ── Main Landmark ── */}
+      <main id="main-content" tabIndex={-1}>
+        <OffersHero />
 
       <section className="trust-strip">
         <div>
@@ -504,8 +510,9 @@ function App() {
       <section className="instagram-section" id="instagram">
         <InstagramReels />
       </section>
+      </main>
 
-      <footer className="footer">
+      <footer className="footer" role="contentinfo">
         <a className="brand footer-brand" href="#home">
           <img
             className="brand-logo"
@@ -589,7 +596,7 @@ function App() {
           <span>Made with ❤️ by Kuldeep Singh Chauhan</span>
         </div>
       </footer>
-    </main>
+    </div>
   )
 }
 

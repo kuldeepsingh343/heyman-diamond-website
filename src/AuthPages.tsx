@@ -6996,10 +6996,13 @@ export default function AuthPages({
             </div>
           ) : (
             <form onSubmit={handleResetPasswordSubmit} noValidate>
-              <label>
-                New Password <span style={{ fontWeight: 400, opacity: 0.7 }}>(min. 8 characters)</span>
+              <div className="auth-field-group">
+                <label htmlFor="reset-new-password">
+                  New Password <span style={{ fontWeight: 400, opacity: 0.7 }}>(min. 8 characters)</span>
+                </label>
                 <div style={{ position: 'relative' }}>
                   <input
+                    id="reset-new-password"
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
@@ -7030,12 +7033,15 @@ export default function AuthPages({
                     {showNewPassword ? '🙈' : '👁'}
                   </button>
                 </div>
-              </label>
+              </div>
 
-              <label>
-                Confirm New Password
+              <div className="auth-field-group">
+                <label htmlFor="reset-confirm-password">
+                  Confirm New Password
+                </label>
                 <div style={{ position: 'relative' }}>
                   <input
+                    id="reset-confirm-password"
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
@@ -7066,7 +7072,7 @@ export default function AuthPages({
                     {showConfirmPassword ? '🙈' : '👁'}
                   </button>
                 </div>
-              </label>
+              </div>
 
               <button type="submit" disabled={busy}>
                 {busy ? 'Updating Password…' : 'Update Password'}
@@ -7243,10 +7249,13 @@ export default function AuthPages({
             />
           </label>
 
-          <label>
-            Password {signup && <span style={{ fontWeight: 400, opacity: 0.7 }}>(min. 8 characters)</span>}
+          <div className="auth-field-group">
+            <label htmlFor="auth-main-password">
+              Password {signup && <span style={{ fontWeight: 400, opacity: 0.7 }}>(min. 8 characters)</span>}
+            </label>
             <div style={{ position: 'relative' }}>
               <input
+                id="auth-main-password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
@@ -7277,7 +7286,7 @@ export default function AuthPages({
                 {showPassword ? '🙈' : '👁'}
               </button>
             </div>
-          </label>
+          </div>
 
           {!signup && !isAdminLogin && (
             <div className="auth-forgot-row">

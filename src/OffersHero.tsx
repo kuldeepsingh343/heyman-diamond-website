@@ -93,6 +93,8 @@ export default function OffersHero() {
       aria-label="Latest Offers and Schemes"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
+      onFocusCapture={() => setIsPaused(true)}
+      onBlurCapture={() => setIsPaused(false)}
     >
       {/* Background Media */}
       <div className="offers-hero-media">

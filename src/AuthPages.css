@@ -111,7 +111,8 @@
   margin-top: 30px;
 }
 
-.auth-card label {
+.auth-card label,
+.auth-card .auth-field-group {
   display: grid;
   gap: 7px;
   font-size: 10px;

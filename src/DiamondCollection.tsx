@@ -230,6 +230,64 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
     }
   }, [currentUser, items])
 
+  // ── Modal Accessibility: Focus Trapping, Escape Dismissal & Focus Restoration ──
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null)
+  const isAnyModalOpen = Boolean(activeMediaDiamond || inquiryDiamond || inquiryAuthPromptDiamond)
+
+  useEffect(() => {
+    if (!isAnyModalOpen) {
+      if (lastFocusedElementRef.current && typeof lastFocusedElementRef.current.focus === 'function') {
+        lastFocusedElementRef.current.focus()
+        lastFocusedElementRef.current = null
+      }
+      return
+    }
+
+    if (!lastFocusedElementRef.current && document.activeElement instanceof HTMLElement) {
+      lastFocusedElementRef.current = document.activeElement
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        if (inquiryDiamond && !inquirySubmitting) setInquiryDiamond(null)
+        if (inquiryAuthPromptDiamond) setInquiryAuthPromptDiamond(null)
+        if (activeMediaDiamond) closeMediaModal()
+        return
+      }
+
+      if (e.key === 'Tab') {
+        const modalEl = document.querySelector<HTMLElement>(
+          '.diamond-media-modal-backdrop, .inquiry-modal-overlay'
+        )
+        if (!modalEl) return
+
+        const focusables = modalEl.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+        )
+        if (focusables.length === 0) return
+
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault()
+            last.focus()
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault()
+            first.focus()
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isAnyModalOpen, inquiryDiamond, inquirySubmitting, inquiryAuthPromptDiamond, activeMediaDiamond])
+
   const handleSubmitInquiry = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!inquiryDiamond) return
@@ -735,6 +793,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                   type="button"
                   className="clear-search-btn"
                   onClick={() => setSearchQuery('')}
+                  aria-label="Clear diamond search keywords"
                   title="Clear search"
                 >
                   ✕
@@ -1066,6 +1125,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
           className="diamond-media-modal-backdrop"
           onClick={closeMediaModal}
           role="dialog"
+          aria-modal="true"
           aria-label="Diamond Media Viewer"
         >
           <div

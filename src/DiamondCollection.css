@@ -113,7 +113,7 @@
 }
 
 .diamond-collection-section .category-copy .text-link {
-  color: #8b7445;
+  color: #796131;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.5;
@@ -519,7 +519,7 @@
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: #827e74;
+  color: #5e5b52;
   margin-bottom: 3px;
   font-weight: 600;
 }
@@ -557,7 +557,7 @@
 .sku-mono {
   font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
-  color: #88857d;
+  color: #615e57;
 }
 
 /* Pricing Block */
@@ -602,7 +602,7 @@
 .price-list-struck {
   font-size: 14px;
   text-decoration: line-through;
-  color: #8c887e;
+  color: #68645b;
   font-weight: 500;
 }
 
