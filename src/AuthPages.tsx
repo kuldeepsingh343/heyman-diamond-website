@@ -447,7 +447,7 @@ export default function AuthPages({
   const [captchaToken, setCaptchaToken] = useState('')
   const recaptchaContainerRef = useRef<HTMLDivElement>(null)
   const recaptchaWidgetIdRef = useRef<number | null>(null)
-  const recaptchaSiteKey = (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string) || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
+  const recaptchaSiteKey = (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string) || '6LcR0CMuAAAAAO7kxTY9CEFireOMzweWbEDDMpty'
 
   // ── async / UX state ────────────────────────────────────────────────────
   const [status, setStatus] = useState<{ text: string; kind: 'info' | 'error' | 'success' }>(getInitialStatus)

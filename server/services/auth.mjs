@@ -155,7 +155,7 @@ export async function verifyRecaptchaToken(token, ip) {
     return { success: false, error: 'Please verify that you are human by checking the CAPTCHA box.' }
   }
 
-  const secretKey = process.env.RECAPTCHA_SECRET_KEY || '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
+  const secretKey = process.env.RECAPTCHA_SECRET_KEY || '6LcR0CMuAAAAACNbyg9YYDsbHhe44PzX1UiwBAmo'
 
   try {
     const params = new URLSearchParams()
