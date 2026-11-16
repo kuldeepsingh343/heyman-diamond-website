@@ -84,6 +84,99 @@ function formatCustomerReplyEmailBody(inquiry, adminReply, repliedBy) {
   ].join('\n')
 }
 
+export function formatOrderEmailBody({
+  quoteNumber,
+  customerName,
+  customerEmail,
+  phone,
+  shippingAddress,
+  deliveryPreference,
+  notes,
+  isApprovedDealer,
+  userId,
+  items,
+  totalEstimated,
+  catalogTotal,
+  hasCustomOffer,
+}) {
+  const dateStr = new Date().toUTCString()
+  const accountTypeLabel = isApprovedDealer ? 'Approved Wholesale Dealer' : 'Retail Customer'
+  const statusLabel = hasCustomOffer ? 'Pending Review (Custom Target Offer)' : 'New Order'
+
+  const lines = [
+    '======================================================',
+    'HEY MAN DIAMOND LLC — NEW WEBSITE ORDER / QUOTE',
+    '======================================================',
+    '',
+    `Order / Quote # : #Q-${quoteNumber}`,
+    `Date & Time     : ${dateStr}`,
+    `Customer Type   : ${accountTypeLabel}`,
+    `Status          : ${statusLabel}`,
+    '',
+    'CUSTOMER INFORMATION:',
+    '------------------------------------------------------',
+    `Name            : ${customerName}`,
+    `Email           : ${customerEmail}`,
+    `Phone           : ${phone || 'Not provided'}`,
+    userId ? `User ID         : ${userId}` : null,
+    '',
+    'DELIVERY & FULFILLMENT:',
+    '------------------------------------------------------',
+    `Fulfillment     : ${deliveryPreference || 'Armored Courier (Insured)'}`,
+    shippingAddress ? `Shipping Address: ${shippingAddress}` : null,
+    notes ? `Customer Notes  : ${notes}` : null,
+    '',
+    'ORDERED ITEMS:',
+    '------------------------------------------------------',
+  ]
+
+  items.forEach((item, idx) => {
+    const snap = item.product_snapshot || {}
+    const specs = [
+      snap.shape || item.product_name,
+      snap.carat ? `${snap.carat}ct` : null,
+      snap.color,
+      snap.clarity,
+      snap.cut ? `${snap.cut} Cut` : null,
+      snap.lab ? `(${snap.lab})` : null,
+    ].filter(Boolean).join(' ')
+
+    const catalogPrice = item.current_unit_price || 0
+    const targetPrice = item.requested_unit_price || 0
+    const qty = item.quantity || 1
+    const lineTotal = targetPrice * qty
+
+    lines.push(
+      `${idx + 1}. ${specs || item.product_name}`,
+      `   SKU          : ${item.flomiz_sku || snap.sku || 'N/A'}`,
+      snap.certificateNumber ? `   Certificate  : ${snap.certificateNumber}` : null,
+      snap.measurements ? `   Measurements : ${snap.measurements}` : null,
+      `   Catalog Price: $${Number(catalogPrice).toLocaleString()}`,
+      `   Target Price : $${Number(targetPrice).toLocaleString()}${snap.is_custom_offer ? ' [CUSTOM OFFER]' : ''}`,
+      `   Quantity     : ${qty}`,
+      `   Line Total   : $${Number(lineTotal).toLocaleString()}`,
+      ''
+    )
+  })
+
+  lines.push(
+    '------------------------------------------------------',
+    'FINANCIAL SUMMARY:',
+    '------------------------------------------------------',
+    `Catalog Total   : $${Number(catalogTotal).toLocaleString()}`,
+    `Order Total     : $${Number(totalEstimated).toLocaleString()}`,
+    hasCustomOffer
+      ? '\n[NOTE: Customer submitted a custom target price offer. Requires review and confirmation by Sales Manager.]'
+      : null,
+    '',
+    'You can review, approve, counter-offer, or fulfill this order in the Admin Portal under Orders & Price Quotes:',
+    'https://heymandiamond.com/#signin',
+    '======================================================'
+  )
+
+  return lines.filter(line => line !== null).join('\n')
+}
+
 export async function handleCreateInquiry(req, res) {
   const ip = getClientIp(req)
   const now = Date.now()
@@ -394,6 +487,7 @@ export async function handleCreateQuote(req, res) {
   let hasCustomOffer = false
   const itemPayloads = []
   let totalEstimated = 0
+  let catalogTotal = 0
 
   for (const item of items) {
     const sku = String(item.sku || item.flomiz_sku || '').slice(0, 80)
@@ -401,6 +495,8 @@ export async function handleCreateQuote(req, res) {
     const fallbackCatalogPrice = Number(item.catalogPrice || item.price || item.listPrice || item.requestedPrice || 0)
     const unitPrice = effectivePrice > 0 ? effectivePrice : fallbackCatalogPrice
     const qty = Math.max(1, Math.min(100, Number(item.quantity) || 1))
+
+    catalogTotal += unitPrice * qty
 
     const requestedPriceNum = item.requestedPrice && !isNaN(Number(item.requestedPrice)) && Number(item.requestedPrice) > 0
       ? Number(item.requestedPrice)
@@ -512,9 +608,35 @@ export async function handleCreateQuote(req, res) {
     })
   }
 
+  const finalQuoteNumber = quote.quote_number || fallbackQuoteNum
+
+  // Dispatch email notification with complete order details to sales@heymandiamond.com
+  sendEmailNotification({
+    to: 'sales@heymandiamond.com',
+    replyTo: email,
+    subject: hasCustomOffer
+      ? `New Order Offer (#Q-${finalQuoteNumber}): $${Number(totalEstimated).toLocaleString()} from ${name}`
+      : `New Website Order (#Q-${finalQuoteNumber}): $${Number(totalEstimated).toLocaleString()} from ${name}`,
+    text: formatOrderEmailBody({
+      quoteNumber: finalQuoteNumber,
+      customerName: name,
+      customerEmail: email,
+      phone,
+      shippingAddress,
+      deliveryPreference,
+      notes: message,
+      isApprovedDealer,
+      userId: customer.id,
+      items: itemPayloads,
+      totalEstimated,
+      catalogTotal,
+      hasCustomOffer,
+    }),
+  }).catch(err => console.warn('[Mailer:Order Notification Error]', err.message))
+
   return json(res, 201, {
     quoteId: quote.id,
-    quoteNumber: quote.quote_number || fallbackQuoteNum,
+    quoteNumber: finalQuoteNumber,
     estimatedTotal: totalEstimated,
     itemsCount: itemPayloads.length,
     hasCustomOffer,

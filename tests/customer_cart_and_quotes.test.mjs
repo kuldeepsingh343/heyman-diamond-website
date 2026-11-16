@@ -5,6 +5,7 @@ import {
   handleGetUserOrders,
   handleGetAdminQuotes,
   handleUpdateQuoteStatus,
+  formatOrderEmailBody,
   resetMemoryQuotes,
 } from '../server/services/quotes.mjs'
 
@@ -410,5 +411,92 @@ test('Admin Panel — Orders from Website Permissions & Quote Status Lifecycle',
     const filterClosed = orders.filter(q => q.status === 'closed' || q.status === 'completed')
     assert.strictEqual(filterClosed.length, 3)
     assert.deepStrictEqual(filterClosed.map(q => q.quote_number), [1, 2, 3])
+  })
+
+  await t.test('Order Notification Dispatch — formatOrderEmailBody generates complete order details', () => {
+    const emailBody = formatOrderEmailBody({
+      quoteNumber: 10452,
+      customerName: 'Bhikham Singh',
+      customerEmail: 'bhikhamsingh1957@gmail.com',
+      phone: '+1 312 646 0070',
+      shippingAddress: '5 S Wabash Ave, Suite 1704, Chicago, IL 60603',
+      deliveryPreference: 'Armored Courier (Insured)',
+      notes: 'Please verify laser inscription before dispatch.',
+      isApprovedDealer: true,
+      userId: 'usr-dealer-777',
+      items: [
+        {
+          flomiz_sku: 'NC-1799',
+          product_name: 'Pear Diamond',
+          product_snapshot: {
+            sku: 'NC-1799',
+            shape: 'Pear',
+            carat: 2.52,
+            color: 'F',
+            clarity: 'VS2',
+            cut: 'Very Good',
+            lab: 'None',
+            certificateNumber: 'NC-1799',
+            measurements: '12 X 7.78',
+            is_custom_offer: false,
+          },
+          quantity: 1,
+          current_unit_price: 352.8,
+          requested_unit_price: 352.8,
+        },
+        {
+          flomiz_sku: 'HM-151',
+          product_name: 'Cushion Diamond',
+          product_snapshot: {
+            sku: 'HM-151',
+            shape: 'Cushion',
+            carat: 1.6,
+            color: 'F',
+            clarity: 'VS2',
+            cut: 'Very Good',
+            lab: 'IGI',
+            certificateNumber: 'LG-640483103',
+            measurements: '8.16 X 6.11',
+            is_custom_offer: true,
+          },
+          quantity: 2,
+          current_unit_price: 1280,
+          requested_unit_price: 1100,
+        },
+      ],
+      totalEstimated: 2552.8,
+      catalogTotal: 2912.8,
+      hasCustomOffer: true,
+    })
+
+    // Header & Order identification
+    assert.match(emailBody, /#Q-10452/)
+    assert.match(emailBody, /Approved Wholesale Dealer/)
+    assert.match(emailBody, /Pending Review \(Custom Target Offer\)/)
+
+    // Customer info
+    assert.match(emailBody, /Bhikham Singh/)
+    assert.match(emailBody, /bhikhamsingh1957@gmail\.com/)
+    assert.match(emailBody, /\+1 312 646 0070/)
+    assert.match(emailBody, /usr-dealer-777/)
+
+    // Fulfillment & notes
+    assert.match(emailBody, /Armored Courier \(Insured\)/)
+    assert.match(emailBody, /5 S Wabash Ave, Suite 1704, Chicago, IL 60603/)
+    assert.match(emailBody, /Please verify laser inscription before dispatch\./)
+
+    // Ordered items
+    assert.match(emailBody, /NC-1799/)
+    assert.match(emailBody, /Pear 2\.52ct F VS2 Very Good Cut/)
+    assert.match(emailBody, /Measurements : 12 X 7\.78/)
+    assert.match(emailBody, /HM-151/)
+    assert.match(emailBody, /Cushion 1\.6ct F VS2 Very Good Cut \(IGI\)/)
+    assert.match(emailBody, /Certificate\s+:\s+LG-640483103/)
+    assert.match(emailBody, /Target Price\s+:\s+\$1,100 \[CUSTOM OFFER\]/)
+
+    // Financial totals
+    assert.match(emailBody, /Catalog Total\s+:\s+\$2,912\.8/)
+    assert.match(emailBody, /Order Total\s+:\s+\$2,552\.8/)
+    assert.match(emailBody, /Requires review and confirmation by Sales Manager\./)
   })
 })
