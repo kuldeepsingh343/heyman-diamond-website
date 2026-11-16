@@ -439,8 +439,8 @@ function App() {
       <section className="wholesale-section" id="wholesale">
         <div className="wholesale-image">
           <img
-            src="https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1200&q=85"
-            alt="Fine jewelry detail"
+            src="/wholesale-diamonds.jpg"
+            alt="Fine diamond jewelry collection"
             loading="lazy"
           />
         </div>
