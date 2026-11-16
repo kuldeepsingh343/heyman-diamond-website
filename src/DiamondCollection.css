@@ -1471,6 +1471,322 @@
   }
 }
 
+/* ── Diamond Inquiry Modal & Auth Prompt ── */
+.inquiry-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 17, 15, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+  animation: inquiryFadeIn 0.2s ease-out;
+}
+
+@keyframes inquiryFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.inquiry-modal-card {
+  background: #ffffff;
+  border: 1px solid #e7dfd2;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 580px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 28px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.22);
+  position: relative;
+  animation: inquirySlideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.inquiry-auth-prompt-card {
+  background: #ffffff;
+  border: 1px solid #e7dfd2;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 460px;
+  padding: 32px 28px;
+  text-align: center;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.22);
+  position: relative;
+  animation: inquirySlideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes inquirySlideUp {
+  from { transform: translateY(14px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.auth-prompt-icon {
+  font-size: 38px;
+  margin-bottom: 12px;
+}
+
+.auth-prompt-card h3 {
+  font-size: 20px;
+  color: #1c1b17;
+  margin: 0 0 10px 0;
+  font-weight: 700;
+}
+
+.auth-prompt-card p {
+  font-size: 14px;
+  color: #4b483f;
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+
+.auth-prompt-subtext {
+  font-size: 13px !important;
+  color: #7b7668 !important;
+  margin-bottom: 24px !important;
+}
+
+.auth-prompt-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.auth-prompt-actions button {
+  min-width: 140px;
+}
+
+.inquiry-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #f0e9dd;
+  padding-bottom: 16px;
+}
+
+.inquiry-modal-header h3 {
+  font-size: 21px;
+  color: #1a1915;
+  margin: 0 0 4px 0;
+  font-weight: 700;
+}
+
+.inquiry-modal-subhead {
+  font-size: 13px;
+  color: #767061;
+  margin: 0;
+}
+
+.inquiry-modal-close {
+  background: #f7f4ed;
+  border: 1px solid #e5ded2;
+  color: #4b483f;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inquiry-modal-close:hover {
+  background: #1c1b17;
+  color: #ffffff;
+  border-color: #1c1b17;
+}
+
+/* Diamond Specs Snapshot */
+.inquiry-diamond-snapshot {
+  background: linear-gradient(135deg, #fdfbf7 0%, #f6f0e4 100%);
+  border: 1px solid #e5dcce;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 22px;
+}
+
+.inquiry-snapshot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(216, 204, 185, 0.5);
+  padding-bottom: 10px;
+}
+
+.inquiry-diamond-shape-badge {
+  font-weight: 700;
+  color: #1c1b17;
+  font-size: 16px;
+  margin-right: 8px;
+}
+
+.inquiry-diamond-carat {
+  font-size: 14px;
+  color: #6b6351;
+  font-weight: 600;
+}
+
+.inquiry-snapshot-price small {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #7a7362;
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+.inquiry-customer-price,
+.inquiry-dealer-price {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f5132;
+}
+
+.inquiry-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 12px;
+  font-size: 12.5px;
+  color: #454238;
+}
+
+.inquiry-snapshot-grid small {
+  color: #7b7463;
+  margin-right: 4px;
+}
+
+@media (max-width: 520px) {
+  .inquiry-snapshot-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Inquiry Form */
+.inquiry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.inquiry-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 520px) {
+  .inquiry-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.inquiry-field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #3b3830;
+}
+
+.inquiry-input,
+.inquiry-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dcd5c7;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: #1f1e1a;
+  background: #ffffff;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.inquiry-input:focus,
+.inquiry-textarea:focus {
+  outline: none;
+  border-color: #b8a06e;
+  box-shadow: 0 0 0 3px rgba(184, 160, 110, 0.18);
+}
+
+.inquiry-textarea {
+  resize: vertical;
+  min-height: 85px;
+  line-height: 1.5;
+}
+
+.inquiry-form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.inquiry-submit-btn {
+  flex: 1;
+  padding: 12px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.inquiry-error-banner {
+  background: #fff3f3;
+  color: #a42323;
+  border: 1px solid #f8c9c9;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Success View */
+.inquiry-success-view {
+  text-align: center;
+  padding: 24px 12px;
+}
+
+.inquiry-success-icon {
+  width: 52px;
+  height: 52px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 auto 16px auto;
+  border: 2px solid #a5d6a7;
+}
+
+.inquiry-success-view h4 {
+  font-size: 20px;
+  color: #1f1e1a;
+  margin: 0 0 10px 0;
+  font-weight: 700;
+}
+
+.inquiry-success-view p {
+  font-size: 14px;
+  color: #4b483f;
+  line-height: 1.5;
+  margin: 0 0 8px 0;
+}
+
+.inquiry-success-note {
+  font-size: 13px !important;
+  color: #7b7463 !important;
+  margin-bottom: 24px !important;
+}
+
+
 
 
 

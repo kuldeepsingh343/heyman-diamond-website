@@ -30,7 +30,27 @@ export async function authenticatedUser(req) {
       const response = await fetch(`${getSupabaseUrl()}/auth/v1/user`, {
         headers: { apikey: getSupabaseAnonKey(), Authorization: `Bearer ${token}` },
       })
-      if (response.ok) return await response.json()
+      if (response.ok) {
+        const user = await response.json()
+        if (user?.id && supabaseReady()) {
+          try {
+            const rows = await db(`profiles?id=eq.${encodeURIComponent(user.id)}&select=account_type,dealer_status`)
+            if (Array.isArray(rows) && rows.length > 0) {
+              user.account_type = rows[0].account_type || user.user_metadata?.account_type || 'customer'
+              user.dealer_status = rows[0].dealer_status || user.user_metadata?.dealer_status || 'not_applied'
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (!user.account_type) {
+          user.account_type = user.user_metadata?.account_type || 'customer'
+        }
+        if (!user.dealer_status) {
+          user.dealer_status = user.user_metadata?.dealer_status || 'not_applied'
+        }
+        return user
+      }
     } catch (err) {
       console.warn('Authentication token verification network error:', err.message)
     }
@@ -971,7 +991,13 @@ export async function handleOAuth(req, res, url) {
       url: targetUrl,
     })
   } catch (err) {
-    return json(res, 500, { error: 'Failed to initialize OAuth.' })
+    const targetUrl = `${getSupabaseUrl()}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectTarget)}`
+    return json(res, 200, {
+      enabled: true,
+      provider,
+      intent,
+      url: targetUrl,
+    })
   }
 }
 

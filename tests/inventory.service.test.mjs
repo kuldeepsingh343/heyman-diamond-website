@@ -399,6 +399,47 @@ test('Inventory Service — Wholesale Price (USD) and Template Header Compatibil
   assert.equal(hm151.dealerPrice, 216)
 })
 
+test('Inventory Service — Customer Price Segment & Dealer Price Segment Header Mapping', () => {
+  const csvSegments = [
+    'SKU,Shape,Carat,Color,Clarity,Cut,Customer Price Segment,Customer Discount Price,Customer Discount %,Dealer Price Segment,Dealer Discount Price,Dealer Discount %',
+    'SEG-01,Round,1.00,D,VVS1,Ideal,2500,2000,20,1800,1500,16.67',
+    'SEG-02,Oval,2.00,E,VS1,Excellent,5000,,,3800,,',
+  ].join('\n')
+
+  const parsed = parseDiamondSpreadsheet(csvSegments, 'all')
+  assert.equal(parsed.items.length, 2)
+  assert.equal(parsed.skipped.length, 0)
+
+  const seg1 = parsed.items.find(i => i.sku === 'SEG-01')
+  assert.equal(seg1.price, 2500)
+  assert.equal(seg1.customerPrice, 2500)
+  assert.equal(seg1.customerDiscountPrice, 2000)
+  assert.equal(seg1.wholesalePrice, 1800)
+  assert.equal(seg1.dealerPrice, 1800)
+  assert.equal(seg1.dealerDiscountPrice, 1500)
+
+  const seg2 = parsed.items.find(i => i.sku === 'SEG-02')
+  assert.equal(seg2.price, 5000)
+  assert.equal(seg2.customerPrice, 5000)
+  assert.equal(seg2.wholesalePrice, 3800)
+  assert.equal(seg2.dealerPrice, 3800)
+})
+
+test('Inventory Service — Customer Rate & Wholesale Rate Variations', () => {
+  const csvRates = [
+    'SKU,Shape,Carat,Color,Clarity,Customer Rate,Wholesale Rate',
+    'RATE-01,Round,1.25,F,VS2,1500,1100',
+  ].join('\n')
+
+  const parsed = parseDiamondSpreadsheet(csvRates, 'all')
+  assert.equal(parsed.items.length, 1)
+  const item = parsed.items[0]
+  assert.equal(item.price, 1500)
+  assert.equal(item.customerPrice, 1500)
+  assert.equal(item.wholesalePrice, 1100)
+  assert.equal(item.dealerPrice, 1100)
+})
+
 
 
 

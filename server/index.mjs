@@ -54,6 +54,10 @@ import {
   handleGetAdminQuotes,
   handleUpdateQuoteStatus,
   handleGetUserOrders,
+  handleGetAdminInquiries,
+  handleReplyAdminInquiry,
+  handleUpdateInquiryStatus,
+  handleGetUserInquiries,
 } from './services/quotes.mjs'
 
 import {
@@ -202,6 +206,9 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/inquiries') {
       return await handleCreateInquiry(req, res)
     }
+    if (req.method === 'GET' && url.pathname === '/api/user/inquiries') {
+      return await handleGetUserInquiries(req, res)
+    }
     if (req.method === 'POST' && url.pathname === '/api/quotes') {
       return await handleCreateQuote(req, res)
     }
@@ -306,6 +313,26 @@ const server = createServer(async (req, res) => {
         }
         if (req.method === 'GET' && url.pathname === '/api/admin/orders') {
           return await handleGetOrders(req, res, admin)
+        }
+      }
+
+      // Admin Diamond Inquiries
+      if (url.pathname.startsWith('/api/admin/inquiries')) {
+        if (!p.can_manage_orders && !p.can_manage_inventory && admin.role !== 'super_admin' && admin.role !== 'admin' && admin.role !== 'sales_manager') {
+          return json(res, 403, { error: 'Inquiry management permission required.' })
+        }
+        if (req.method === 'GET' && url.pathname === '/api/admin/inquiries') {
+          return await handleGetAdminInquiries(req, res, admin)
+        }
+        if (req.method === 'PATCH' && /^\/api\/admin\/inquiries\/[a-zA-Z0-9_-]+\/reply$/i.test(url.pathname)) {
+          const parts = url.pathname.split('/')
+          const id = parts[parts.length - 2]
+          return await handleReplyAdminInquiry(req, res, admin, id)
+        }
+        if (req.method === 'PATCH' && /^\/api\/admin\/inquiries\/[a-zA-Z0-9_-]+\/status$/i.test(url.pathname)) {
+          const parts = url.pathname.split('/')
+          const id = parts[parts.length - 2]
+          return await handleUpdateInquiryStatus(req, res, admin, id)
         }
       }
 

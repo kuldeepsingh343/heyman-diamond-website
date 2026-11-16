@@ -97,6 +97,16 @@ function formatDisplayPrice(val: number | null | undefined): string {
   })
 }
 
+function getInquiryDisplayPrice(diamond: PublicDiamondItem, isApprovedDealer: boolean): number {
+  if (isApprovedDealer) {
+    if (diamond.dealerDiscountPrice && diamond.dealerDiscountPrice > 0) return diamond.dealerDiscountPrice
+    return diamond.dealerPrice || diamond.wholesalePrice || (diamond.listPrice || diamond.price) || 0
+  }
+  if (diamond.customerDiscountPrice && diamond.customerDiscountPrice > 0) return diamond.customerDiscountPrice
+  if (diamond.discountPrice && diamond.discountPrice > 0) return diamond.discountPrice
+  return diamond.customerPrice || diamond.price || 0
+}
+
 // Interleaves items across categories so "All Collections" showcases a balanced variety
 // of Certified, Solitaires, Match Pairs, Round Melee, and Loose Fancy from Page 1 onwards.
 function interleaveByCategory(list: PublicDiamondItem[]): PublicDiamondItem[] {
@@ -182,6 +192,103 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
     currentUser?.account_type === 'dealer' && currentUser?.dealer_status === 'approved'
   const isPendingDealer =
     currentUser?.account_type === 'dealer' && currentUser?.dealer_status !== 'approved'
+
+  // ── Inquiry Form Modal State ─────────────────────────────────────────────
+  const [inquiryDiamond, setInquiryDiamond] = useState<PublicDiamondItem | null>(null)
+  const [inquiryAuthPromptDiamond, setInquiryAuthPromptDiamond] = useState<PublicDiamondItem | null>(null)
+  const [inquiryName, setInquiryName] = useState('')
+  const [inquiryEmail, setInquiryEmail] = useState('')
+  const [inquiryPhone, setInquiryPhone] = useState('')
+  const [inquiryRemarks, setInquiryRemarks] = useState('')
+  const [inquirySubmitting, setInquirySubmitting] = useState(false)
+  const [inquiryStatus, setInquiryStatus] = useState<{ text: string; kind: 'error' | 'success' } | null>(null)
+
+  const handleOpenInquiry = (diamond: PublicDiamondItem) => {
+    if (!currentUser) {
+      setInquiryAuthPromptDiamond(diamond)
+      return
+    }
+    setInquiryDiamond(diamond)
+    setInquiryName(currentUser.full_name || '')
+    setInquiryEmail(currentUser.email || '')
+    setInquiryPhone(currentUser.phone || '')
+    setInquiryRemarks('')
+    setInquiryStatus(null)
+  }
+
+  // Auto-open inquiry form if user just signed in after clicking inquire
+  useEffect(() => {
+    if (currentUser && items.length > 0) {
+      const savedInquireSku = sessionStorage.getItem('hmd_inquire_sku')
+      if (savedInquireSku) {
+        const match = items.find(d => d.sku === savedInquireSku)
+        if (match) {
+          sessionStorage.removeItem('hmd_inquire_sku')
+          handleOpenInquiry(match)
+        }
+      }
+    }
+  }, [currentUser, items])
+
+  const handleSubmitInquiry = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inquiryDiamond) return
+    if (!inquiryRemarks.trim()) {
+      setInquiryStatus({ text: 'Please enter your remarks or what you are looking for.', kind: 'error' })
+      return
+    }
+    setInquirySubmitting(true)
+    setInquiryStatus(null)
+
+    const effectivePrice = getInquiryDisplayPrice(inquiryDiamond, isApprovedDealer)
+    const token = typeof window !== 'undefined' ? localStorage.getItem('hmd_access_token') : null
+
+    try {
+      const response = await fetch('/api/inquiries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          sku: inquiryDiamond.sku,
+          shape: inquiryDiamond.shape,
+          carat: inquiryDiamond.carat,
+          color: inquiryDiamond.color,
+          clarity: inquiryDiamond.clarity,
+          cut: inquiryDiamond.cut,
+          price: effectivePrice,
+          diamond_details: {
+            certificateNumber: inquiryDiamond.certificateNumber,
+            measurements: inquiryDiamond.measurements,
+            lab: inquiryDiamond.lab,
+            imageUrl: inquiryDiamond.imageUrl,
+            audience: isApprovedDealer ? 'dealer' : 'customer',
+          },
+          name: inquiryName,
+          email: inquiryEmail,
+          phone: inquiryPhone,
+          remarks: inquiryRemarks,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setInquiryStatus({ text: data.error || 'Unable to submit inquiry. Please try again.', kind: 'error' })
+        setInquirySubmitting(false)
+        return
+      }
+
+      setInquiryStatus({
+        text: `Thank you, ${inquiryName}! Your inquiry for SKU ${inquiryDiamond.sku} has been sent to sales@heymandiamond.com. Our specialists will review your remarks and respond promptly.`,
+        kind: 'success',
+      })
+    } catch {
+      setInquiryStatus({ text: 'Network connection issue. Please check your connection and try again.', kind: 'error' })
+    } finally {
+      setInquirySubmitting(false)
+    }
+  }
 
   const hasAutoOpenedRef = useRef(false)
 
@@ -345,11 +452,11 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
   const addToCart = (diamond: PublicDiamondItem) => {
     try {
       const listPrice = isApprovedDealer
-        ? Number(diamond.dealerPrice || diamond.wholesalePrice || diamond.listPrice || 0)
+        ? Number(diamond.dealerPrice || diamond.wholesalePrice || diamond.listPrice || diamond.price || 0)
         : Number(diamond.customerPrice || diamond.listPrice || diamond.price || 0)
 
       const discountPrice = isApprovedDealer
-        ? (diamond.dealerDiscountPrice != null && Number(diamond.dealerDiscountPrice) > 0 ? Number(diamond.dealerDiscountPrice) : null)
+        ? (diamond.dealerDiscountPrice != null && Number(diamond.dealerDiscountPrice) > 0 ? Number(diamond.dealerDiscountPrice) : (diamond.discountPrice != null && Number(diamond.discountPrice) > 0 ? Number(diamond.discountPrice) : null))
         : (diamond.customerDiscountPrice != null && Number(diamond.customerDiscountPrice) > 0 ? Number(diamond.customerDiscountPrice) : (diamond.discountPrice != null && Number(diamond.discountPrice) > 0 ? Number(diamond.discountPrice) : null))
 
       const effectivePrice = (discountPrice != null && discountPrice < listPrice)
@@ -357,7 +464,7 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
         : (listPrice || Number(diamond.price || 0))
 
       const discountPercent = isApprovedDealer
-        ? (diamond.dealerDiscountPercent != null ? Number(diamond.dealerDiscountPercent) : null)
+        ? (diamond.dealerDiscountPercent != null ? Number(diamond.dealerDiscountPercent) : (diamond.discountPercent != null ? Number(diamond.discountPercent) : (listPrice > effectivePrice ? Math.round(((listPrice - effectivePrice) / listPrice) * 100) : null)))
         : (diamond.customerDiscountPercent != null ? Number(diamond.customerDiscountPercent) : (diamond.discountPercent != null ? Number(diamond.discountPercent) : (listPrice > effectivePrice ? Math.round(((listPrice - effectivePrice) / listPrice) * 100) : null)))
 
       const currentCart = JSON.parse(localStorage.getItem('hmd_cart') || '[]')
@@ -700,8 +807,8 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
           <>
             <div className="public-diamond-grid">
               {paginatedItems.map(item => {
-              const displayCustomerPrice = item.customerPrice || item.price || 0
-              const displayDealerPrice = item.dealerPrice || item.wholesalePrice || 0
+              const displayCustomerPrice = item.customerPrice || (!isApprovedDealer ? item.price : 0) || 0
+              const displayDealerPrice = item.dealerPrice || item.wholesalePrice || (isApprovedDealer ? (item.listPrice || item.price) : 0) || 0
 
               return (
                 <article className="public-diamond-card" key={item.sku}>
@@ -887,13 +994,14 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                     >
                       {addedSku === item.sku ? '✓ Added to Cart!' : '+ Add to Cart'}
                     </button>
-                    <a
-                      href={`mailto:sales@heymandiamond.com?subject=Inquiry%20about%20${encodeURIComponent(item.shape)}%20${item.carat}ct%20(${encodeURIComponent(item.sku)})&body=Hello%20Hey%20Man%20Diamond%20Team,%0A%0AI%20am%20interested%20in%20learning%20more%20about%20SKU%20${encodeURIComponent(item.sku)}%20(${encodeURIComponent(item.shape)}%20${item.carat}ct,%20Color%20${encodeURIComponent(item.color)},%20Clarity%20${encodeURIComponent(item.clarity)}).%0A%0APlease%20let%20me%20know%20availability%20and%20shipping%20details.`}
+                    <button
+                      type="button"
                       className="card-inquire-btn"
                       title="Contact sales about this stone"
+                      onClick={() => handleOpenInquiry(item)}
                     >
                       Inquire
-                    </a>
+                    </button>
                   </div>
                 </article>
               )
@@ -1152,15 +1260,15 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                   {isApprovedDealer && (
                     <div className="modal-price-box modal-price-box--dealer">
                       <span className="modal-price-label">💎 Dealer Wholesale Rate</span>
-                      {activeMediaDiamond.dealerDiscountPrice && activeMediaDiamond.dealerDiscountPercent && (activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice) && (activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice)! > activeMediaDiamond.dealerDiscountPrice ? (
+                      {activeMediaDiamond.dealerDiscountPrice && activeMediaDiamond.dealerDiscountPercent && (activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || (isApprovedDealer ? (activeMediaDiamond.listPrice || activeMediaDiamond.price) : 0)) && (activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || (isApprovedDealer ? (activeMediaDiamond.listPrice || activeMediaDiamond.price) : 0))! > activeMediaDiamond.dealerDiscountPrice ? (
                         <div className="modal-discount-wrap">
-                          <span className="modal-price-struck">${formatDisplayPrice(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice)}</span>
+                          <span className="modal-price-struck">${formatDisplayPrice(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || (isApprovedDealer ? (activeMediaDiamond.listPrice || activeMediaDiamond.price) : 0))}</span>
                           <span className="modal-price-value modal-price-value--dealer modal-price-value--discounted">${formatDisplayPrice(activeMediaDiamond.dealerDiscountPrice)}</span>
                           <span className="discount-tag-badge discount-tag-badge--dealer">{Math.round(activeMediaDiamond.dealerDiscountPercent)}% OFF</span>
                         </div>
                       ) : (
                         <span className="modal-price-value modal-price-value--dealer">
-                          ${formatDisplayPrice(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || 0)}
+                          ${formatDisplayPrice(activeMediaDiamond.dealerPrice || activeMediaDiamond.wholesalePrice || (isApprovedDealer ? (activeMediaDiamond.listPrice || activeMediaDiamond.price) : 0) || 0)}
                         </span>
                       )}
                     </div>
@@ -1177,12 +1285,17 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                   >
                     + Add to Cart &amp; Request Quote
                   </button>
-                  <a
-                    href={`mailto:sales@heymandiamond.com?subject=Inquiry%20about%20${encodeURIComponent(activeMediaDiamond.shape)}%20${activeMediaDiamond.carat}ct%20(${encodeURIComponent(activeMediaDiamond.sku)})`}
+                  <button
+                    type="button"
                     className="modal-inquire-btn"
+                    onClick={() => {
+                      const stone = activeMediaDiamond
+                      closeMediaModal()
+                      handleOpenInquiry(stone)
+                    }}
                   >
-                    Contact Diamond Specialist
-                  </a>
+                    Inquire About This Diamond
+                  </button>
                 </div>
 
                 {/* ── Share Options (WhatsApp, SMS, Email, Copy Link) ── */}
@@ -1280,6 +1393,185 @@ export default function DiamondCollection({ currentUser, onCartChange }: Diamond
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sign-In Required Prompt Modal for Inquiry ── */}
+      {inquiryAuthPromptDiamond && (
+        <div className="inquiry-modal-overlay" onClick={() => setInquiryAuthPromptDiamond(null)}>
+          <div className="inquiry-auth-prompt-card" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="auth-prompt-title">
+            <button type="button" className="inquiry-modal-close" onClick={() => setInquiryAuthPromptDiamond(null)} aria-label="Close dialog">✕</button>
+            <div className="auth-prompt-icon">🔒</div>
+            <h3 id="auth-prompt-title">Sign In Required to Inquire</h3>
+            <p>
+              Please sign in to your Hey Man Diamond account to inquire about{' '}
+              <strong>{inquiryAuthPromptDiamond.shape} {inquiryAuthPromptDiamond.carat}ct ({inquiryAuthPromptDiamond.sku})</strong>.
+            </p>
+            <p className="auth-prompt-subtext">
+              Signing in automatically pre-fills your contact details and routes your inquiry directly to our certified diamond specialists.
+            </p>
+            <div className="auth-prompt-actions">
+              <button
+                type="button"
+                className="button-primary"
+                onClick={() => {
+                  sessionStorage.setItem('hmd_inquire_sku', inquiryAuthPromptDiamond.sku)
+                  setInquiryAuthPromptDiamond(null)
+                  window.location.hash = '#signin'
+                }}
+              >
+                Sign In to Inquire →
+              </button>
+              <button type="button" className="button-secondary" onClick={() => setInquiryAuthPromptDiamond(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Diamond Inquiry Contact Form Modal ── */}
+      {inquiryDiamond && (
+        <div className="inquiry-modal-overlay" onClick={() => { if (!inquirySubmitting) setInquiryDiamond(null) }}>
+          <div className="inquiry-modal-card" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="inquiry-modal-title">
+            <div className="inquiry-modal-header">
+              <div>
+                <h3 id="inquiry-modal-title">Inquire About Diamond</h3>
+                <p className="inquiry-modal-subhead">Direct inquiry to our certified diamond sales specialists</p>
+              </div>
+              <button
+                type="button"
+                className="inquiry-modal-close"
+                onClick={() => setInquiryDiamond(null)}
+                aria-label="Close inquiry form"
+                disabled={inquirySubmitting}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Diamond Specs Snapshot Card */}
+            <div className="inquiry-diamond-snapshot">
+              <div className="inquiry-snapshot-header">
+                <div className="inquiry-snapshot-shape">
+                  <span className="inquiry-diamond-shape-badge">{inquiryDiamond.shape}</span>
+                  <span className="inquiry-diamond-carat">{inquiryDiamond.carat} Carat</span>
+                </div>
+                <div className="inquiry-snapshot-price">
+                  {isApprovedDealer ? (
+                    <span className="inquiry-dealer-price">
+                      <small>Wholesale Rate:</small> ${formatDisplayPrice(getInquiryDisplayPrice(inquiryDiamond, isApprovedDealer))}
+                    </span>
+                  ) : (
+                    <span className="inquiry-customer-price">
+                      <small>Price:</small> ${formatDisplayPrice(getInquiryDisplayPrice(inquiryDiamond, isApprovedDealer))}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="inquiry-snapshot-grid">
+                <div><small>SKU:</small> <strong>{inquiryDiamond.sku}</strong></div>
+                <div><small>Color:</small> <strong>{inquiryDiamond.color}</strong></div>
+                <div><small>Clarity:</small> <strong>{inquiryDiamond.clarity}</strong></div>
+                <div><small>Cut:</small> <strong>{inquiryDiamond.cut || 'Excellent'}</strong></div>
+                <div><small>Cert #:</small> <span>{inquiryDiamond.certificateNumber || 'On file'}</span></div>
+                <div><small>Measurements:</small> <span>{inquiryDiamond.measurements || 'Available on request'}</span></div>
+              </div>
+            </div>
+
+            {inquiryStatus?.kind === 'success' ? (
+              <div className="inquiry-success-view">
+                <div className="inquiry-success-icon">✓</div>
+                <h4>Inquiry Submitted Successfully</h4>
+                <p>{inquiryStatus.text}</p>
+                <p className="inquiry-success-note">
+                  A notification has been dispatched to <strong>sales@heymandiamond.com</strong>.
+                </p>
+                <button
+                  type="button"
+                  className="button-primary"
+                  onClick={() => setInquiryDiamond(null)}
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitInquiry} className="inquiry-form">
+                {inquiryStatus?.kind === 'error' && (
+                  <div className="inquiry-error-banner" role="alert">
+                    ⚠️ {inquiryStatus.text}
+                  </div>
+                )}
+
+                <div className="inquiry-form-row">
+                  <label className="inquiry-field-label">
+                    <span>Full Name</span>
+                    <input
+                      type="text"
+                      className="inquiry-input"
+                      value={inquiryName}
+                      onChange={e => setInquiryName(e.target.value)}
+                      required
+                      maxLength={120}
+                    />
+                  </label>
+                  <label className="inquiry-field-label">
+                    <span>Email Address</span>
+                    <input
+                      type="email"
+                      className="inquiry-input"
+                      value={inquiryEmail}
+                      onChange={e => setInquiryEmail(e.target.value)}
+                      required
+                      maxLength={254}
+                    />
+                  </label>
+                </div>
+
+                <label className="inquiry-field-label">
+                  <span>Mobile Phone</span>
+                  <input
+                    type="tel"
+                    className="inquiry-input"
+                    value={inquiryPhone}
+                    onChange={e => setInquiryPhone(e.target.value)}
+                    placeholder="e.g. +1 312 646 0070"
+                  />
+                </label>
+
+                <label className="inquiry-field-label">
+                  <span>Your Remarks / What You Are Looking For *</span>
+                  <textarea
+                    className="inquiry-textarea"
+                    rows={4}
+                    value={inquiryRemarks}
+                    onChange={e => setInquiryRemarks(e.target.value)}
+                    placeholder="Tell us what you want (e.g. custom ring setting, timeline, certificate inspection, diamond hold request, or price negotiation)..."
+                    required
+                    maxLength={3000}
+                  />
+                </label>
+
+                <div className="inquiry-form-actions">
+                  <button
+                    type="submit"
+                    className="button-primary inquiry-submit-btn"
+                    disabled={inquirySubmitting}
+                  >
+                    {inquirySubmitting ? 'Submitting Inquiry…' : 'Submit Diamond Inquiry'}
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => setInquiryDiamond(null)}
+                    disabled={inquirySubmitting}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { db, json, bodyJson, supabaseReady, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from './shared.mjs'
+import { db, json, bodyJson, supabaseReady, getSupabaseUrl, getSupabaseServiceRoleKey, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from './shared.mjs'
 import { ROLE_TITLES, getDefaultPermissions, resolvePermissions } from './auth.mjs'
 
 // In-memory staff storage for development and offline/mock operation
@@ -552,6 +552,27 @@ export async function handleUpdateDealerApplication(req, res, admin, id) {
       headers: { Prefer: 'return=minimal' },
       body: JSON.stringify(profileUpdates),
     })
+
+    if (supabaseReady() && SUPABASE_SERVICE_ROLE_KEY && SUPABASE_URL && !SUPABASE_URL.includes('mock')) {
+      try {
+        await fetch(`${getSupabaseUrl()}/auth/v1/admin/users/${encodeURIComponent(String(currentApp.user_id))}`, {
+          method: 'PUT',
+          headers: {
+            apikey: getSupabaseServiceRoleKey(),
+            Authorization: `Bearer ${getSupabaseServiceRoleKey()}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_metadata: {
+              ...(input.status === 'approved' ? { account_type: 'dealer' } : {}),
+              dealer_status: input.status,
+            },
+          }),
+        })
+      } catch (e) {
+        console.warn('Failed to sync dealer status to auth user metadata:', e.message)
+      }
+    }
   }
 
   const isActorUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(admin?.user?.id || ''))

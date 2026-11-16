@@ -224,6 +224,8 @@ test('Pricing API — Strict Audience Isolation in Catalog responses', async () 
   await handleGetCatalog(dealerReq, dealerRes, dealerUrl, dealerUser)
 
   assert.strictEqual(dealerRes.statusCode, 200)
+  assert.strictEqual(dealerRes.json.isDealerPricing, true)
+  assert.strictEqual(dealerRes.json.dealerPendingApproval, false)
   const dealerItems = dealerRes.json.items
   assert.ok(dealerItems.length > 0)
   for (const item of dealerItems) {
@@ -232,6 +234,25 @@ test('Pricing API — Strict Audience Isolation in Catalog responses', async () 
     assert.strictEqual(item.customerDiscountPrice, undefined, 'Dealer must not receive customerDiscountPrice')
     assert.strictEqual(item.customerDiscountPercent, undefined, 'Dealer must not receive customerDiscountPercent')
     // Must see dealer price
+    assert.ok(item.dealerPrice !== undefined || item.wholesalePrice !== undefined)
+  }
+
+  // 3. Dealer request with user_metadata structure
+  const dealerMetaUser = {
+    id: 'dealer-meta-456',
+    email: 'dealer@trade.com',
+    user_metadata: {
+      account_type: 'dealer',
+      dealer_status: 'approved',
+    },
+  }
+  const dealerMetaRes = createMockRes()
+  await handleGetCatalog(createMockReq(), dealerMetaRes, dealerUrl, dealerMetaUser)
+  assert.strictEqual(dealerMetaRes.statusCode, 200)
+  assert.strictEqual(dealerMetaRes.json.isDealerPricing, true)
+  assert.strictEqual(dealerMetaRes.json.dealerPendingApproval, false)
+  for (const item of dealerMetaRes.json.items) {
+    assert.strictEqual(item.customerPrice, undefined)
     assert.ok(item.dealerPrice !== undefined || item.wholesalePrice !== undefined)
   }
 })

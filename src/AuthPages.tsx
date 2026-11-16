@@ -8,7 +8,37 @@ import { computeAudiencePricingDraft, validateRowDiscount } from './discountHelp
 import { sanitizeAdminDiamonds } from './inventoryUtils'
 
 type Mode = 'signup-customer' | 'signup-dealer' | 'signin' | 'account' | 'admin' | 'forgot-password' | 'reset-password'
-type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'admin-orders' | 'tools' | 'dealers' | 'offers' | 'reviews' | 'team'
+type AccountTab = 'overview' | 'catalog' | 'cart' | 'profile' | 'orders' | 'admin-orders' | 'admin-inquiries' | 'tools' | 'dealers' | 'offers' | 'reviews' | 'team'
+
+export interface AdminInquiryItem {
+  id: string
+  inquiry_number: number
+  user_id?: string | null
+  diamond_sku: string
+  diamond_shape?: string | null
+  diamond_carat?: number | null
+  diamond_color?: string | null
+  diamond_clarity?: string | null
+  diamond_cut?: string | null
+  diamond_price?: number | null
+  diamond_details?: {
+    certificateNumber?: string
+    measurements?: string
+    lab?: string
+    imageUrl?: string
+    audience?: string
+  }
+  customer_name: string
+  customer_email: string
+  customer_phone?: string | null
+  remarks: string
+  status: 'new' | 'in_progress' | 'replied' | 'closed'
+  admin_reply?: string | null
+  replied_at?: string | null
+  replied_by?: string | null
+  created_at: string
+  updated_at: string
+}
 
 export interface StaffPermissions {
   can_manage_inventory?: boolean
@@ -490,6 +520,17 @@ export default function AuthPages({
   const [activeCounterQuoteId, setActiveCounterQuoteId] = useState<string | null>(null)
   const [counterPriceInput, setCounterPriceInput] = useState<string>('')
   const [counterNoteInput, setCounterNoteInput] = useState<string>('')
+
+  // ── Admin Diamond Inquiries State ────────────────────────────────────────
+  const [adminInquiries, setAdminInquiries] = useState<AdminInquiryItem[]>([])
+  const [loadingAdminInquiries, setLoadingAdminInquiries] = useState(false)
+  const [adminInquiriesUnread, setAdminInquiriesUnread] = useState(0)
+  const [adminInquirySearch, setAdminInquirySearch] = useState('')
+  const [adminInquiryFilter, setAdminInquiryFilter] = useState<string>('all')
+  const [replyingInquiryId, setReplyingInquiryId] = useState<string | null>(null)
+  const [adminReplyText, setAdminReplyText] = useState('')
+  const [adminReplySubmitting, setAdminReplySubmitting] = useState(false)
+  const [adminInquiryMsg, setAdminInquiryMsg] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null)
 
   // ── forgot & reset password state ────────────────────────────────────────
   const [newPassword, setNewPassword] = useState('')
@@ -1693,7 +1734,10 @@ export default function AuthPages({
   }
 
   const addToCart = (diamond: DiamondItem) => {
-    const listPrice = Number(diamond.listPrice || diamond.customerPrice || diamond.price || 0)
+    const isApprovedDealer = user?.account_type === 'dealer' && user?.dealer_status === 'approved'
+    const listPrice = isApprovedDealer
+      ? Number(diamond.dealerPrice || diamond.wholesalePrice || diamond.listPrice || diamond.price || 0)
+      : Number(diamond.customerPrice || diamond.listPrice || diamond.price || 0)
     const discountPrice = diamond.discountPrice != null && Number(diamond.discountPrice) > 0
       ? Number(diamond.discountPrice)
       : null
@@ -1795,7 +1839,10 @@ export default function AuthPages({
     const syncedCart = cart.map(item => {
       const match = catalogItems.find(c => c.sku === item.sku)
       if (!match) return item
-      const listPrice = Number(match.listPrice || match.customerPrice || match.price || 0)
+      const isApprovedDealer = user?.account_type === 'dealer' && user?.dealer_status === 'approved'
+      const listPrice = isApprovedDealer
+        ? Number(match.dealerPrice || match.wholesalePrice || match.listPrice || match.price || 0)
+        : Number(match.listPrice || match.customerPrice || match.price || 0)
       const discountPrice = match.discountPrice != null && Number(match.discountPrice) > 0 ? Number(match.discountPrice) : null
       const effectivePrice = (discountPrice != null && discountPrice < listPrice)
         ? discountPrice
@@ -1899,10 +1946,83 @@ export default function AuthPages({
     }
   }
 
+  const loadAdminInquiries = useCallback(() => {
+    setLoadingAdminInquiries(true)
+    const token = localStorage.getItem('hmd_access_token')
+    fetch('/api/admin/inquiries', {
+      headers: { Authorization: `Bearer ${token || ''}` },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.items)) {
+          setAdminInquiries(data.items)
+          setAdminInquiriesUnread(Number(data.unreadCount) || 0)
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to load admin inquiries:', err)
+      })
+      .finally(() => setLoadingAdminInquiries(false))
+  }, [])
+
+  async function handleSendAdminReply(inquiryId: string) {
+    if (!adminReplyText.trim()) {
+      setAdminInquiryMsg({ text: 'Please enter a reply message.', kind: 'error' })
+      return
+    }
+    const token = localStorage.getItem('hmd_access_token')
+    setAdminReplySubmitting(true)
+    setAdminInquiryMsg(null)
+    try {
+      const res = await fetch(`/api/admin/inquiries/${encodeURIComponent(inquiryId)}/reply`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({ reply: adminReplyText.trim(), status: 'replied' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setAdminInquiryMsg({ text: data.error || 'Failed to submit reply.', kind: 'error' })
+        setAdminReplySubmitting(false)
+        return
+      }
+      setAdminInquiryMsg({ text: 'Reply sent successfully and customer notified via email.', kind: 'success' })
+      setReplyingInquiryId(null)
+      setAdminReplyText('')
+      loadAdminInquiries()
+    } catch {
+      setAdminInquiryMsg({ text: 'Network connection issue while submitting reply.', kind: 'error' })
+    } finally {
+      setAdminReplySubmitting(false)
+    }
+  }
+
+  async function handleUpdateInquiryStatus(inquiryId: string, newStatus: string) {
+    const token = localStorage.getItem('hmd_access_token')
+    try {
+      const res = await fetch(`/api/admin/inquiries/${encodeURIComponent(inquiryId)}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        loadAdminInquiries()
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const isTabAllowed = useCallback((tab: AccountTab): boolean => {
     if (!isUserAdmin) return true
     if (tab === 'orders') return true
     if (tab === 'admin-orders') return hasOrdersPerm
+    if (tab === 'admin-inquiries') return hasOrdersPerm || hasInventoryPerm || isUserAdmin
     if (tab === 'tools') return hasInventoryPerm
     if (tab === 'dealers') return hasKycPerm
     if (tab === 'offers') return hasPromotionsPerm
@@ -1927,6 +2047,9 @@ export default function AuthPages({
     }
     if (targetTab === 'admin-orders') {
       loadAdminQuotes()
+    }
+    if (targetTab === 'admin-inquiries') {
+      loadAdminInquiries()
     }
     if (targetTab === 'offers') {
       fetchPromotions()
@@ -2802,6 +2925,15 @@ export default function AuthPages({
             {isUserAdmin && (
               <button
                 type="button"
+                className={`account-tab-btn ${effectiveTab === 'admin-inquiries' ? 'account-tab-btn--active' : ''}`}
+                onClick={() => switchTab('admin-inquiries')}
+              >
+                💎 Diamond Inquiries {adminInquiriesUnread > 0 ? `(${adminInquiriesUnread})` : ''}
+              </button>
+            )}
+            {isUserAdmin && (
+              <button
+                type="button"
                 className={`account-tab-btn ${effectiveTab === 'orders' ? 'account-tab-btn--active' : ''}`}
                 onClick={() => switchTab('orders')}
               >
@@ -2873,6 +3005,18 @@ export default function AuthPages({
                     </div>
                     <button type="button" className="button-primary" onClick={() => switchTab('admin-orders')}>
                       Review Website Orders {adminQuotesUnread > 0 ? `(${adminQuotesUnread} Pending)` : '→'}
+                    </button>
+                  </div>
+                )}
+
+                {isUserAdmin && (
+                  <div className="account-card-item account-card-item--admin-highlight">
+                    <div>
+                      <h3>💎 Diamond Customer Inquiries</h3>
+                      <p>Review customer inquiries for diamond inventory, inspect customer remarks, and reply directly to customers from the portal.</p>
+                    </div>
+                    <button type="button" className="button-primary" onClick={() => switchTab('admin-inquiries')}>
+                      Review Diamond Inquiries {adminInquiriesUnread > 0 ? `(${adminInquiriesUnread} New)` : '→'}
                     </button>
                   </div>
                 )}
@@ -4253,6 +4397,278 @@ export default function AuthPages({
                                             </button>
                                           )}
                                         </footer>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                })()
+              )}
+            </div>
+          )}
+
+          {/* ── TAB: DIAMOND INQUIRIES (STAFF / ADMIN ONLY) ── */}
+          {effectiveTab === 'admin-inquiries' && isUserAdmin && (
+            <div className="tab-content tab-content--admin-orders">
+              <div className="admin-orders-header">
+                <div>
+                  <h2>💎 Diamond Customer Inquiries</h2>
+                  <p>Review customer inquiries for diamond inventory, inspect customer remarks, and send direct specialist replies.</p>
+                </div>
+                <button
+                  type="button"
+                  className="button-secondary admin-refresh-btn"
+                  onClick={loadAdminInquiries}
+                  disabled={loadingAdminInquiries}
+                >
+                  {loadingAdminInquiries ? 'Refreshing…' : '↻ Refresh Inquiries'}
+                </button>
+              </div>
+
+              {adminInquiryMsg && (
+                <p className={`auth-status auth-status--${adminInquiryMsg.kind}`} style={{ margin: '14px 0' }}>
+                  {adminInquiryMsg.text}
+                </p>
+              )}
+
+              {/* Controls bar: Search & Status Filters */}
+              <div className="admin-orders-controls">
+                <div className="admin-orders-search-wrap">
+                  <span className="admin-search-icon" aria-hidden="true">🔍</span>
+                  <input
+                    type="text"
+                    className="admin-orders-search-input"
+                    placeholder="Search by inquiry #, customer name, email, phone, or SKU…"
+                    value={adminInquirySearch}
+                    onChange={e => setAdminInquirySearch(e.target.value)}
+                  />
+                  {adminInquirySearch && (
+                    <button
+                      type="button"
+                      className="admin-search-clear-btn"
+                      onClick={() => setAdminInquirySearch('')}
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="admin-orders-filter-pills" role="tablist" aria-label="Filter inquiries">
+                  {[
+                    { key: 'all', label: 'All Inquiries', count: adminInquiries.length },
+                    { key: 'new', label: '⚡ New / Pending', count: adminInquiries.filter(i => i.status === 'new' || i.status === 'in_progress').length },
+                    { key: 'replied', label: '💬 Replied', count: adminInquiries.filter(i => i.status === 'replied').length },
+                    { key: 'closed', label: '✕ Closed', count: adminInquiries.filter(i => i.status === 'closed').length },
+                  ].map(f => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      className={`admin-filter-pill ${adminInquiryFilter === f.key ? 'admin-filter-pill--active' : ''}`}
+                      onClick={() => setAdminInquiryFilter(f.key)}
+                    >
+                      {f.label} <span className="admin-filter-count">({f.count})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {loadingAdminInquiries ? (
+                <p style={{ padding: '40px', textAlign: 'center', color: '#77746b' }}>Loading customer diamond inquiries…</p>
+              ) : adminInquiries.length === 0 ? (
+                <div className="empty-orders-view">
+                  <p>No customer diamond inquiries submitted yet.</p>
+                </div>
+              ) : (
+                (() => {
+                  const filtered = adminInquiries.filter(item => {
+                    if (adminInquiryFilter === 'new' && item.status !== 'new' && item.status !== 'in_progress') return false
+                    if (adminInquiryFilter !== 'all' && adminInquiryFilter !== 'new' && item.status !== adminInquiryFilter) return false
+
+                    if (adminInquirySearch.trim()) {
+                      const term = adminInquirySearch.trim().toLowerCase()
+                      const inSku = (item.diamond_sku || '').toLowerCase().includes(term)
+                      const inName = (item.customer_name || '').toLowerCase().includes(term)
+                      const inEmail = (item.customer_email || '').toLowerCase().includes(term)
+                      const inPhone = (item.customer_phone || '').toLowerCase().includes(term)
+                      const inRemarks = (item.remarks || '').toLowerCase().includes(term)
+                      const inNum = String(item.inquiry_number || '').includes(term)
+                      if (!inSku && !inName && !inEmail && !inPhone && !inRemarks && !inNum) return false
+                    }
+                    return true
+                  })
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="empty-orders-view">
+                        <p>No inquiries match the current filter or search criteria.</p>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="admin-orders-table-wrap">
+                      <table className="admin-orders-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: '100px' }}>Inquiry #</th>
+                            <th style={{ width: '130px' }}>Date</th>
+                            <th>Customer</th>
+                            <th>Diamond Specs</th>
+                            <th style={{ minWidth: '220px' }}>Customer Remarks</th>
+                            <th style={{ width: '110px' }}>Status</th>
+                            <th style={{ minWidth: '200px' }}>Specialist Reply / Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map(inq => {
+                            const isReplying = replyingInquiryId === inq.id
+                            return (
+                              <Fragment key={inq.id}>
+                                <tr className="admin-order-row">
+                                  <td>
+                                    <strong style={{ color: '#8c6b32' }}>#INQ-{inq.inquiry_number || inq.id.slice(0, 6)}</strong>
+                                  </td>
+                                  <td style={{ fontSize: '12px', color: '#68645a' }}>
+                                    {new Date(inq.created_at).toLocaleDateString()}<br />
+                                    <small>{new Date(inq.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 600, color: '#1c1b17' }}>{inq.customer_name}</div>
+                                    <div style={{ fontSize: '12px', color: '#545045' }}>
+                                      <a href={`mailto:${inq.customer_email}`} style={{ color: 'inherit' }}>{inq.customer_email}</a>
+                                    </div>
+                                    {inq.customer_phone && (
+                                      <div style={{ fontSize: '11.5px', color: '#7a7566' }}>📞 {inq.customer_phone}</div>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 700, color: '#1f1e1a' }}>SKU: {inq.diamond_sku}</div>
+                                    <div style={{ fontSize: '12px', color: '#4a463a' }}>
+                                      {inq.diamond_shape ? `${inq.diamond_shape} ` : ''}
+                                      {inq.diamond_carat ? `${inq.diamond_carat}ct ` : ''}
+                                    </div>
+                                    <div style={{ fontSize: '11.5px', color: '#757062' }}>
+                                      {inq.diamond_color ? `Color: ${inq.diamond_color} · ` : ''}
+                                      {inq.diamond_clarity ? `Clarity: ${inq.diamond_clarity}` : ''}
+                                    </div>
+                                    {inq.diamond_price && (
+                                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f5132' }}>
+                                        ${Number(inq.diamond_price).toLocaleString()}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12.5px', background: '#fbf9f4', border: '1px solid #ebe4d5', borderRadius: '6px', padding: '8px 10px' }}>
+                                      {inq.remarks}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    {inq.status === 'new' && (
+                                      <span className="admin-status-badge admin-status-badge--new">⚡ New</span>
+                                    )}
+                                    {inq.status === 'in_progress' && (
+                                      <span className="admin-status-badge admin-status-badge--under_review">In Progress</span>
+                                    )}
+                                    {inq.status === 'replied' && (
+                                      <span className="admin-status-badge admin-status-badge--accepted">✓ Replied</span>
+                                    )}
+                                    {inq.status === 'closed' && (
+                                      <span className="admin-status-badge admin-status-badge--closed">Closed</span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    {inq.admin_reply && (
+                                      <div style={{ fontSize: '11.5px', background: '#edf7ed', border: '1px solid #c8e6c9', borderRadius: '6px', padding: '6px 8px', marginBottom: '8px' }}>
+                                        <div style={{ fontWeight: 600, color: '#1b5e20' }}>
+                                          💬 {inq.replied_by || 'Specialist'}:
+                                        </div>
+                                        <div style={{ color: '#2e7d32', fontStyle: 'italic', marginTop: '2px' }}>
+                                          "{inq.admin_reply}"
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                      <button
+                                        type="button"
+                                        className="button-primary"
+                                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                                        onClick={() => {
+                                          if (isReplying) {
+                                            setReplyingInquiryId(null)
+                                          } else {
+                                            setReplyingInquiryId(inq.id)
+                                            setAdminReplyText(inq.admin_reply || '')
+                                            setAdminInquiryMsg(null)
+                                          }
+                                        }}
+                                      >
+                                        {inq.admin_reply ? '✏️ Edit Reply' : '✉️ Reply'}
+                                      </button>
+                                      {inq.status !== 'closed' ? (
+                                        <button
+                                          type="button"
+                                          className="button-secondary"
+                                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                                          onClick={() => handleUpdateInquiryStatus(inq.id, 'closed')}
+                                        >
+                                          Close
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          className="button-secondary"
+                                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                                          onClick={() => handleUpdateInquiryStatus(inq.id, 'new')}
+                                        >
+                                          Reopen
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+
+                                {isReplying && (
+                                  <tr className="admin-reply-row">
+                                    <td colSpan={7} style={{ background: '#fdfbf7', padding: '16px 20px', borderBottom: '2px solid #e2dac9' }}>
+                                      <div style={{ maxWidth: '640px' }}>
+                                        <label style={{ display: 'block', fontWeight: 600, fontSize: '13px', marginBottom: '6px', color: '#1c1b17' }}>
+                                          Reply to {inq.customer_name} ({inq.customer_email}) regarding {inq.diamond_sku}:
+                                        </label>
+                                        <textarea
+                                          style={{ width: '100%', minHeight: '80px', padding: '10px 12px', border: '1px solid #c9bea7', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                                          value={adminReplyText}
+                                          onChange={e => setAdminReplyText(e.target.value)}
+                                          placeholder="Type your response to the customer. When submitted, an email notification will be sent to the customer..."
+                                          maxLength={3000}
+                                        />
+                                        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                                          <button
+                                            type="button"
+                                            className="button-primary"
+                                            style={{ padding: '6px 14px', fontSize: '13px' }}
+                                            onClick={() => handleSendAdminReply(inq.id)}
+                                            disabled={adminReplySubmitting}
+                                          >
+                                            {adminReplySubmitting ? 'Sending Reply…' : '✉️ Submit Reply & Send Email'}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="button-secondary"
+                                            style={{ padding: '6px 12px', fontSize: '13px' }}
+                                            onClick={() => setReplyingInquiryId(null)}
+                                            disabled={adminReplySubmitting}
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
                                       </div>
                                     </td>
                                   </tr>
