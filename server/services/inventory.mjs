@@ -53,13 +53,18 @@ export function isAllowedFlomizUrl(rawUrl) {
 export function cleanFlomizBaseUrl(rawUrl) {
   if (!rawUrl) return 'https://diamond.flomiz.com'
   let url = String(rawUrl).trim()
-  if (/^www\.billing\.flomiz\.com/i.test(url)) {
-    url = 'https://billing.flomiz.com'
-  } else if (/^https?:\/\/www\.billing\.flomiz\.com/i.test(url)) {
-    url = url.replace(/www\./i, '')
-  } else if (!/^https?:\/\//i.test(url)) {
+  if (!/^https?:\/\//i.test(url)) {
     url = `https://${url}`
   }
+
+  // Strip the stock API path suffix if someone pastes the full endpoint URL
+  url = url.replace(/\/+api\/stock-api\/products.*$/i, '')
+
+  // Normalize consecutive slashes in the path (after the protocol)
+  url = url.replace(/^(https?:\/\/)(.+)$/, (_, proto, rest) => proto + rest.replace(/\/+/g, '/'))
+
+  // Drop www. prefix from billing subdomain for canonical form
+  url = url.replace(/^(https?:\/\/)www\.(billing\.flomiz\.com)/i, '$1$2')
 
   // SSRF defense: enforce allowed domain pattern
   if (!isAllowedFlomizUrl(url)) {
