@@ -416,8 +416,8 @@ test('Admin Panel — Orders from Website Permissions & Quote Status Lifecycle',
   await t.test('Order Notification Dispatch — formatOrderEmailBody generates complete order details', () => {
     const emailBody = formatOrderEmailBody({
       quoteNumber: 10452,
-      customerName: 'Bhikham Singh',
-      customerEmail: 'bhikhamsingh1957@gmail.com',
+      customerName: 'Test Wholesale Buyer',
+      customerEmail: 'testbuyer@example.com',
       phone: '+1 312 646 0070',
       shippingAddress: '5 S Wabash Ave, Suite 1704, Chicago, IL 60603',
       deliveryPreference: 'Armored Courier (Insured)',
@@ -475,8 +475,8 @@ test('Admin Panel — Orders from Website Permissions & Quote Status Lifecycle',
     assert.match(emailBody, /Pending Review \(Custom Target Offer\)/)
 
     // Customer info
-    assert.match(emailBody, /Bhikham Singh/)
-    assert.match(emailBody, /bhikhamsingh1957@gmail\.com/)
+    assert.match(emailBody, /Test Wholesale Buyer/)
+    assert.match(emailBody, /testbuyer@example\.com/)
     assert.match(emailBody, /\+1 312 646 0070/)
     assert.match(emailBody, /usr-dealer-777/)
 

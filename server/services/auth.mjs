@@ -155,7 +155,13 @@ export async function verifyRecaptchaToken(token, ip) {
     return { success: false, error: 'Please verify that you are human by checking the CAPTCHA box.' }
   }
 
-  const secretKey = process.env.RECAPTCHA_SECRET_KEY || '6LcR0CMuAAAAACNbyg9YYDsbHhe44PzX1UiwBAmo'
+  const secretKey = (process.env.RECAPTCHA_SECRET_KEY || '').trim()
+  if (!secretKey) {
+    if (process.env.NODE_ENV !== 'production') {
+      return { success: true }
+    }
+    return { success: false, error: 'CAPTCHA verification service is not configured.' }
+  }
 
   try {
     const params = new URLSearchParams()

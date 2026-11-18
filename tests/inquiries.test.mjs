@@ -91,8 +91,8 @@ test('Diamond Inquiries — handleCreateInquiry validation and submission', asyn
     clarity: 'VS2',
     cut: 'Ideal',
     price: 909,
-    name: 'Bhikham Singh',
-    email: 'bhikhamsingh1957@gmail.com',
+    name: 'Sample Inquirer',
+    email: 'inquirer@example.com',
     phone: '+1 312 646 0070',
     remarks: 'Hello, I am interested in SKU HM-394. Please let me know shipping timeline and if certificate LG-833652740 is available.',
   })
@@ -118,7 +118,7 @@ test('Diamond Inquiries — Admin listing and permission enforcement', async () 
   assert.ok(Array.isArray(resAuth.json?.items), 'Must return items array')
   assert.ok(resAuth.json.items.length > 0, 'Must have at least 1 inquiry from previous test')
   assert.equal(resAuth.json.items[0].diamond_sku, 'HM-394')
-  assert.equal(resAuth.json.items[0].customer_name, 'Bhikham Singh')
+  assert.equal(resAuth.json.items[0].customer_name, 'Sample Inquirer')
 })
 
 test('Diamond Inquiries — Admin reply flow and status lifecycle', async () => {

@@ -447,7 +447,7 @@ export default function AuthPages({
   const [captchaToken, setCaptchaToken] = useState('')
   const recaptchaContainerRef = useRef<HTMLDivElement>(null)
   const recaptchaWidgetIdRef = useRef<number | null>(null)
-  const recaptchaSiteKey = (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string) || '6LcR0CMuAAAAAO7kxTY9CEFireOMzweWbEDDMpty'
+  const recaptchaSiteKey = ((import.meta.env.VITE_RECAPTCHA_SITE_KEY as string) || '').trim()
 
   // ── async / UX state ────────────────────────────────────────────────────
   const [status, setStatus] = useState<{ text: string; kind: 'info' | 'error' | 'success' }>(getInitialStatus)
@@ -2312,7 +2312,7 @@ export default function AuthPages({
 
   // ── Google reCAPTCHA v2 Lifecycle ─────────────────────────────────────────
   useEffect(() => {
-    if (user) return
+    if (user || !recaptchaSiteKey) return
 
     let active = true
 
@@ -7296,9 +7296,11 @@ export default function AuthPages({
             </div>
           )}
 
-          <div className="recaptcha-wrapper">
-            <div ref={recaptchaContainerRef} />
-          </div>
+          {recaptchaSiteKey && (
+            <div className="recaptcha-wrapper">
+              <div ref={recaptchaContainerRef} />
+            </div>
+          )}
 
           <button type="submit" disabled={busy}>
             {busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}
