@@ -33,6 +33,9 @@ dist-ssr
 .inventory_local.json
 *.inventory_local.json
 
+# Test and audit reports
+*.report.html
+
 # Agent scratch and run state
 .agents/
 .agent/
