@@ -435,6 +435,7 @@ button:focus-visible {
   line-height: 1;
   background: var(--gold-metallic);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   flex-shrink: 0;
 }
@@ -1349,8 +1350,8 @@ button:focus-visible {
 .footer-socials a .fa-instagram {
   color: #E4405F;
   background: linear-gradient(45deg, #FCAF45, #E4405F 55%, #833AB4);
-  background-clip: text;
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
